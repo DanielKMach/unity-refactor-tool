@@ -94,14 +94,18 @@ pub fn run(self: This, alloc: std.mem.Allocator) !RuntimeError {
         const reader = file.reader();
         const buf = try alloc.alloc(u8, guid.len - 1);
         defer alloc.free(buf);
-        while (true) {
+        main: while (true) {
             try reader.skipUntilDelimiterOrEof(guid[0]);
-            const c = reader.read(buf) catch |err| {
-                log.warn("Error ({s}) reading file: {s}", .{ @errorName(err), e.path });
-                break;
-            };
-            if (c == 0) break;
-            if (std.mem.eql(u8, buf, guid[1..])) {
+            for (1..guid.len) |i| {
+                const c = reader.readByte() catch |err| {
+                    switch (err) {
+                        error.EndOfStream => void{},
+                        else => log.warn("Error ({s}) reading file: {s}", .{ @errorName(err), e.path }),
+                    }
+                    break :main;
+                };
+                if (c != guid[i]) break;
+            } else {
                 std.debug.print("{s}\r\n", .{e.path});
                 break;
             }
