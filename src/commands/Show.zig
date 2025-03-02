@@ -7,6 +7,7 @@ const Tokenizer = @import("../Tokenizer.zig");
 const CompilerError = errors.CompilerError(This);
 const RuntimeError = errors.RuntimeError(void);
 const This = @This();
+const Scanner = @import("../Scanner.zig");
 
 mode: Mode,
 of: []const u8,
@@ -76,48 +77,69 @@ pub fn run(self: This, alloc: std.mem.Allocator) !RuntimeError {
     });
     defer alloc.free(guid);
 
-    var files = try dir.walk(alloc);
-    defer files.deinit();
+    var searchData = SearchData{
+        .cmd = &self,
+        .guid = guid,
+        .allocator = alloc,
+    };
 
-    var fileCount: usize = 0;
+    var scanner = try Scanner.init(dir, search, alloc);
+    defer scanner.deinit();
 
-    while (try files.next()) |e| {
-        if (e.kind != .file or !std.mem.endsWith(u8, e.path, ".prefab"))
-            continue;
-
-        var file = e.dir.openFile(e.basename, .{ .mode = .read_only }) catch |err| {
-            log.warn("Error ({s}) opening file: {s}", .{ @errorName(err), e.path });
-            continue;
-        };
-        defer file.close();
-
-        const reader = file.reader();
-        const buf = try alloc.alloc(u8, guid.len - 1);
-        defer alloc.free(buf);
-        main: while (true) {
-            try reader.skipUntilDelimiterOrEof(guid[0]);
-            for (1..guid.len) |i| {
-                const c = reader.readByte() catch |err| {
-                    switch (err) {
-                        error.EndOfStream => void{},
-                        else => log.warn("Error ({s}) reading file: {s}", .{ @errorName(err), e.path }),
-                    }
-                    break :main;
-                };
-                if (c != guid[i]) break;
-            } else {
-                std.debug.print("{s}\r\n", .{e.path});
-                break;
-            }
-        }
-
-        fileCount += 1;
-        std.debug.print("{d} files scanned\r", .{fileCount});
-    }
+    try scanner.scan(&searchData);
 
     std.debug.print("\r\n", .{});
     return RuntimeError.ok(void{});
 }
+
+fn search(self: *anyopaque, entry: std.fs.Dir.Walker.Entry) !void {
+    if (entry.kind != .file or !std.mem.endsWith(u8, entry.path, ".prefab"))
+        return;
+
+    var file = entry.dir.openFile(entry.basename, .{ .mode = .read_only }) catch |err| {
+        log.warn("Error ({s}) opening file: '{s}'", .{ @errorName(err), entry.path });
+        return;
+    };
+    defer file.close();
+
+    const data: *SearchData = @alignCast(@ptrCast(self));
+    const guid = data.guid;
+
+    const reader = file.reader();
+    main: while (true) {
+        try reader.skipUntilDelimiterOrEof(guid[0]);
+        for (1..guid.len) |i| {
+            const c = reader.readByte() catch |err| {
+                data.logMtx.lock();
+                defer data.logMtx.unlock();
+                switch (err) {
+                    error.EndOfStream => void{},
+                    else => log.warn("Error ({s}) reading file: '{s}'", .{ @errorName(err), entry.path }),
+                }
+                break :main;
+            };
+            if (c != guid[i]) break;
+        } else {
+            data.logMtx.lock();
+            defer data.logMtx.unlock();
+            std.debug.print("{s}\r\n", .{entry.path});
+            break;
+        }
+    }
+
+    data.logMtx.lock();
+    defer data.logMtx.unlock();
+    data.fileCount += 1;
+    std.debug.print("{d} files scanned\r", .{data.fileCount});
+}
+
+const SearchData = struct {
+    cmd: *const This,
+    allocator: std.mem.Allocator,
+    guid: []const u8,
+    fileCount: usize = 0,
+    logMtx: std.Thread.Mutex = std.Thread.Mutex{},
+};
 
 pub fn getGUID(asset: []const u8, allocator: std.mem.Allocator) ![]const u8 {
     const metaPath = try std.mem.concat(allocator, u8, &.{ asset, ".meta" });
