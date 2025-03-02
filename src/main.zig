@@ -3,6 +3,10 @@ const Parser = @import("Parser.zig");
 const Tokenizer = @import("Tokenizer.zig");
 const Show = @import("commands/Show.zig");
 
+pub const std_options: std.Options = .{
+    .logFn = log,
+};
+
 pub fn main() !void {
     const main_allocator = std.heap.page_allocator;
     var arena = std.heap.ArenaAllocator.init(main_allocator);
@@ -52,6 +56,30 @@ pub fn showCompilerError(errUnion: anytype) void {
         .unknown_command => {
             std.debug.print("Error: Unknown command\r\n", .{});
         },
+    }
+}
+
+fn log(
+    comptime message_level: std.log.Level,
+    comptime scope: @TypeOf(.enum_literal),
+    comptime format: []const u8,
+    args: anytype,
+) void {
+    if (scope == .tokenizer or scope == .parse) {
+        return;
+    }
+
+    const level_txt = comptime message_level.asText();
+    const prefix2 = if (scope == .default) ": " else "(" ++ @tagName(scope) ++ "): ";
+    const stderr = std.io.getStdErr().writer();
+    var bw = std.io.bufferedWriter(stderr);
+    const writer = bw.writer();
+
+    std.debug.lockStdErr();
+    defer std.debug.unlockStdErr();
+    nosuspend {
+        writer.print(level_txt ++ prefix2 ++ format ++ "\n", args) catch return;
+        bw.flush() catch return;
     }
 }
 

@@ -1,6 +1,6 @@
 const std = @import("std");
 const common = @import("common.zig");
-const log = std.log.scoped(.tokenizer);
+const log = std.log.scoped(.usql_tokenizer);
 
 const This = @This();
 const CompilerError = @import("errors.zig").CompilerError(TokenIterator);
