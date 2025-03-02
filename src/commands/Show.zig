@@ -76,8 +76,6 @@ pub fn run(self: This, alloc: std.mem.Allocator) !RuntimeError {
     });
     defer alloc.free(guid);
 
-    std.debug.print("Locating: {s}\r\n", .{guid});
-
     var files = try dir.walk(alloc);
     defer files.deinit();
 
@@ -103,8 +101,8 @@ pub fn run(self: This, alloc: std.mem.Allocator) !RuntimeError {
                 break;
             };
             if (c == 0) break;
-            if (c == guid.len and std.mem.eql(u8, buf, guid[1..])) {
-                log.info("{s}", .{e.basename});
+            if (std.mem.eql(u8, buf, guid[1..])) {
+                std.debug.print("{s}\r\n", .{e.path});
                 break;
             }
         }
