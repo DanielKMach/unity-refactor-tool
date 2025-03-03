@@ -9,6 +9,9 @@ const RuntimeError = errors.RuntimeError(void);
 const This = @This();
 const Scanner = @import("../Scanner.zig");
 
+const uses_files = &.{ ".prefab", ".unity" };
+const refs_files = &.{ ".prefab", ".unity", ".asset" };
+
 mode: Mode,
 of: []const u8,
 in: ?[]const u8,
@@ -93,8 +96,17 @@ pub fn run(self: This, alloc: std.mem.Allocator) !RuntimeError {
 }
 
 fn search(self: *anyopaque, entry: std.fs.Dir.Walker.Entry) !void {
-    if (entry.kind != .file or !std.mem.endsWith(u8, entry.path, ".prefab"))
-        return;
+    if (entry.kind != .file) return;
+
+    const data: *SearchData = @alignCast(@ptrCast(self));
+    const extensions: []const []const u8 = switch (data.cmd.mode) {
+        .refs => refs_files,
+        .uses => uses_files,
+    };
+
+    for (extensions) |ext| {
+        if (std.mem.endsWith(u8, entry.path, ext)) break;
+    } else return;
 
     var file = entry.dir.openFile(entry.basename, .{ .mode = .read_only }) catch |err| {
         log.warn("Error ({s}) opening file: '{s}'", .{ @errorName(err), entry.path });
@@ -102,13 +114,10 @@ fn search(self: *anyopaque, entry: std.fs.Dir.Walker.Entry) !void {
     };
     defer file.close();
 
-    const data: *SearchData = @alignCast(@ptrCast(self));
-    const guid = data.guid;
-
     const reader = file.reader();
     main: while (true) {
-        try reader.skipUntilDelimiterOrEof(guid[0]);
-        for (1..guid.len) |i| {
+        try reader.skipUntilDelimiterOrEof(data.guid[0]);
+        for (1..data.guid.len) |i| {
             const c = reader.readByte() catch |err| {
                 data.logMtx.lock();
                 defer data.logMtx.unlock();
@@ -118,7 +127,7 @@ fn search(self: *anyopaque, entry: std.fs.Dir.Walker.Entry) !void {
                 }
                 break :main;
             };
-            if (c != guid[i]) break;
+            if (c != data.guid[i]) break;
         } else {
             data.logMtx.lock();
             defer data.logMtx.unlock();
