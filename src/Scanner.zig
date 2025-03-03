@@ -43,8 +43,24 @@ fn loop(self: *This, data: *anyopaque) !void {
         if (self.walker) |*wlkr| {
             self.walkerMtx.lock();
             defer self.walkerMtx.unlock();
-            entry = if (try wlkr.next()) |e| e else break;
+            const e = try wlkr.next() orelse break;
+            entry = try dupeEntry(e, self.allocator);
         }
         try self.fragFn(data, entry);
+        freeEntry(entry, self.allocator);
     }
+}
+
+fn dupeEntry(entry: std.fs.Dir.Walker.Entry, allocator: std.mem.Allocator) !std.fs.Dir.Walker.Entry {
+    return std.fs.Dir.Walker.Entry{
+        .dir = entry.dir,
+        .basename = try allocator.dupeZ(u8, entry.basename),
+        .path = try allocator.dupeZ(u8, entry.path),
+        .kind = entry.kind,
+    };
+}
+
+fn freeEntry(entry: std.fs.Dir.Walker.Entry, allocator: std.mem.Allocator) void {
+    allocator.free(entry.basename);
+    allocator.free(entry.path);
 }
