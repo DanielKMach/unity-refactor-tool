@@ -39,7 +39,7 @@ pub fn showCompilerError(errUnion: anytype) void {
             std.debug.print("Error: Never closed string at index {d}\r\n", .{err.index});
         },
         .unexpected_token => |err| {
-            std.debug.print("Error: Unexpected token: Expected a {s} '{s}', found a {s} '{s}'\r\n", .{
+            std.debug.print("Error: Unexpected token: Expected {s} '{s}', found {s} '{s}'\r\n", .{
                 @tagName(err.expected.type),
                 err.expected.value,
                 @tagName(err.found.type),
@@ -47,7 +47,7 @@ pub fn showCompilerError(errUnion: anytype) void {
             });
         },
         .unexpected_token_type => |err| {
-            std.debug.print("Error: Unexpected token type: Expected a {s}, found a {s} '{s}'\r\n", .{
+            std.debug.print("Error: Unexpected token type: Expected a {s}, found {s} '{s}'\r\n", .{
                 @tagName(err.expected),
                 @tagName(err.found.type),
                 err.found.value,
@@ -69,6 +69,12 @@ fn log(
         return;
     }
 
+    const color = switch (message_level) {
+        .err => "\x1B[31m",
+        .warn => "\x1B[33m",
+        .debug => "\x1B[34m",
+        else => "",
+    };
     const level_txt = comptime message_level.asText();
     const prefix2 = if (scope == .default) ": " else "(" ++ @tagName(scope) ++ "): ";
     const stderr = std.io.getStdErr().writer();
@@ -78,7 +84,7 @@ fn log(
     std.debug.lockStdErr();
     defer std.debug.unlockStdErr();
     nosuspend {
-        writer.print(level_txt ++ prefix2 ++ format ++ "\n", args) catch return;
+        writer.print(color ++ level_txt ++ prefix2 ++ format ++ "\x1B[39m" ++ "\n", args) catch return;
         bw.flush() catch return;
     }
 }
