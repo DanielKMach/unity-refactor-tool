@@ -33,18 +33,15 @@ pub fn tokenize(self: *This, expression: []const u8) !CompilerError {
     var i: usize = 0;
     while (i < expression.len) : (i += 1) {
         const char = expression[i];
-        log.info("char at {d} = {u}", .{ i, char });
+        const peek = if (i < expression.len - 1) expression[i + 1] else 0;
         if (common.isWhitespace(char)) {
-            const word = expression[si..i];
-            if (si != i) {
-                var tpe: TokenType = .literal;
-                if (common.isKeyword(word)) {
-                    tpe = .keyword;
-                }
-                try list.append(Token.new(tpe, word));
-                log.info("{s}: {s}", .{ @tagName(tpe), word });
-                si = i + 1;
-            }
+            si = i + 1;
+            continue;
+        }
+        if ((i == expression.len - 1 or common.isWhitespace(peek)) and si != i) {
+            const word = expression[si .. i + 1];
+            const tpe: TokenType = if (common.isKeyword(word)) .keyword else .literal;
+            try list.append(Token.new(tpe, word));
             si = i + 1;
             continue;
         }
@@ -55,19 +52,15 @@ pub fn tokenize(self: *This, expression: []const u8) !CompilerError {
                 if (i >= expression.len - 1) {
                     return CompilerError.err(.{ .never_closed_string = .{ .index = si } });
                 }
-                if (expression[i] == '\\') {
-                    i += 1;
-                }
             }
             try list.append(Token.new(.literal_string, expression[si + 1 .. i]));
-            log.info("String: {s}", .{expression[si + 1 .. i]});
             si = i + 1;
             continue;
         }
     }
 
     for (list.items) |tkn| {
-        log.info("Token: ({s}, '{s}')", .{ @tagName(tkn.type), tkn.value });
+        log.debug("Token: ({s}, '{s}')", .{ @tagName(tkn.type), tkn.value });
     }
 
     return CompilerError.ok(try list.toOwnedSlice());
