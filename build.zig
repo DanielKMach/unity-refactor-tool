@@ -15,12 +15,13 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    const yaml = b.dependency("yaml", .{
+    const libyaml = b.dependency("libyaml", .{
         .target = target,
-        .optimize = .ReleaseSafe,
+        .optimize = optimize,
     });
 
-    exe.root_module.addImport("yaml", yaml.module("yaml"));
+    exe.root_module.linkLibrary(libyaml.artifact("libyaml"));
+    exe.root_module.addIncludePath(libyaml.path("lib/include"));
 
     const install = b.addInstallArtifact(exe, .{});
     install_step.dependOn(&install.step);
