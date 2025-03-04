@@ -3,80 +3,107 @@ const libyaml = @cImport(@cInclude("yaml.h"));
 const errors = @import("../errors.zig");
 const log = std.log.scoped(.show_command);
 
+const This = @This();
+const Scanner = @import("../Scanner.zig");
 const Tokenizer = @import("../Tokenizer.zig");
 const CompilerError = errors.CompilerError(This);
 const RuntimeError = errors.RuntimeError(void);
-const This = @This();
-const Scanner = @import("../Scanner.zig");
 
 const uses_files = &.{ ".prefab", ".unity" };
 const refs_files = &.{ ".prefab", ".unity", ".asset" };
 
-mode: Mode,
-of: []const u8,
-in: ?[]const u8,
-
-const Mode = enum {
-    refs,
-    uses,
-};
+exts: []const []const u8,
+of: AssetTarget,
+in: InTarget,
 
 pub fn parse(tokens: Tokenizer.TokenIterator) !CompilerError {
-    if (tokens[0].type != .keyword or !std.mem.eql(u8, tokens[0].value, "SHOW"))
+    if (tokens.len < 1 or tokens[0].type != .keyword or !std.mem.eql(u8, tokens[0].value, "SHOW"))
         return CompilerError.err(.{ .unknown_command = void{} });
 
-    var mode: Mode = .refs;
-    if (std.mem.eql(u8, tokens[1].value, "refs")) {
-        mode = .refs;
-    } else if (std.mem.eql(u8, tokens[1].value, "uses")) {
-        mode = .uses;
+    if (tokens.len < 2)
+        return CompilerError.err(.{
+            .unexpected_eof = .{
+                .expected_type = .literal,
+                .expected_value = "refs",
+            },
+        });
+
+    var exts: []const []const u8 = undefined;
+    var of: ?AssetTarget = null;
+    var in: ?InTarget = null;
+
+    if (tokens[1].is(.literal, "refs")) {
+        exts = refs_files;
+    } else if (tokens[1].is(.literal, "uses")) {
+        exts = uses_files;
     } else {
         return CompilerError.err(.{
             .unexpected_token = .{
                 .found = tokens[1],
-                .expected = Tokenizer.Token.new(.literal, "refs"),
+                .expected_type = .literal,
+                .expected_value = "refs",
             },
         });
     }
 
-    if (tokens[2].type != .keyword or !std.mem.eql(u8, tokens[2].value, "OF"))
+    if (tokens.len < 3)
         return CompilerError.err(.{
-            .unexpected_token = .{
-                .found = tokens[2],
-                .expected = Tokenizer.Token.new(.keyword, "OF"),
+            .unexpected_eof = .{
+                .expected_type = .keyword,
+                .expected_value = "OF",
             },
         });
 
-    if (tokens[3].type != .literal_string)
-        return CompilerError.err(.{
-            .unexpected_token_type = .{
-                .found = tokens[3],
-                .expected = .literal_string,
-            },
-        });
-
-    const of: []const u8 = tokens[3].value;
-
-    var in: ?[]const u8 = null;
-    if (tokens.len > 4 and tokens[4].type == .keyword and std.mem.eql(u8, tokens[4].value, "IN")) {
-        in = tokens[5].value;
+    var i: usize = 2;
+    while (i < tokens.len) {
+        if (of == null and tokens[i].is(.keyword, "OF")) {
+            const res = try AssetTarget.parse(tokens[i..]);
+            if (res.isErr()) |err| return CompilerError.err(err);
+            of = res.ok;
+            i += 2;
+        } else if (in == null and tokens[i].is(.keyword, "IN")) {
+            const res = try InTarget.parse(tokens[i..]);
+            if (res.isErr()) |err| return CompilerError.err(err);
+            in = res.ok;
+            i += 2;
+        } else {
+            return CompilerError.err(.{
+                .unexpected_token = .{
+                    .found = tokens[i],
+                    .expected_type = .keyword,
+                },
+            });
+        }
     }
+
+    if (of == null)
+        return CompilerError.err(.{
+            .unexpected_eof = .{
+                .expected_type = .keyword,
+                .expected_value = "OF",
+            },
+        });
 
     return CompilerError.ok(.{
-        .mode = mode,
-        .of = of,
-        .in = in,
+        .exts = exts,
+        .of = of.?,
+        .in = in orelse InTarget.default,
     });
 }
 
 pub fn run(self: This, alloc: std.mem.Allocator) !RuntimeError {
-    const path = if (self.in) |in| in else ".";
+    const in = self.in;
+    const of = self.of;
 
-    var dir = try std.fs.cwd().openDir(path, .{ .iterate = true, .access_sub_paths = true });
+    var dir = std.fs.cwd().openDir(in.dir, .{ .iterate = true, .access_sub_paths = true }) catch {
+        return RuntimeError.err(.{
+            .invalid_path = .{ .path = in.dir },
+        });
+    };
     defer dir.close();
 
-    const guid = getGUID(self.of, alloc) catch return RuntimeError.err(.{
-        .invalid_asset = .{ .path = self.of },
+    const guid = getGUID(of.path, alloc) catch return RuntimeError.err(.{
+        .invalid_asset = .{ .path = of.path },
     });
     defer alloc.free(guid);
 
@@ -99,12 +126,7 @@ fn search(self: *anyopaque, entry: std.fs.Dir.Walker.Entry) !void {
     if (entry.kind != .file) return;
 
     const data: *SearchData = @alignCast(@ptrCast(self));
-    const extensions: []const []const u8 = switch (data.cmd.mode) {
-        .refs => refs_files,
-        .uses => uses_files,
-    };
-
-    for (extensions) |ext| {
+    for (data.cmd.exts) |ext| {
         if (std.mem.endsWith(u8, entry.path, ext)) break;
     } else return;
 
@@ -200,6 +222,92 @@ pub fn getGUID(asset: []const u8, allocator: std.mem.Allocator) ![]const u8 {
     return guid;
 }
 
-const Meta = struct {
-    guid: []const u8,
+pub const AssetTarget = struct {
+    path: []const u8,
+
+    const Result = errors.CompilerError(@This());
+
+    pub fn parse(tokens: Tokenizer.TokenIterator) !Result {
+        if (tokens.len < 1)
+            return Result.err(.{
+                .unexpected_eof = .{
+                    .expected_type = .keyword,
+                    .expected_value = "OF",
+                },
+            });
+
+        if (!tokens[0].is(.keyword, "OF"))
+            return Result.err(.{
+                .unexpected_token = .{
+                    .found = tokens[0],
+                    .expected_type = .keyword,
+                    .expected_value = "OF",
+                },
+            });
+
+        if (tokens.len < 2)
+            return Result.err(.{
+                .unexpected_eof = .{
+                    .expected_type = .literal_string,
+                },
+            });
+
+        if (!tokens[1].isType(.literal_string))
+            return Result.err(.{
+                .unexpected_token = .{
+                    .found = tokens[1],
+                    .expected_type = .literal_string,
+                },
+            });
+
+        return Result.ok(.{
+            .path = tokens[1].value,
+        });
+    }
+};
+
+pub const InTarget = struct {
+    dir: []const u8,
+
+    const Result = errors.CompilerError(@This());
+
+    pub const default = .{ .dir = "." };
+
+    pub fn parse(tokens: Tokenizer.TokenIterator) !Result {
+        if (tokens.len < 1)
+            return Result.err(.{
+                .unexpected_eof = .{
+                    .expected_type = .keyword,
+                    .expected_value = "IN",
+                },
+            });
+
+        if (!tokens[0].is(.keyword, "IN"))
+            return Result.err(.{
+                .unexpected_token = .{
+                    .found = tokens[0],
+                    .expected_type = .keyword,
+                    .expected_value = "IN",
+                },
+            });
+
+        if (tokens.len < 2)
+            return Result.err(.{
+                .unexpected_eof = .{
+                    .expected_type = .literal_string,
+                },
+            });
+
+        if (!tokens[1].isType(.literal_string))
+            return Result.err(.{
+                .unexpected_token = .{
+                    .found = tokens[1],
+                    .expected_type = .literal_string,
+                },
+            });
+
+        return Result.ok(.{
+            .dir = tokens[1].value,
+        });
+    }
 };

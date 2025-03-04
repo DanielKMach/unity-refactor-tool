@@ -13,6 +13,18 @@ pub const Token = struct {
     pub fn new(typ: TokenType, value: []const u8) Token {
         return Token{ .type = typ, .value = value };
     }
+
+    pub fn eql(self: Token, other: Token) bool {
+        return self.type == other.type and std.mem.eql(u8, self.value, other.value);
+    }
+
+    pub fn is(self: Token, typ: TokenType, value: []const u8) bool {
+        return self.type == typ and std.mem.eql(u8, self.value, value);
+    }
+
+    pub fn isType(self: Token, typ: TokenType) bool {
+        return self.type == typ;
+    }
 };
 
 pub const TokenType = enum {

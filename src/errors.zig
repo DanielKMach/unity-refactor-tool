@@ -37,12 +37,13 @@ pub fn CompilerError(T: type) type {
             index: usize,
         },
         unexpected_token: struct {
-            expected: Tokenizer.Token,
+            expected_type: Tokenizer.TokenType,
+            expected_value: ?[]const u8 = null,
             found: Tokenizer.Token,
         },
-        unexpected_token_type: struct {
-            expected: Tokenizer.TokenType,
-            found: Tokenizer.Token,
+        unexpected_eof: struct {
+            expected_type: Tokenizer.TokenType,
+            expected_value: ?[]const u8 = null,
         },
     });
 }
@@ -51,7 +52,7 @@ pub const CompilerErrorType = enum {
     unknown_command,
     never_closed_string,
     unexpected_token,
-    unexpected_token_type,
+    unexpected_eof,
 };
 
 pub fn RuntimeError(T: type) type {
@@ -59,9 +60,13 @@ pub fn RuntimeError(T: type) type {
         invalid_asset: struct {
             path: []const u8,
         },
+        invalid_path: struct {
+            path: []const u8,
+        },
     });
 }
 
 pub const RuntimeErrorType = enum {
     invalid_asset,
+    invalid_path,
 };
