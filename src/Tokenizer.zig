@@ -4,36 +4,6 @@ const log = std.log.scoped(.usql_tokenizer);
 
 const This = @This();
 const CompilerError = @import("errors.zig").CompilerError(TokenIterator);
-pub const TokenIterator = []Token;
-
-pub const Token = struct {
-    type: TokenType,
-    value: []const u8,
-
-    pub fn new(typ: TokenType, value: []const u8) Token {
-        return Token{ .type = typ, .value = value };
-    }
-
-    pub fn eql(self: Token, other: Token) bool {
-        return self.type == other.type and std.mem.eql(u8, self.value, other.value);
-    }
-
-    pub fn is(self: Token, typ: TokenType, value: []const u8) bool {
-        return self.type == typ and std.mem.eql(u8, self.value, value);
-    }
-
-    pub fn isType(self: Token, typ: TokenType) bool {
-        return self.type == typ;
-    }
-};
-
-pub const TokenType = enum {
-    keyword,
-    operator,
-    literal_number,
-    literal_string,
-    literal,
-};
 
 allocator: std.mem.Allocator,
 
@@ -75,5 +45,61 @@ pub fn tokenize(self: *This, expression: []const u8) !CompilerError {
         log.debug("Token: ({s}, '{s}')", .{ @tagName(tkn.type), tkn.value });
     }
 
-    return CompilerError.ok(try list.toOwnedSlice());
+    return CompilerError.ok(.{ .tokens = try list.toOwnedSlice() });
 }
+
+pub const Token = struct {
+    type: TokenType,
+    value: []const u8,
+
+    pub fn new(typ: TokenType, value: []const u8) Token {
+        return Token{ .type = typ, .value = value };
+    }
+
+    pub fn eql(self: Token, other: Token) bool {
+        return self.type == other.type and std.mem.eql(u8, self.value, other.value);
+    }
+
+    pub fn is(self: Token, typ: TokenType, value: []const u8) bool {
+        return self.type == typ and std.mem.eql(u8, self.value, value);
+    }
+
+    pub fn isType(self: Token, typ: TokenType) bool {
+        return self.type == typ;
+    }
+};
+
+pub const TokenType = enum {
+    keyword,
+    operator,
+    literal_number,
+    literal_string,
+    literal,
+};
+
+pub const TokenIterator = struct {
+    tokens: []Token,
+    index: usize = 0,
+
+    pub fn next(self: *TokenIterator) ?Token {
+        const i = self.index;
+        if (i >= self.tokens.len) {
+            return null;
+        }
+        const tkn = self.tokens[i];
+        self.index += 1;
+        return tkn;
+    }
+
+    pub fn peek(self: TokenIterator, steps: isize) ?Token {
+        const i = @as(isize, @intCast(self.index)) + steps;
+        if (i + steps >= self.tokens.len or i + steps < 0) {
+            return null;
+        }
+        return self.tokens[@intCast(i)];
+    }
+
+    pub fn len(self: TokenIterator) usize {
+        return self.tokens.len - self.index;
+    }
+};

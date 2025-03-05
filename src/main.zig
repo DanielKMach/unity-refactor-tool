@@ -24,7 +24,8 @@ pub fn main() !void {
             showCompilerError(err, arg);
             return;
         }
-        const parseResult = try Show.parse(tokenizeResult.ok);
+        var tokens = tokenizeResult.ok;
+        const parseResult = try Show.parse(&tokens);
         if (parseResult.isErr()) |err| {
             showCompilerError(err, arg);
             return;

@@ -16,60 +16,66 @@ exts: []const []const u8,
 of: AssetTarget,
 in: InTarget,
 
-pub fn parse(tokens: Tokenizer.TokenIterator) !CompilerError {
-    if (tokens.len < 1 or tokens[0].type != .keyword or !std.mem.eql(u8, tokens[0].value, "SHOW"))
-        return CompilerError.err(.{ .unknown_command = void{} });
-
-    if (tokens.len < 2)
+pub fn parse(tokens: *Tokenizer.TokenIterator) !CompilerError {
+    if (tokens.next()) |tkn| {
+        if (!tkn.is(.keyword, "SHOW")) {
+            return CompilerError.err(.{
+                .unexpected_token = .{
+                    .found = tkn,
+                    .expected_type = .keyword,
+                    .expected_value = "SHOW",
+                },
+            });
+        }
+    } else {
         return CompilerError.err(.{
             .unexpected_eof = .{
-                .expected_type = .literal,
-                .expected_value = "refs",
+                .expected_type = .keyword,
+                .expected_value = "SHOW",
             },
         });
+    }
 
     var exts: []const []const u8 = undefined;
     var of: ?AssetTarget = null;
     var in: ?InTarget = null;
 
-    if (tokens[1].is(.literal, "refs")) {
-        exts = refs_files;
-    } else if (tokens[1].is(.literal, "uses")) {
-        exts = uses_files;
+    if (tokens.next()) |tkn| {
+        if (tkn.is(.literal, "refs")) {
+            exts = refs_files;
+        } else if (tkn.is(.literal, "uses")) {
+            exts = uses_files;
+        } else {
+            return CompilerError.err(.{
+                .unexpected_token = .{
+                    .found = tkn,
+                    .expected_type = .literal,
+                    .expected_value = "refs",
+                },
+            });
+        }
     } else {
         return CompilerError.err(.{
-            .unexpected_token = .{
-                .found = tokens[1],
+            .unexpected_eof = .{
                 .expected_type = .literal,
                 .expected_value = "refs",
             },
         });
     }
 
-    if (tokens.len < 3)
-        return CompilerError.err(.{
-            .unexpected_eof = .{
-                .expected_type = .keyword,
-                .expected_value = "OF",
-            },
-        });
-
-    var i: usize = 2;
-    while (i < tokens.len) {
-        if (of == null and tokens[i].is(.keyword, "OF")) {
-            const res = try AssetTarget.parse(tokens[i..]);
+    while (tokens.peek(0)) |tkn| {
+        if (of == null and tkn.is(.keyword, "OF")) {
+            const res = try AssetTarget.parse(tokens);
             if (res.isErr()) |err| return CompilerError.err(err);
             of = res.ok;
-            i += 2;
-        } else if (in == null and tokens[i].is(.keyword, "IN")) {
-            const res = try InTarget.parse(tokens[i..]);
+        } else if (in == null and tkn.is(.keyword, "IN")) {
+            const res = try InTarget.parse(tokens);
             if (res.isErr()) |err| return CompilerError.err(err);
             in = res.ok;
-            i += 2;
         } else {
             return CompilerError.err(.{
                 .unexpected_token = .{
-                    .found = tokens[i],
+                    .found = tkn,
                     .expected_type = .keyword,
                 },
             });
@@ -169,7 +175,7 @@ const SearchData = struct {
     allocator: std.mem.Allocator,
     guid: []const u8,
     fileCount: usize = 0,
-    logMtx: std.Thread.Mutex = std.Thread.Mutex{},
+    logMtx: std.Thread.Mutex = .{},
 };
 
 pub fn getGUID(asset: []const u8, allocator: std.mem.Allocator) ![]const u8 {
@@ -227,42 +233,47 @@ pub const AssetTarget = struct {
 
     const Result = errors.CompilerError(@This());
 
-    pub fn parse(tokens: Tokenizer.TokenIterator) !Result {
-        if (tokens.len < 1)
+    pub fn parse(tokens: *Tokenizer.TokenIterator) !Result {
+        if (tokens.next()) |tkn| {
+            if (!tkn.is(.keyword, "OF")) {
+                return Result.err(.{
+                    .unexpected_token = .{
+                        .found = tkn,
+                        .expected_type = .keyword,
+                        .expected_value = "OF",
+                    },
+                });
+            }
+        } else {
             return Result.err(.{
                 .unexpected_eof = .{
                     .expected_type = .keyword,
                     .expected_value = "OF",
                 },
             });
+        }
 
-        if (!tokens[0].is(.keyword, "OF"))
-            return Result.err(.{
-                .unexpected_token = .{
-                    .found = tokens[0],
-                    .expected_type = .keyword,
-                    .expected_value = "OF",
-                },
-            });
-
-        if (tokens.len < 2)
+        var path: []const u8 = undefined;
+        if (tokens.next()) |tkn| {
+            if (tkn.isType(.literal_string)) {
+                path = tkn.value;
+            } else {
+                return Result.err(.{
+                    .unexpected_token = .{
+                        .found = tkn,
+                        .expected_type = .literal_string,
+                    },
+                });
+            }
+        } else {
             return Result.err(.{
                 .unexpected_eof = .{
                     .expected_type = .literal_string,
                 },
             });
+        }
 
-        if (!tokens[1].isType(.literal_string))
-            return Result.err(.{
-                .unexpected_token = .{
-                    .found = tokens[1],
-                    .expected_type = .literal_string,
-                },
-            });
-
-        return Result.ok(.{
-            .path = tokens[1].value,
-        });
+        return Result.ok(.{ .path = path });
     }
 };
 
@@ -273,41 +284,46 @@ pub const InTarget = struct {
 
     pub const default = .{ .dir = "." };
 
-    pub fn parse(tokens: Tokenizer.TokenIterator) !Result {
-        if (tokens.len < 1)
+    pub fn parse(tokens: *Tokenizer.TokenIterator) !Result {
+        if (tokens.next()) |tkn| {
+            if (!tkn.is(.keyword, "IN")) {
+                return Result.err(.{
+                    .unexpected_token = .{
+                        .found = tkn,
+                        .expected_type = .keyword,
+                        .expected_value = "IN",
+                    },
+                });
+            }
+        } else {
             return Result.err(.{
                 .unexpected_eof = .{
                     .expected_type = .keyword,
                     .expected_value = "IN",
                 },
             });
+        }
 
-        if (!tokens[0].is(.keyword, "IN"))
-            return Result.err(.{
-                .unexpected_token = .{
-                    .found = tokens[0],
-                    .expected_type = .keyword,
-                    .expected_value = "IN",
-                },
-            });
-
-        if (tokens.len < 2)
+        var dir: []const u8 = undefined;
+        if (tokens.next()) |tkn| {
+            if (tkn.isType(.literal_string)) {
+                dir = tkn.value;
+            } else {
+                return Result.err(.{
+                    .unexpected_token = .{
+                        .found = tkn,
+                        .expected_type = .literal_string,
+                    },
+                });
+            }
+        } else {
             return Result.err(.{
                 .unexpected_eof = .{
                     .expected_type = .literal_string,
                 },
             });
+        }
 
-        if (!tokens[1].isType(.literal_string))
-            return Result.err(.{
-                .unexpected_token = .{
-                    .found = tokens[1],
-                    .expected_type = .literal_string,
-                },
-            });
-
-        return Result.ok(.{
-            .dir = tokens[1].value,
-        });
+        return Result.ok(.{ .dir = dir });
     }
 };
