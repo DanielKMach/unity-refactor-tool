@@ -3,6 +3,7 @@ const std = @import("std");
 pub const keywords: []const []const u8 = &.{
     "SHOW",
     "OF",
+    "GUID",
     "WHERE",
     "IN",
 };

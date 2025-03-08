@@ -1,7 +1,9 @@
 const std = @import("std");
+
 const Parser = @import("Parser.zig");
 const Tokenizer = @import("Tokenizer.zig");
 const Show = @import("commands/Show.zig");
+const RuntimeData = @import("RuntimeData.zig");
 
 pub const std_options: std.Options = .{
     .logFn = log,
@@ -13,10 +15,19 @@ pub fn main() !void {
     defer arena.deinit();
 
     const allocator = arena.allocator();
+    var tokenizer = Tokenizer{ .allocator = allocator };
+    const out = std.io.getStdOut().writer();
+    var cwd = try std.fs.cwd().openDir(".", .{ .iterate = true, .access_sub_paths = true });
+    defer cwd.close();
+
+    const data = RuntimeData{
+        .allocator = allocator,
+        .out = out.any(),
+        .cwd = cwd,
+    };
+
     var args = try std.process.argsWithAllocator(allocator);
     _ = args.next(); // skip the first argument
-    var tokenizer = Tokenizer{ .allocator = allocator };
-    // var interpreter = Interpreter{ .allocator = allocator };
 
     while (args.next()) |arg| {
         const tokenizeResult = try tokenizer.tokenize(arg);
@@ -31,7 +42,7 @@ pub fn main() !void {
             return;
         }
 
-        const runResult = try parseResult.ok.run(allocator);
+        const runResult = try parseResult.ok.run(data);
         if (runResult.isErr()) |err| {
             showRuntimeError(err);
             return;
@@ -40,22 +51,23 @@ pub fn main() !void {
 }
 
 pub fn showCompilerError(errUnion: anytype, command: []const u8) void {
+    std.debug.print("Compiler error: ", .{});
     switch (errUnion) {
         .never_closed_string => |err| {
             showLineHighlightRange(command, err.index, err.index);
-            std.debug.print("Error: Never closed string at index {d}\r\n", .{err.index});
+            std.debug.print("Never closed string at index {d}\r\n", .{err.index});
         },
         .unexpected_token => |err| {
             showLineHighlight(command, err.found.value);
             if (err.expected_value) |expected_value| {
-                std.debug.print("Error: Unexpected token: Expected {s} '{s}', found {s} '{s}'\r\n", .{
+                std.debug.print("Unexpected token: Expected {s} '{s}', found {s} '{s}'\r\n", .{
                     @tagName(err.expected_type),
                     expected_value,
                     @tagName(err.found.type),
                     err.found.value,
                 });
             } else {
-                std.debug.print("Error: Unexpected token type: Expected a {s}, found {s} '{s}'\r\n", .{
+                std.debug.print("Unexpected token type: Expected a {s}, found {s} '{s}'\r\n", .{
                     @tagName(err.expected_type),
                     @tagName(err.found.type),
                     err.found.value,
@@ -64,29 +76,30 @@ pub fn showCompilerError(errUnion: anytype, command: []const u8) void {
         },
         .unexpected_eof => |err| {
             if (err.expected_value) |expected_value| {
-                std.debug.print("Error: Unexpected end of file: Expected {s} '{s}'\r\n", .{
+                std.debug.print("Unexpected end of file: Expected {s} '{s}'\r\n", .{
                     @tagName(err.expected_type),
                     expected_value,
                 });
             } else {
-                std.debug.print("Error: Unexpected end of file: Expected a {s}\r\n", .{
+                std.debug.print("Unexpected end of file: Expected a {s}\r\n", .{
                     @tagName(err.expected_type),
                 });
             }
         },
         .unknown_command => {
-            std.debug.print("Error: Unknown command\r\n", .{});
+            std.debug.print("Unknown command\r\n", .{});
         },
     }
 }
 
 pub fn showRuntimeError(errUnion: anytype) void {
+    std.debug.print("Runtime error: ", .{});
     switch (errUnion) {
         .invalid_asset => |err| {
-            std.debug.print("Error: Invalid asset path '{s}'\r\n", .{err.path});
+            std.debug.print("Invalid asset path '{s}'\r\n", .{err.path});
         },
         .invalid_path => |err| {
-            std.debug.print("Error: Invalid path '{s}'\r\n", .{err.path});
+            std.debug.print("Invalid path '{s}'\r\n", .{err.path});
         },
     }
 }

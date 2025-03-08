@@ -8,6 +8,9 @@ const Scanner = @import("../Scanner.zig");
 const Tokenizer = @import("../Tokenizer.zig");
 const CompilerError = errors.CompilerError(This);
 const RuntimeError = errors.RuntimeError(void);
+const RuntimeData = @import("../RuntimeData.zig");
+const InTarget = @import("InTarget.zig");
+const AssetTarget = @import("AssetTarget.zig");
 
 const uses_files = &.{ ".prefab", ".unity" };
 const refs_files = &.{ ".prefab", ".unity", ".asset" };
@@ -97,29 +100,29 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !CompilerError {
     });
 }
 
-pub fn run(self: This, alloc: std.mem.Allocator) !RuntimeError {
+pub fn run(self: This, data: RuntimeData) !RuntimeError {
     const in = self.in;
     const of = self.of;
 
-    var dir = std.fs.cwd().openDir(in.dir, .{ .iterate = true, .access_sub_paths = true }) catch {
+    var dir = in.openDir(data, .{ .iterate = true, .access_sub_paths = true }) catch {
         return RuntimeError.err(.{
             .invalid_path = .{ .path = in.dir },
         });
     };
     defer dir.close();
 
-    const guid = getGUID(of.path, alloc) catch return RuntimeError.err(.{
-        .invalid_asset = .{ .path = of.path },
+    const guid = of.getGUID(data) catch return RuntimeError.err(.{
+        .invalid_asset = .{ .path = of.str },
     });
-    defer alloc.free(guid);
+    defer data.allocator.free(guid);
 
     var searchData = SearchData{
         .cmd = &self,
         .guid = guid,
-        .allocator = alloc,
+        .data = data,
     };
 
-    var scanner = try Scanner.init(dir, search, alloc);
+    var scanner = try Scanner.init(dir, search, data.allocator);
     defer scanner.deinit();
 
     try scanner.scan(&searchData);
@@ -172,7 +175,7 @@ fn search(self: *anyopaque, entry: std.fs.Dir.Walker.Entry) !void {
 
 const SearchData = struct {
     cmd: *const This,
-    allocator: std.mem.Allocator,
+    data: RuntimeData,
     guid: []const u8,
     fileCount: usize = 0,
     logMtx: std.Thread.Mutex = .{},
@@ -227,103 +230,3 @@ pub fn getGUID(asset: []const u8, allocator: std.mem.Allocator) ![]const u8 {
 
     return guid;
 }
-
-pub const AssetTarget = struct {
-    path: []const u8,
-
-    const Result = errors.CompilerError(@This());
-
-    pub fn parse(tokens: *Tokenizer.TokenIterator) !Result {
-        if (tokens.next()) |tkn| {
-            if (!tkn.is(.keyword, "OF")) {
-                return Result.err(.{
-                    .unexpected_token = .{
-                        .found = tkn,
-                        .expected_type = .keyword,
-                        .expected_value = "OF",
-                    },
-                });
-            }
-        } else {
-            return Result.err(.{
-                .unexpected_eof = .{
-                    .expected_type = .keyword,
-                    .expected_value = "OF",
-                },
-            });
-        }
-
-        var path: []const u8 = undefined;
-        if (tokens.next()) |tkn| {
-            if (tkn.isType(.literal_string)) {
-                path = tkn.value;
-            } else {
-                return Result.err(.{
-                    .unexpected_token = .{
-                        .found = tkn,
-                        .expected_type = .literal_string,
-                    },
-                });
-            }
-        } else {
-            return Result.err(.{
-                .unexpected_eof = .{
-                    .expected_type = .literal_string,
-                },
-            });
-        }
-
-        return Result.ok(.{ .path = path });
-    }
-};
-
-pub const InTarget = struct {
-    dir: []const u8,
-
-    const Result = errors.CompilerError(@This());
-
-    pub const default = .{ .dir = "." };
-
-    pub fn parse(tokens: *Tokenizer.TokenIterator) !Result {
-        if (tokens.next()) |tkn| {
-            if (!tkn.is(.keyword, "IN")) {
-                return Result.err(.{
-                    .unexpected_token = .{
-                        .found = tkn,
-                        .expected_type = .keyword,
-                        .expected_value = "IN",
-                    },
-                });
-            }
-        } else {
-            return Result.err(.{
-                .unexpected_eof = .{
-                    .expected_type = .keyword,
-                    .expected_value = "IN",
-                },
-            });
-        }
-
-        var dir: []const u8 = undefined;
-        if (tokens.next()) |tkn| {
-            if (tkn.isType(.literal_string)) {
-                dir = tkn.value;
-            } else {
-                return Result.err(.{
-                    .unexpected_token = .{
-                        .found = tkn,
-                        .expected_type = .literal_string,
-                    },
-                });
-            }
-        } else {
-            return Result.err(.{
-                .unexpected_eof = .{
-                    .expected_type = .literal_string,
-                },
-            });
-        }
-
-        return Result.ok(.{ .dir = dir });
-    }
-};
