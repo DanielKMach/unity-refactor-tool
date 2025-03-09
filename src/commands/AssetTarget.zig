@@ -5,12 +5,11 @@ const errors = @import("../errors.zig");
 const This = @This();
 const Tokenizer = @import("../Tokenizer.zig");
 const RuntimeData = @import("../RuntimeData.zig");
-const Result = errors.CompilerError(This);
 
 tpe: Type,
 str: []const u8,
 
-pub fn parse(tokens: *Tokenizer.TokenIterator) !Result {
+pub fn parse(tokens: *Tokenizer.TokenIterator) !errors.CompilerError(This) {
     if (tokens.next()) |tkn| {
         if (!tkn.is(.keyword, "OF")) {
             return .ERR(.{

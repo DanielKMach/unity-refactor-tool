@@ -7,11 +7,9 @@ const Tokenizer = @import("../Tokenizer.zig");
 
 dir: []const u8,
 
-const Result = errors.CompilerError(@This());
-
 pub const default: This = .{ .dir = "." };
 
-pub fn parse(tokens: *Tokenizer.TokenIterator) !Result {
+pub fn parse(tokens: *Tokenizer.TokenIterator) !errors.CompilerError(This) {
     if (tokens.next()) |tkn| {
         if (!tkn.is(.keyword, "IN")) {
             return .ERR(.{

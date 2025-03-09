@@ -6,8 +6,6 @@ const log = std.log.scoped(.show_command);
 const This = @This();
 const Scanner = @import("../Scanner.zig");
 const Tokenizer = @import("../Tokenizer.zig");
-const CompilerError = errors.CompilerError(This);
-const RuntimeError = errors.RuntimeError(void);
 const RuntimeData = @import("../RuntimeData.zig");
 const InTarget = @import("InTarget.zig");
 const AssetTarget = @import("AssetTarget.zig");
@@ -19,7 +17,7 @@ exts: []const []const u8,
 of: AssetTarget,
 in: InTarget,
 
-pub fn parse(tokens: *Tokenizer.TokenIterator) !CompilerError {
+pub fn parse(tokens: *Tokenizer.TokenIterator) !errors.CompilerError(This) {
     if (tokens.next()) |tkn| {
         if (!tkn.is(.keyword, "SHOW")) {
             return .ERR(.{
@@ -100,7 +98,7 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !CompilerError {
     });
 }
 
-pub fn run(self: This, data: RuntimeData) !RuntimeError {
+pub fn run(self: This, data: RuntimeData) !errors.RuntimeError(void) {
     const in = self.in;
     const of = self.of;
 
