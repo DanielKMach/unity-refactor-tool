@@ -32,7 +32,7 @@ pub fn tokenize(self: *This, expression: []const u8) !CompilerError {
             i += 1;
             while (expression[i] != expression[si]) : (i += 1) {
                 if (i >= expression.len - 1) {
-                    return CompilerError.err(.{ .never_closed_string = .{ .index = si } });
+                    return .ERR(.{ .never_closed_string = .{ .index = si } });
                 }
             }
             try list.append(Token.new(.literal_string, expression[si + 1 .. i]));
@@ -45,7 +45,7 @@ pub fn tokenize(self: *This, expression: []const u8) !CompilerError {
         log.debug("Token: ({s}, '{s}')", .{ @tagName(tkn.type), tkn.value });
     }
 
-    return CompilerError.ok(.{ .tokens = try list.toOwnedSlice() });
+    return .OK(.{ .tokens = try list.toOwnedSlice() });
 }
 
 pub const Token = struct {

@@ -9,12 +9,12 @@ dir: []const u8,
 
 const Result = errors.CompilerError(@This());
 
-pub const default = .{ .dir = "." };
+pub const default: This = .{ .dir = "." };
 
 pub fn parse(tokens: *Tokenizer.TokenIterator) !Result {
     if (tokens.next()) |tkn| {
         if (!tkn.is(.keyword, "IN")) {
-            return Result.err(.{
+            return .ERR(.{
                 .unexpected_token = .{
                     .found = tkn,
                     .expected_type = .keyword,
@@ -23,7 +23,7 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !Result {
             });
         }
     } else {
-        return Result.err(.{
+        return .ERR(.{
             .unexpected_eof = .{
                 .expected_type = .keyword,
                 .expected_value = "IN",
@@ -36,7 +36,7 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !Result {
         if (tkn.isType(.literal_string)) {
             dir = tkn.value;
         } else {
-            return Result.err(.{
+            return .ERR(.{
                 .unexpected_token = .{
                     .found = tkn,
                     .expected_type = .literal_string,
@@ -44,14 +44,14 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !Result {
             });
         }
     } else {
-        return Result.err(.{
+        return .ERR(.{
             .unexpected_eof = .{
                 .expected_type = .literal_string,
             },
         });
     }
 
-    return Result.ok(.{ .dir = dir });
+    return .OK(.{ .dir = dir });
 }
 
 pub fn openDir(self: This, data: RuntimeData, options: std.fs.Dir.OpenDirOptions) !std.fs.Dir {

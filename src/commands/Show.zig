@@ -22,7 +22,7 @@ in: InTarget,
 pub fn parse(tokens: *Tokenizer.TokenIterator) !CompilerError {
     if (tokens.next()) |tkn| {
         if (!tkn.is(.keyword, "SHOW")) {
-            return CompilerError.err(.{
+            return .ERR(.{
                 .unexpected_token = .{
                     .found = tkn,
                     .expected_type = .keyword,
@@ -31,7 +31,7 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !CompilerError {
             });
         }
     } else {
-        return CompilerError.err(.{
+        return .ERR(.{
             .unexpected_eof = .{
                 .expected_type = .keyword,
                 .expected_value = "SHOW",
@@ -49,7 +49,7 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !CompilerError {
         } else if (tkn.is(.literal, "uses")) {
             exts = uses_files;
         } else {
-            return CompilerError.err(.{
+            return .ERR(.{
                 .unexpected_token = .{
                     .found = tkn,
                     .expected_type = .literal,
@@ -58,7 +58,7 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !CompilerError {
             });
         }
     } else {
-        return CompilerError.err(.{
+        return .ERR(.{
             .unexpected_eof = .{
                 .expected_type = .literal,
                 .expected_value = "refs",
@@ -69,14 +69,14 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !CompilerError {
     while (tokens.peek(0)) |tkn| {
         if (of == null and tkn.is(.keyword, "OF")) {
             const res = try AssetTarget.parse(tokens);
-            if (res.isErr()) |err| return CompilerError.err(err);
+            if (res.isErr()) |err| return .ERR(err);
             of = res.ok;
         } else if (in == null and tkn.is(.keyword, "IN")) {
             const res = try InTarget.parse(tokens);
-            if (res.isErr()) |err| return CompilerError.err(err);
+            if (res.isErr()) |err| return .ERR(err);
             in = res.ok;
         } else {
-            return CompilerError.err(.{
+            return .ERR(.{
                 .unexpected_token = .{
                     .found = tkn,
                     .expected_type = .keyword,
@@ -86,14 +86,14 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !CompilerError {
     }
 
     if (of == null)
-        return CompilerError.err(.{
+        return .ERR(.{
             .unexpected_eof = .{
                 .expected_type = .keyword,
                 .expected_value = "OF",
             },
         });
 
-    return CompilerError.ok(.{
+    return .OK(.{
         .exts = exts,
         .of = of.?,
         .in = in orelse InTarget.default,
@@ -105,13 +105,13 @@ pub fn run(self: This, data: RuntimeData) !RuntimeError {
     const of = self.of;
 
     var dir = in.openDir(data, .{ .iterate = true, .access_sub_paths = true }) catch {
-        return RuntimeError.err(.{
+        return .ERR(.{
             .invalid_path = .{ .path = in.dir },
         });
     };
     defer dir.close();
 
-    const guid = of.getGUID(data) catch return RuntimeError.err(.{
+    const guid = of.getGUID(data) catch return .ERR(.{
         .invalid_asset = .{ .path = of.str },
     });
     defer data.allocator.free(guid);
@@ -128,7 +128,7 @@ pub fn run(self: This, data: RuntimeData) !RuntimeError {
     try scanner.scan(&searchData);
 
     std.debug.print("\r\n", .{});
-    return RuntimeError.ok(void{});
+    return .OK(void{});
 }
 
 fn search(self: *anyopaque, entry: std.fs.Dir.Walker.Entry) !void {

@@ -7,11 +7,11 @@ pub fn RichError(T: type, E: type) type {
         ok: T,
         err: E,
 
-        pub fn ok(okv: T) This {
+        pub fn OK(okv: T) This {
             return .{ .ok = okv };
         }
 
-        pub fn err(errv: E) This {
+        pub fn ERR(errv: E) This {
             return .{ .err = errv };
         }
 

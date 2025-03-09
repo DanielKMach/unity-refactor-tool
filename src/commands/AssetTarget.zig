@@ -13,7 +13,7 @@ str: []const u8,
 pub fn parse(tokens: *Tokenizer.TokenIterator) !Result {
     if (tokens.next()) |tkn| {
         if (!tkn.is(.keyword, "OF")) {
-            return Result.err(.{
+            return .ERR(.{
                 .unexpected_token = .{
                     .found = tkn,
                     .expected_type = .keyword,
@@ -22,7 +22,7 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !Result {
             });
         }
     } else {
-        return Result.err(.{
+        return .ERR(.{
             .unexpected_eof = .{
                 .expected_type = .keyword,
                 .expected_value = "OF",
@@ -39,7 +39,7 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !Result {
                     tpe = .guid;
                     str = tkn_guid.value;
                 } else {
-                    return Result.err(.{
+                    return .ERR(.{
                         .unexpected_token = .{
                             .found = tkn_guid,
                             .expected_type = .literal_string,
@@ -47,7 +47,7 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !Result {
                     });
                 }
             } else {
-                return Result.err(.{
+                return .ERR(.{
                     .unexpected_eof = .{
                         .expected_type = .literal_string,
                     },
@@ -61,7 +61,7 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !Result {
                 tpe = .path;
                 str = tkn.value;
             } else {
-                return Result.err(.{
+                return .ERR(.{
                     .unexpected_token = .{
                         .found = tkn,
                         .expected_type = .literal_string,
@@ -69,7 +69,7 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !Result {
                 });
             }
         } else {
-            return Result.err(.{
+            return .ERR(.{
                 .unexpected_token = .{
                     .found = tkn,
                     .expected_type = .literal_string,
@@ -77,14 +77,14 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !Result {
             });
         }
     } else {
-        return Result.err(.{
+        return .ERR(.{
             .unexpected_eof = .{
                 .expected_type = .literal_string,
             },
         });
     }
 
-    return Result.ok(.{
+    return .OK(.{
         .tpe = tpe,
         .str = str,
     });

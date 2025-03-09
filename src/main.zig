@@ -54,11 +54,10 @@ pub fn showCompilerError(errUnion: anytype, command: []const u8) void {
     std.debug.print("Compiler error: ", .{});
     switch (errUnion) {
         .never_closed_string => |err| {
-            showLineHighlightRange(command, err.index, err.index);
             std.debug.print("Never closed string at index {d}\r\n", .{err.index});
+            showLineHighlightRange(command, err.index, err.index);
         },
         .unexpected_token => |err| {
-            showLineHighlight(command, err.found.value);
             if (err.expected_value) |expected_value| {
                 std.debug.print("Unexpected token: Expected {s} '{s}', found {s} '{s}'\r\n", .{
                     @tagName(err.expected_type),
@@ -73,6 +72,7 @@ pub fn showCompilerError(errUnion: anytype, command: []const u8) void {
                     err.found.value,
                 });
             }
+            showLineHighlight(command, err.found.value);
         },
         .unexpected_eof => |err| {
             if (err.expected_value) |expected_value| {
