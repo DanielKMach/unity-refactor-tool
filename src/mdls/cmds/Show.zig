@@ -1,14 +1,15 @@
 const std = @import("std");
+const core = @import("root");
 const libyaml = @cImport(@cInclude("yaml.h"));
-const errors = @import("../errors.zig");
+const errors = core.errors;
 const log = std.log.scoped(.show_command);
 
 const This = @This();
-const Scanner = @import("../Scanner.zig");
-const Tokenizer = @import("../Tokenizer.zig");
-const RuntimeData = @import("../RuntimeData.zig");
-const InTarget = @import("InTarget.zig");
-const AssetTarget = @import("AssetTarget.zig");
+const Scanner = core.Scanner;
+const Tokenizer = core.Tokenizer;
+const RuntimeData = core.RuntimeData;
+const InTarget = core.mdls.InTarget;
+const AssetTarget = core.mdls.AssetTarget;
 
 const uses_files = &.{ ".prefab", ".unity" };
 const refs_files = &.{ ".prefab", ".unity", ".asset" };

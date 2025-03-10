@@ -1,9 +1,10 @@
 const std = @import("std");
-const errors = @import("../errors.zig");
+const core = @import("root");
+const errors = core.errors;
 
 const This = @This();
-const RuntimeData = @import("../RuntimeData.zig");
-const Tokenizer = @import("../Tokenizer.zig");
+const RuntimeData = core.RuntimeData;
+const Tokenizer = core.Tokenizer;
 
 dir: []const u8,
 

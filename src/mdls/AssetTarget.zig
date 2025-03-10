@@ -1,10 +1,11 @@
 const std = @import("std");
+const core = @import("root");
 const libyaml = @cImport(@cInclude("yaml.h"));
-const errors = @import("../errors.zig");
+const errors = core.errors;
 
 const This = @This();
-const Tokenizer = @import("../Tokenizer.zig");
-const RuntimeData = @import("../RuntimeData.zig");
+const Tokenizer = core.Tokenizer;
+const RuntimeData = core.RuntimeData;
 
 tpe: Type,
 str: []const u8,

@@ -1,13 +1,14 @@
 const std = @import("std");
-const common = @import("common.zig");
+const core = @import("root");
+const common = core.common;
+const errors = core.errors;
 const log = std.log.scoped(.usql_tokenizer);
 
 const This = @This();
-const CompilerError = @import("errors.zig").CompilerError(TokenIterator);
 
 allocator: std.mem.Allocator,
 
-pub fn tokenize(self: *This, expression: []const u8) !CompilerError {
+pub fn tokenize(self: *This, expression: []const u8) !errors.CompilerError(TokenIterator) {
     var list = std.ArrayList(Token).init(self.allocator);
     defer list.deinit();
 
