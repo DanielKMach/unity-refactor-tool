@@ -121,7 +121,7 @@ pub fn run(self: This, data: RuntimeData) !errors.RuntimeError(void) {
         .data = data,
     };
 
-    var scanner = try Scanner.init(dir, search, data.allocator);
+    var scanner = try Scanner.init(dir, search, filter, data.allocator);
     defer scanner.deinit();
 
     try scanner.scan(&searchData);
@@ -130,21 +130,24 @@ pub fn run(self: This, data: RuntimeData) !errors.RuntimeError(void) {
     return .OK(void{});
 }
 
-fn search(self: *anyopaque, entry: std.fs.Dir.Walker.Entry) !void {
-    if (entry.kind != .file) return;
+fn filter(self: *anyopaque, entry: std.fs.Dir.Walker.Entry) ?std.fs.File {
+    if (entry.kind != .file) return null;
 
     const data: *SearchData = @alignCast(@ptrCast(self));
     for (data.cmd.exts) |ext| {
         if (std.mem.endsWith(u8, entry.path, ext)) break;
-    } else return;
+    } else return null;
 
-    var file = entry.dir.openFile(entry.basename, .{ .mode = .read_only }) catch |err| {
+    return entry.dir.openFile(entry.basename, .{ .mode = .read_only }) catch |err| {
         log.warn("Error ({s}) opening file: '{s}'", .{ @errorName(err), entry.path });
-        return;
+        return null;
     };
-    defer file.close();
+}
 
+fn search(self: *anyopaque, entry: std.fs.Dir.Walker.Entry, file: std.fs.File) !void {
+    const data: *SearchData = @alignCast(@ptrCast(self));
     const reader = file.reader();
+
     main: while (true) {
         try reader.skipUntilDelimiterOrEof(data.guid[0]);
         for (1..data.guid.len) |i| {

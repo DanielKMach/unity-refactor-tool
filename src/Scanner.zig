@@ -1,20 +1,23 @@
 const std = @import("std");
 
 const This = @This();
-const FragFn = *const fn (data: *anyopaque, entry: std.fs.Dir.Walker.Entry) anyerror!void;
+const FragFn = *const fn (data: *anyopaque, entry: std.fs.Dir.Walker.Entry, file: std.fs.File) anyerror!void;
+const FilterFn = *const fn (data: *anyopaque, entry: std.fs.Dir.Walker.Entry) ?std.fs.File;
 
 fragFn: FragFn,
+filterFn: FilterFn,
 allocator: std.mem.Allocator,
 threads: []std.Thread,
 
 walker: ?std.fs.Dir.Walker,
 walkerMtx: std.Thread.Mutex,
 
-pub fn init(dir: std.fs.Dir, fragFn: FragFn, allocator: std.mem.Allocator) !This {
+pub fn init(dir: std.fs.Dir, fragFn: FragFn, filterFn: FilterFn, allocator: std.mem.Allocator) !This {
     const walker = try dir.walk(allocator);
 
     return This{
         .fragFn = fragFn,
+        .filterFn = filterFn,
         .walker = walker,
         .walkerMtx = std.Thread.Mutex{},
         .allocator = allocator,
@@ -37,16 +40,28 @@ pub fn scan(self: *This, data: *anyopaque) !void {
     }
 }
 
+pub fn defaultFilter(_: *anyopaque, entry: std.fs.Dir.Walker.Entry) ?std.fs.File {
+    if (entry.kind == .file) {
+        return entry.dir.openFile(entry.basename, .{ .mode = .read_only });
+    }
+    return null;
+}
+
 fn loop(self: *This, data: *anyopaque) !void {
     while (true) {
         var entry: std.fs.Dir.Walker.Entry = undefined;
+        var file: ?std.fs.File = null;
         if (self.walker) |*wlkr| {
             self.walkerMtx.lock();
             defer self.walkerMtx.unlock();
             const e = try wlkr.next() orelse break;
             entry = try dupeEntry(e, self.allocator);
+            file = self.filterFn(data, entry);
         }
-        try self.fragFn(data, entry);
+        if (file) |f| {
+            try self.fragFn(data, entry, f);
+            f.close();
+        }
         freeEntry(entry, self.allocator);
     }
 }
