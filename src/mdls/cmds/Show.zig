@@ -65,7 +65,7 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !errors.CompilerError(This) {
         });
     }
 
-    while (tokens.peek(0)) |tkn| {
+    while (tokens.peek(1)) |tkn| {
         if (of == null and tkn.is(.keyword, "OF")) {
             const res = try AssetTarget.parse(tokens);
             if (res.isErr()) |err| return .ERR(err);

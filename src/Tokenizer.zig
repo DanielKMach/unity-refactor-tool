@@ -80,20 +80,18 @@ pub const TokenType = enum {
 
 pub const TokenIterator = struct {
     tokens: []Token,
-    index: usize = 0,
+    index: isize = -1,
 
     pub fn next(self: *TokenIterator) ?Token {
-        const i = self.index;
-        if (i >= self.tokens.len) {
+        if (self.index + 1 >= self.tokens.len) {
             return null;
         }
-        const tkn = self.tokens[i];
         self.index += 1;
-        return tkn;
+        return self.tokens[@intCast(self.index)];
     }
 
     pub fn peek(self: TokenIterator, steps: isize) ?Token {
-        const i = @as(isize, @intCast(self.index)) + steps;
+        const i = self.index + steps;
         if (i + steps >= self.tokens.len or i + steps < 0) {
             return null;
         }
