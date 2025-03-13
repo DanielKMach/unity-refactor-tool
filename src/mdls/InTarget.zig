@@ -4,7 +4,7 @@ const errors = core.errors;
 
 const This = @This();
 const RuntimeData = core.RuntimeData;
-const Tokenizer = core.Tokenizer;
+const Tokenizer = core.language.Tokenizer;
 
 dir: []const u8,
 

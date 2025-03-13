@@ -1,9 +1,7 @@
-pub const common = @import("common.zig");
+pub const language = @import("language.zig");
 pub const errors = @import("errors.zig");
 pub const mdls = @import("mdls.zig");
 
-pub const Parser = @import("Parser.zig");
-pub const Tokenizer = @import("Tokenizer.zig");
 pub const Scanner = @import("Scanner.zig");
 pub const RuntimeData = @import("RuntimeData.zig");
 
@@ -21,7 +19,7 @@ pub fn main() !void {
     defer arena.deinit();
 
     const allocator = arena.allocator();
-    var tokenizer = Tokenizer{ .allocator = allocator };
+    var tokenizer = language.Tokenizer{ .allocator = allocator };
     const out = std.io.getStdOut().writer();
     var cwd = try std.fs.cwd().openDir(".", .{ .iterate = true, .access_sub_paths = true });
     defer cwd.close();

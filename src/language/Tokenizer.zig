@@ -1,6 +1,6 @@
 const std = @import("std");
 const core = @import("root");
-const common = core.common;
+const language = core.language;
 const errors = core.errors;
 const log = std.log.scoped(.usql_tokenizer);
 
@@ -17,13 +17,13 @@ pub fn tokenize(self: *This, expression: []const u8) !errors.CompilerError(Token
     while (i < expression.len) : (i += 1) {
         const char = expression[i];
         const peek = if (i < expression.len - 1) expression[i + 1] else 0;
-        if (common.isWhitespace(char)) {
+        if (language.isWhitespace(char)) {
             si = i + 1;
             continue;
         }
-        if ((i == expression.len - 1 or common.isWhitespace(peek)) and si != i) {
+        if ((i == expression.len - 1 or language.isWhitespace(peek)) and si != i) {
             const word = expression[si .. i + 1];
-            const tpe: TokenType = if (common.isKeyword(word)) .keyword else .literal;
+            const tpe: TokenType = if (language.isKeyword(word)) .keyword else .literal;
             try list.append(Token.new(tpe, word));
             si = i + 1;
             continue;

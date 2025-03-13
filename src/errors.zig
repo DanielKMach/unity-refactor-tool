@@ -1,7 +1,7 @@
 const std = @import("std");
 const core = @import("root");
 
-const Tokenizer = core.Tokenizer;
+const Tokenizer = core.language.Tokenizer;
 
 pub fn RichError(T: type, E: type) type {
     return union(RichErrorType) {

@@ -6,7 +6,7 @@ const log = std.log.scoped(.show_command);
 
 const This = @This();
 const Scanner = core.Scanner;
-const Tokenizer = core.Tokenizer;
+const Tokenizer = core.language.Tokenizer;
 const RuntimeData = core.RuntimeData;
 const InTarget = core.mdls.InTarget;
 const AssetTarget = core.mdls.AssetTarget;

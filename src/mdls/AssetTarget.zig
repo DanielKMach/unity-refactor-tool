@@ -4,7 +4,7 @@ const libyaml = @cImport(@cInclude("yaml.h"));
 const errors = core.errors;
 
 const This = @This();
-const Tokenizer = core.Tokenizer;
+const Tokenizer = core.language.Tokenizer;
 const RuntimeData = core.RuntimeData;
 
 tpe: Type,
