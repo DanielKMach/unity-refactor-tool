@@ -21,7 +21,12 @@ pub fn tokenize(self: *This, expression: []const u8) !errors.CompilerError(Token
             si = i + 1;
             continue;
         }
-        if ((i == expression.len - 1 or language.isWhitespace(peek)) and si != i) {
+        if (si == i and language.isOperator(expression[i])) {
+            try list.append(Token.new(.operator, expression[si .. i + 1]));
+            si = i + 1;
+            continue;
+        }
+        if ((i == expression.len - 1 or language.isWhitespace(peek) or language.isOperator(peek)) and si != i) {
             const word = expression[si .. i + 1];
             const tpe: TokenType = if (language.isKeyword(word)) .keyword else .literal;
             try list.append(Token.new(tpe, word));

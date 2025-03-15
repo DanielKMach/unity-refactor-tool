@@ -32,34 +32,43 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !errors.CompilerError(This) {
 
     var tpe: Type = undefined;
     var str: []const u8 = undefined;
-    if (tokens.next()) |tkn| {
-        if (tkn.is(.keyword, "GUID")) {
-            if (tokens.next()) |tkn_guid| {
-                if ((tkn_guid.isType(.literal_string) or tkn_guid.isType(.literal)) and isGUID(tkn_guid.value)) {
-                    tpe = .guid;
-                    str = tkn_guid.value;
+    while (true) {
+        if (tokens.next()) |tkn| {
+            if (tkn.is(.keyword, "GUID")) {
+                if (tokens.next()) |tkn_guid| {
+                    if ((tkn_guid.isType(.literal_string) or tkn_guid.isType(.literal)) and isGUID(tkn_guid.value)) {
+                        tpe = .guid;
+                        str = tkn_guid.value;
+                    } else {
+                        return .ERR(.{
+                            .unexpected_token = .{
+                                .found = tkn_guid,
+                                .expected_type = .literal_string,
+                            },
+                        });
+                    }
                 } else {
                     return .ERR(.{
-                        .unexpected_token = .{
-                            .found = tkn_guid,
+                        .unexpected_eof = .{
                             .expected_type = .literal_string,
                         },
                     });
                 }
-            } else {
-                return .ERR(.{
-                    .unexpected_eof = .{
-                        .expected_type = .literal_string,
-                    },
-                });
-            }
-        } else if (tkn.isType(.literal) or tkn.isType(.literal_string)) {
-            if (isCSharpIdentifier(tkn.value)) {
-                tpe = .name;
-                str = tkn.value;
-            } else if (tkn.isType(.literal_string)) {
-                tpe = .path;
-                str = tkn.value;
+            } else if (tkn.isType(.literal) or tkn.isType(.literal_string)) {
+                if (isCSharpIdentifier(tkn.value)) {
+                    tpe = .name;
+                    str = tkn.value;
+                } else if (tkn.isType(.literal_string)) {
+                    tpe = .path;
+                    str = tkn.value;
+                } else {
+                    return .ERR(.{
+                        .unexpected_token = .{
+                            .found = tkn,
+                            .expected_type = .literal_string,
+                        },
+                    });
+                }
             } else {
                 return .ERR(.{
                     .unexpected_token = .{
@@ -70,18 +79,19 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !errors.CompilerError(This) {
             }
         } else {
             return .ERR(.{
-                .unexpected_token = .{
-                    .found = tkn,
+                .unexpected_eof = .{
                     .expected_type = .literal_string,
                 },
             });
         }
-    } else {
-        return .ERR(.{
-            .unexpected_eof = .{
-                .expected_type = .literal_string,
-            },
-        });
+
+        if (tokens.peek(1)) |comma| {
+            if (comma.is(.operator, ",")) {
+                _ = tokens.next();
+                continue;
+            }
+        }
+        break;
     }
 
     return .OK(.{
