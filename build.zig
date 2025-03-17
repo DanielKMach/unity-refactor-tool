@@ -8,18 +8,17 @@ pub fn build(b: *std.Build) void {
     const run_step = b.step("run", "Run the CLI");
     const test_step = b.step("test", "Run unit tests");
 
+    const libyaml = b.dependency("libyaml", .{
+        .target = target,
+        .optimize = optimize,
+    });
+
     const exe = b.addExecutable(.{
         .name = "urt",
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
     });
-
-    const libyaml = b.dependency("libyaml", .{
-        .target = target,
-        .optimize = optimize,
-    });
-
     exe.root_module.linkLibrary(libyaml.artifact("libyaml"));
     exe.root_module.addIncludePath(libyaml.path("lib/include"));
 
@@ -39,7 +38,10 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+    tests.root_module.linkLibrary(libyaml.artifact("libyaml"));
+    tests.root_module.addIncludePath(libyaml.path("lib/include"));
 
     const run_tests = b.addRunArtifact(tests);
+
     test_step.dependOn(&run_tests.step);
 }
