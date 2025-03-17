@@ -1,13 +1,13 @@
 pub const language = @import("language.zig");
 pub const errors = @import("errors.zig");
-pub const mdls = @import("mdls.zig");
+pub const cmds = @import("cmds.zig");
 
 pub const Scanner = @import("Scanner.zig");
 pub const RuntimeData = @import("RuntimeData.zig");
 
 const std = @import("std");
 
-const Show = mdls.cmds.Show;
+const Show = cmds.Show;
 
 pub const std_options: std.Options = .{
     .logFn = log,
