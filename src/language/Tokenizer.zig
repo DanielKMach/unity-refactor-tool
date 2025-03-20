@@ -97,7 +97,7 @@ pub const TokenIterator = struct {
 
     pub fn peek(self: TokenIterator, steps: isize) ?Token {
         const i = self.index + steps;
-        if (i + steps >= self.tokens.len or i + steps < 0) {
+        if (i >= self.tokens.len or i < 0) {
             return null;
         }
         return self.tokens[@intCast(i)];
