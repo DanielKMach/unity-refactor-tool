@@ -73,6 +73,12 @@ pub const Token = struct {
     pub fn isType(self: Token, typ: TokenType) bool {
         return self.type == typ;
     }
+
+    pub fn hash(self: Token) u64 {
+        const str = std.hash.RapidHash.hash(0, self.value);
+        const typ = std.hash.RapidHash.hash(0, &.{@intFromEnum(self.type)});
+        return @addWithOverflow(str, typ)[0];
+    }
 };
 
 pub const TokenType = enum {
