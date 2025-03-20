@@ -1,6 +1,5 @@
 const std = @import("std");
 const core = @import("root");
-const libyaml = @cImport(@cInclude("yaml.h"));
 const errors = core.errors;
 const log = std.log.scoped(.show_command);
 
@@ -126,7 +125,9 @@ pub fn run(self: This, data: RuntimeData) !errors.RuntimeError(void) {
 
     try scanner.scan(&searchData);
 
-    std.debug.print("\r\n", .{});
+    if (data.verbose) {
+        std.debug.print("\r\n", .{});
+    }
     return .OK(void{});
 }
 
@@ -164,7 +165,7 @@ fn search(self: *anyopaque, entry: std.fs.Dir.Walker.Entry, file: std.fs.File) !
         } else {
             data.logMtx.lock();
             defer data.logMtx.unlock();
-            std.debug.print("{s}\r\n", .{entry.path});
+            try data.data.out.print("{s}\r\n", .{entry.path});
             break;
         }
     }
@@ -172,7 +173,9 @@ fn search(self: *anyopaque, entry: std.fs.Dir.Walker.Entry, file: std.fs.File) !
     data.logMtx.lock();
     defer data.logMtx.unlock();
     data.fileCount += 1;
-    std.debug.print("{d} files scanned\r", .{data.fileCount});
+    if (data.data.verbose) {
+        try data.data.out.print("{d} files scanned\r", .{data.fileCount});
+    }
 }
 
 const SearchData = struct {
@@ -182,53 +185,3 @@ const SearchData = struct {
     fileCount: usize = 0,
     logMtx: std.Thread.Mutex = .{},
 };
-
-pub fn getGUID(asset: []const u8, allocator: std.mem.Allocator) ![]const u8 {
-    const metaPath = try std.mem.concat(allocator, u8, &.{ asset, ".meta" });
-    defer allocator.free(metaPath);
-
-    var file = try std.fs.cwd().openFile(metaPath, .{ .mode = .read_only });
-    const contents = try file.readToEndAlloc(allocator, 4096);
-    defer allocator.free(contents);
-
-    var parser: libyaml.yaml_parser_t = undefined;
-    _ = libyaml.yaml_parser_initialize(&parser);
-    defer libyaml.yaml_parser_delete(&parser);
-
-    libyaml.yaml_parser_set_input_string(&parser, contents.ptr, contents.len);
-
-    var guid: []const u8 = undefined;
-
-    var done: bool = false;
-    var next_guid: bool = false;
-    while (!done) {
-        var event: libyaml.yaml_event_t = undefined;
-        if (libyaml.yaml_parser_parse(&parser, &event) == 0) {
-            return error.InvalidMetaFile;
-        }
-        defer libyaml.yaml_event_delete(&event);
-
-        if (next_guid and event.type != libyaml.YAML_SCALAR_EVENT) {
-            return error.InvalidMetaFile;
-        }
-
-        if (event.type == libyaml.YAML_SCALAR_EVENT) {
-            const scalar = event.data.scalar.value[0..event.data.scalar.length];
-            if (next_guid) {
-                guid = try allocator.dupe(u8, scalar);
-                break;
-            } else {
-                next_guid = std.mem.eql(u8, scalar, "guid");
-                continue;
-            }
-        }
-
-        done = event.type == libyaml.YAML_STREAM_END_EVENT;
-    }
-
-    if (guid.len != 32) {
-        return error.InvalidMetaFile;
-    }
-
-    return guid;
-}

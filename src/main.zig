@@ -4,10 +4,9 @@ pub const cmds = @import("cmds.zig");
 
 pub const Scanner = @import("Scanner.zig");
 pub const RuntimeData = @import("RuntimeData.zig");
+pub const Yaml = @import("Yaml.zig");
 
 const std = @import("std");
-
-const Show = cmds.Show;
 
 pub const std_options: std.Options = .{
     .logFn = log,
@@ -44,17 +43,34 @@ pub fn main() !void {
         var tokens = tokenizeResult.ok;
 
         data.query = arg;
-        const parseResult = try Show.parse(&tokens);
-        if (parseResult.isErr()) |err| {
-            try errors.showCompilerError(out.any(), err, arg);
-            return;
-        }
 
-        const runResult = try parseResult.ok.run(data);
-        if (runResult.isErr()) |err| {
-            try errors.showRuntimeError(out.any(), err);
-            return;
+        switch (tokens.peek(1).?.hash()) {
+            language.Tokenizer.Token.new(.keyword, "SHOW").hash() => {
+                try runCommand(cmds.Show, &tokens, data);
+            },
+            language.Tokenizer.Token.new(.keyword, "RENAME").hash() => {
+                try runCommand(cmds.Rename, &tokens, data);
+            },
+            else => {
+                const Err = @FieldType(errors.CompilerError(void), "err");
+                try errors.showCompilerError(out.any(), @as(Err, .{ .unknown_command = void{} }), arg);
+                return;
+            },
         }
+    }
+}
+
+pub fn runCommand(Command: type, tokens: *language.Tokenizer.TokenIterator, data: RuntimeData) !void {
+    const parseResult = try Command.parse(tokens);
+    if (parseResult.isErr()) |err| {
+        try errors.showCompilerError(data.out, err, data.query);
+        return;
+    }
+
+    const runResult = try parseResult.ok.run(data);
+    if (runResult.isErr()) |err| {
+        try errors.showRuntimeError(data.out, err);
+        return;
     }
 }
 
