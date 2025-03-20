@@ -9,6 +9,8 @@ pub const keywords: []const []const u8 = &.{
     "GUID",
     "WHERE",
     "IN",
+    "RENAME",
+    "FOR",
 };
 
 pub const operators: []const u8 = &.{
