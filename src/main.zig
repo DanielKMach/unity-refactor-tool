@@ -24,10 +24,12 @@ pub fn main() !void {
     var cwd = try std.fs.cwd().openDir(".", .{ .iterate = true, .access_sub_paths = true });
     defer cwd.close();
 
-    const data = RuntimeData{
+    var data = RuntimeData{
         .allocator = allocator,
         .out = out.any(),
         .cwd = cwd,
+        .verbose = true,
+        .query = undefined,
     };
 
     var args = try std.process.argsWithAllocator(allocator);
@@ -40,6 +42,8 @@ pub fn main() !void {
             return;
         }
         var tokens = tokenizeResult.ok;
+
+        data.query = arg;
         const parseResult = try Show.parse(&tokens);
         if (parseResult.isErr()) |err| {
             try errors.showCompilerError(out.any(), err, arg);
