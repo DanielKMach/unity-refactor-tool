@@ -208,7 +208,7 @@ pub fn scopeAndReplace(self: This, data: RuntimeData, file: std.fs.File, guid: [
 
         var yaml = Yaml.init(.{ .string = doc }, .{ .string = &buf }, data.allocator);
 
-        if (yaml.matchGUID(guid)) {
+        if (try yaml.matchGUID(guid)) {
             try yaml.rename(self.old_name, self.new_name);
             try modified.append(buf);
         } else {
