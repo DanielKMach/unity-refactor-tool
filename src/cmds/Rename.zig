@@ -165,11 +165,25 @@ pub fn run(self: This, data: RuntimeData) !errors.RuntimeError(void) {
         .verbose = false,
     };
 
+    try data.out.print("Looking for refereces...\r\n", .{});
+
+    // Using SHOW command to search for references
     var res = try show.run(rundata);
     if (res.isErr()) |e| {
         return .ERR(e);
     }
 
+    var updated = std.ArrayList(Mod).init(data.allocator);
+    defer {
+        for (updated.items) |mod| {
+            mod.modifications.close();
+            data.cwd.deleteFile(mod.cache_path) catch {};
+            data.allocator.free(mod.cache_path);
+        }
+        updated.deinit();
+    }
+
+    // Parsing files and storing the changes
     var start: usize = 0;
     for (0..buf.items.len) |i| {
         if (buf.items[i] == '\n') {
@@ -185,15 +199,32 @@ pub fn run(self: This, data: RuntimeData) !errors.RuntimeError(void) {
                 log.warn("Error ({s}) opening file: '{s}'", .{ @errorName(err), path });
                 continue;
             };
+            defer file.close();
 
-            try self.scopeAndReplace(data, file, guid);
+            try updated.append(try self.scopeAndReplace(data, file, path, guid));
         }
+    }
+
+    // Apply changes
+    for (updated.items) |mod| {
+        const path = mod.path;
+        const cache = mod.modifications;
+
+        const file = data.cwd.createFile(path, .{ .lock = .exclusive, .truncate = true }) catch |err| {
+            log.warn("Error ({s}) opening file: '{s}'", .{ @errorName(err), path });
+            return .ERR(.{ .invalid_path = .{ .path = path } });
+        };
+        defer file.close();
+
+        try file.writeFileAll(cache, .{});
     }
 
     return .OK(void{});
 }
 
-pub fn scopeAndReplace(self: This, data: RuntimeData, file: std.fs.File, guid: []const u8) !void {
+pub fn scopeAndReplace(self: This, data: RuntimeData, file: std.fs.File, path: []const u8, guid: []const u8) !Mod {
+    try data.out.print("Updating '{s}'... ", .{std.fs.path.basename(path)});
+
     const content = try file.readToEndAlloc(data.allocator, std.math.maxInt(u16));
     defer data.allocator.free(content);
 
@@ -217,8 +248,21 @@ pub fn scopeAndReplace(self: This, data: RuntimeData, file: std.fs.File, guid: [
     }
 
     const new_content = try consolidateAsset(content, docs, modified.items, data.allocator);
+    defer data.allocator.free(new_content);
 
-    log.info("'{s}' updated to '{s}'", .{ content, new_content });
+    const hash = std.hash.Adler32.hash(path);
+    const name = try std.fmt.allocPrint(data.allocator, "{x}", .{hash});
+    const cache = try data.cwd.createFile(name, .{ .lock = .exclusive, .truncate = true, .read = true });
+
+    try cache.writeAll(new_content);
+
+    try data.out.print("DONE\r\n", .{});
+
+    return .{
+        .path = path,
+        .cache_path = name,
+        .modifications = cache,
+    };
 }
 
 fn consolidateAsset(content: []u8, parts: [][]u8, modified: []?[]u8, allocator: std.mem.Allocator) std.mem.Allocator.Error![]u8 {
@@ -300,3 +344,9 @@ fn dissectAsset(content: []u8, allocator: std.mem.Allocator) std.mem.Allocator.E
 
     return docs.toOwnedSlice();
 }
+
+const Mod = struct {
+    path: []const u8,
+    cache_path: []const u8,
+    modifications: std.fs.File,
+};
