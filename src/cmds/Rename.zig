@@ -1,13 +1,13 @@
 const std = @import("std");
 const core = @import("root");
-const Yaml = core.Yaml;
 const errors = core.errors;
 const log = std.log.scoped(.rename_command);
 
 const This = @This();
-const Scanner = core.Scanner;
 const Tokenizer = core.language.Tokenizer;
-const RuntimeData = core.RuntimeData;
+const Scanner = core.runtime.Scanner;
+const RuntimeData = core.runtime.RuntimeData;
+const Yaml = core.runtime.Yaml;
 const InTarget = core.cmds.sub.InTarget;
 const AssetTarget = core.cmds.sub.AssetTarget;
 
@@ -157,7 +157,7 @@ pub fn run(self: This, data: RuntimeData) !errors.RuntimeError(void) {
         .in = in,
     };
 
-    const rundata = core.RuntimeData{
+    const rundata = RuntimeData{
         .allocator = data.allocator,
         .out = writer.any(),
         .cwd = data.cwd,

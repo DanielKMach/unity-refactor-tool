@@ -5,7 +5,7 @@ const errors = core.errors;
 
 const This = @This();
 const Tokenizer = core.language.Tokenizer;
-const RuntimeData = core.RuntimeData;
+const RuntimeData = core.runtime.RuntimeData;
 
 tpe: Type,
 str: []const u8,

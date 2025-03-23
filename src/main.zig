@@ -1,10 +1,7 @@
 pub const language = @import("language.zig");
 pub const errors = @import("errors.zig");
 pub const cmds = @import("cmds.zig");
-
-pub const Scanner = @import("Scanner.zig");
-pub const RuntimeData = @import("RuntimeData.zig");
-pub const Yaml = @import("Yaml.zig");
+pub const runtime = @import("runtime.zig");
 
 const std = @import("std");
 const builtin = @import("builtin");
@@ -38,7 +35,7 @@ pub fn main() !void {
 
     const allocator = arena.allocator();
 
-    var data = RuntimeData{
+    var data = runtime.RuntimeData{
         .allocator = allocator,
         .out = out.any(),
         .cwd = cwd,
@@ -74,7 +71,7 @@ pub fn main() !void {
     }
 }
 
-pub fn runCommand(Command: type, tokens: *language.Tokenizer.TokenIterator, data: RuntimeData) !void {
+pub fn runCommand(Command: type, tokens: *language.Tokenizer.TokenIterator, data: runtime.RuntimeData) !void {
     const parseResult = try Command.parse(tokens);
     if (parseResult.isErr()) |err| {
         try errors.showCompilerError(data.out, err, data.query);
