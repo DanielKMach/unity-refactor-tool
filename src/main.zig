@@ -7,21 +7,36 @@ pub const RuntimeData = @import("RuntimeData.zig");
 pub const Yaml = @import("Yaml.zig");
 
 const std = @import("std");
+const builtin = @import("builtin");
 
 pub const std_options: std.Options = .{
     .logFn = log,
 };
 
 pub fn main() !void {
-    const main_allocator = std.heap.page_allocator;
+    var debug_allocator: std.heap.DebugAllocator(.{}) = undefined;
+    defer _ = if (builtin.mode == .Debug) debug_allocator.deinit();
+    if (builtin.mode == .Debug) {
+        debug_allocator = .init;
+        debug_allocator.backing_allocator = std.heap.page_allocator;
+    }
+
+    const main_allocator = if (builtin.mode == .Debug) debug_allocator.allocator() else std.heap.page_allocator;
+
+    if (builtin.mode == .Debug) {}
+
+    const out = std.io.getStdOut().writer();
+    var cwd = try std.fs.cwd().openDir(".", .{ .iterate = true, .access_sub_paths = true });
+    defer cwd.close();
+
+    var args = try std.process.argsWithAllocator(main_allocator);
+    _ = args.next(); // skip the first argument
+    defer args.deinit();
+
     var arena = std.heap.ArenaAllocator.init(main_allocator);
     defer arena.deinit();
 
     const allocator = arena.allocator();
-    var tokenizer = language.Tokenizer{ .allocator = allocator };
-    const out = std.io.getStdOut().writer();
-    var cwd = try std.fs.cwd().openDir(".", .{ .iterate = true, .access_sub_paths = true });
-    defer cwd.close();
 
     var data = RuntimeData{
         .allocator = allocator,
@@ -31,11 +46,10 @@ pub fn main() !void {
         .query = undefined,
     };
 
-    var args = try std.process.argsWithAllocator(allocator);
-    _ = args.next(); // skip the first argument
-
     while (args.next()) |arg| {
-        const tokenizeResult = try tokenizer.tokenize(arg);
+        defer _ = arena.reset(.retain_capacity);
+
+        const tokenizeResult = try language.Tokenizer.tokenize(arg, allocator);
         if (tokenizeResult.isErr()) |err| {
             try errors.showCompilerError(out.any(), err, arg);
             return;

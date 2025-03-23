@@ -6,10 +6,8 @@ const log = std.log.scoped(.usql_tokenizer);
 
 const This = @This();
 
-allocator: std.mem.Allocator,
-
-pub fn tokenize(self: *This, expression: []const u8) !errors.CompilerError(TokenIterator) {
-    var list = std.ArrayList(Token).init(self.allocator);
+pub fn tokenize(expression: []const u8, allocator: std.mem.Allocator) !errors.CompilerError(TokenIterator) {
+    var list = std.ArrayList(Token).init(allocator);
     defer list.deinit();
 
     var si: usize = 0;
