@@ -7,6 +7,7 @@ const This = @This();
 const Tokenizer = core.language.Tokenizer;
 const Scanner = core.runtime.Scanner;
 const RuntimeData = core.runtime.RuntimeData;
+const ComponentIterator = core.runtime.ComponentIterator;
 const Yaml = core.runtime.Yaml;
 const InTarget = core.cmds.sub.InTarget;
 const AssetTarget = core.cmds.sub.AssetTarget;
@@ -146,10 +147,9 @@ pub fn run(self: This, data: RuntimeData) !errors.RuntimeError(void) {
     });
     defer data.allocator.free(guid);
 
-    var buf = std.ArrayList(u8).init(data.allocator);
-    defer buf.deinit();
-
-    const writer = buf.writer();
+    var show_output = std.ArrayList(u8).init(data.allocator);
+    defer show_output.deinit();
+    const writer = show_output.writer();
 
     const show = core.cmds.Show{
         .exts = &.{ ".unity", ".prefab", ".asset" },
@@ -173,180 +173,126 @@ pub fn run(self: This, data: RuntimeData) !errors.RuntimeError(void) {
         return .ERR(e);
     }
 
-    var updated = std.ArrayList(Mod).init(data.allocator);
-    defer {
-        for (updated.items) |mod| {
-            mod.modifications.close();
-            data.cwd.deleteFile(mod.cache_path) catch {};
-            data.allocator.free(mod.cache_path);
-        }
-        updated.deinit();
-    }
-
     // Parsing files and storing the changes
-    var start: usize = 0;
-    for (0..buf.items.len) |i| {
-        if (buf.items[i] == '\n') {
-            const trimmed_name = std.mem.trim(u8, buf.items[start..i], " \t\r\n");
-            const path = std.fs.path.join(data.allocator, &.{ show.in.dir, trimmed_name }) catch |err| {
-                log.warn("Error joining path: '{s}'", .{@errorName(err)});
-                return .ERR(.{ .invalid_path = .{ .path = show.in.dir } });
-            };
-            start = i + 1;
-            if (path.len == 0) continue;
+    var paths = std.mem.SplitIterator(u8, .scalar){
+        .buffer = show_output.items,
+        .index = 0,
+        .delimiter = '\n',
+    };
 
-            const file = data.cwd.openFile(path, .{ .mode = .read_only }) catch |err| {
-                log.warn("Error ({s}) opening file: '{s}'", .{ @errorName(err), path });
-                continue;
-            };
-            defer file.close();
-
-            try updated.append(try self.scopeAndReplace(data, file, path, guid));
+    const updated = try self.updateAll(&paths, data, guid);
+    defer {
+        for (updated) |mod| {
+            mod.modifications.close();
+            data.cwd.deleteFile(&mod.cache_path) catch {};
         }
+        data.allocator.free(updated);
     }
 
     // Apply changes
-    for (updated.items) |mod| {
-        const path = mod.path;
-        const cache = mod.modifications;
-
-        const file = data.cwd.createFile(path, .{ .lock = .exclusive, .truncate = true }) catch |err| {
-            log.warn("Error ({s}) opening file: '{s}'", .{ @errorName(err), path });
-            return .ERR(.{ .invalid_path = .{ .path = path } });
-        };
-        defer file.close();
-
-        try file.writeFileAll(cache, .{});
-    }
+    try applyAll(updated, data.cwd);
 
     return .OK(void{});
 }
 
-pub fn scopeAndReplace(self: This, data: RuntimeData, file: std.fs.File, path: []const u8, guid: []const u8) !Mod {
-    try data.out.print("Updating '{s}'... ", .{std.fs.path.basename(path)});
+pub fn updateAll(self: This, paths: *std.mem.SplitIterator(u8, .scalar), data: RuntimeData, guid: []const u8) ![]Mod {
+    var updated = std.ArrayList(Mod).init(data.allocator);
 
-    const content = try file.readToEndAlloc(data.allocator, std.math.maxInt(u16));
-    defer data.allocator.free(content);
+    while (paths.next()) |p| {
+        const trimmed_name = std.mem.trim(u8, p, " \t\r\n");
+        if (trimmed_name.len == 0) continue;
 
-    const docs = try dissectAsset(content, data.allocator);
-    defer data.allocator.free(docs);
+        const path = std.fs.path.join(data.allocator, &.{ self.in.dir, trimmed_name }) catch |err| {
+            log.warn("Error joining path: '{s}'", .{@errorName(err)});
+            continue;
+        };
 
-    var modified = std.ArrayList(?[]u8).init(data.allocator);
-    defer modified.deinit();
+        const file = data.cwd.openFile(path, .{ .mode = .read_only }) catch |err| {
+            log.warn("Error ({s}) opening file: '{s}'", .{ @errorName(err), path });
+            continue;
+        };
+        defer file.close();
 
-    for (docs) |doc| {
-        var buf = try data.allocator.alloc(u8, doc.len * 2);
-
-        var yaml = Yaml.init(.{ .string = doc }, .{ .string = &buf }, data.allocator);
-
-        if (try yaml.matchGUID(guid)) {
-            try yaml.rename(self.old_name, self.new_name);
-            try modified.append(buf);
-        } else {
-            try modified.append(null);
-        }
+        const mod = try self.scopeAndReplace(data, file, path, guid) orelse continue;
+        try updated.append(mod);
     }
 
-    const new_content = try consolidateAsset(content, docs, modified.items, data.allocator);
-    defer data.allocator.free(new_content);
-
-    const hash = std.hash.Adler32.hash(path);
-    const name = try std.fmt.allocPrint(data.allocator, "{x}", .{hash});
-    const cache = try data.cwd.createFile(name, .{ .lock = .exclusive, .truncate = true, .read = true });
-
-    try cache.writeAll(new_content);
-
-    try data.out.print("DONE\r\n", .{});
-
-    return .{
-        .path = path,
-        .cache_path = name,
-        .modifications = cache,
-    };
+    return try updated.toOwnedSlice();
 }
 
-fn consolidateAsset(content: []u8, parts: [][]u8, modified: []?[]u8, allocator: std.mem.Allocator) std.mem.Allocator.Error![]u8 {
-    var all = std.ArrayList([]u8).init(allocator);
-    defer all.deinit();
-
-    std.debug.assert(parts.len == modified.len);
-
-    if (parts.len == 0) {
-        return allocator.dupe(u8, content);
+pub fn scopeAndReplace(self: This, data: RuntimeData, file: std.fs.File, path: []const u8, guid: []const u8) !?Mod {
+    var iterator = ComponentIterator.init(file, data.allocator);
+    var modified = std.ArrayList(ComponentIterator.Component).init(data.allocator);
+    defer {
+        for (modified.items) |comp| {
+            data.allocator.free(comp.document);
+        }
+        modified.deinit();
     }
 
-    if (parts[0].ptr != content.ptr) {
-        try all.append(content[0 .. parts[0].ptr - content.ptr]);
-    }
+    try data.out.print("Updating '{s}'...", .{std.fs.path.basename(path)});
 
-    for (0..parts.len) |i| {
-        if (i < modified.len and modified[i] != null) {
-            try all.append(modified[i].?);
-        } else {
-            try all.append(parts[i]);
+    while (try iterator.next()) |comp| {
+        var yaml = Yaml.init(.{ .string = comp.document }, null, data.allocator);
+
+        if (!try yaml.matchGUID(guid)) {
+            continue;
         }
 
-        if (i + 1 < parts.len) {
-            const start_index = (parts[i].ptr + parts[i].len) - content.ptr;
-            const end_index = parts[i + 1].ptr - content.ptr;
-            try all.append(content[start_index..end_index]);
-        } else if (@as(usize, @intFromPtr(parts[i].ptr)) + parts[i].len < @as(usize, @intFromPtr(content.ptr)) + content.len) {
-            const start_index = (parts[i].ptr + parts[i].len) - content.ptr;
-            try all.append(content[start_index..content.len]);
-        }
+        var buf = try data.allocator.alloc(u8, comp.len * 2);
+        yaml.out = .{ .string = &buf };
+        try yaml.rename(self.old_name, self.new_name);
+
+        try modified.append(.{
+            .index = comp.index,
+            .len = comp.len,
+            .document = buf,
+        });
     }
 
-    var buf = std.ArrayList(u8).init(allocator);
-    defer buf.deinit();
-    const writer = buf.writer();
-    for (all.items) |item| {
-        _ = try writer.write(item);
+    try data.out.print(" DONE.\r\n", .{});
+
+    if (modified.items.len == 0) {
+        return null;
     }
 
-    return buf.toOwnedSlice();
+    const mod = try Mod.new(path, data.cwd);
+    try iterator.patch(mod.modifications, modified.items);
+
+    return mod;
 }
 
-fn dissectAsset(content: []u8, allocator: std.mem.Allocator) std.mem.Allocator.Error![][]u8 {
-    var docs = std.ArrayList([]u8).init(allocator);
-    defer docs.deinit();
+pub fn applyAll(mods: []Mod, cwd: std.fs.Dir) !void {
+    for (mods) |mod| {
+        const path = mod.path;
+        const cache = mod.modifications;
 
-    var i: usize = 0;
-    var start: usize = 0;
-    while (i < content.len) : (i += 1) {
-        if (content[i] == '%') {
-            while (content[i] != '\n' and i < content.len) {
-                i += 1;
-            }
-            if (content[i + 1] == '\r' and i < content.len) {
-                i += 1;
-            }
-            start = i + 1;
-        }
-        if (content[i] == '-' and content[i + 1] == '-') {
-            if (start < i) {
-                const doc = content[start..i];
-                try docs.append(doc);
-            }
-            while (i < content.len and content[i] != '\n') {
-                i += 1;
-            }
-            if (i < content.len and content[i + 1] == '\r') {
-                i += 1;
-            }
-            start = i + 1;
-        }
+        const file = try cwd.createFile(path, .{ .lock = .exclusive, .truncate = true });
+        defer file.close();
+
+        try file.writeFileAll(cache, .{});
     }
-
-    if (start < i) {
-        const doc = content[start..i];
-        try docs.append(doc);
-    }
-
-    return docs.toOwnedSlice();
 }
 
 const Mod = struct {
     path: []const u8,
-    cache_path: []const u8,
+    cache_path: [8]u8,
     modifications: std.fs.File,
+
+    pub fn new(path: []const u8, cwd: std.fs.Dir) !Mod {
+        var name: [8]u8 = undefined;
+        const hash = std.hash.Adler32.hash(path);
+        _ = try std.fmt.bufPrint(&name, "{x:0>8}", .{hash});
+        const cache_file = try cwd.createFile(&name, .{ .lock = .exclusive, .truncate = true, .read = true });
+
+        return Mod{
+            .path = path,
+            .cache_path = name,
+            .modifications = cache_file,
+        };
+    }
+
+    pub fn close(self: *Mod) void {
+        self.modifications.close();
+    }
 };
