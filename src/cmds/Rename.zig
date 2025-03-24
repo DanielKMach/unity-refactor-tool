@@ -197,6 +197,7 @@ pub fn run(self: This, data: RuntimeData) !errors.RuntimeError(void) {
 
 pub fn updateAll(self: This, paths: *std.mem.SplitIterator(u8, .scalar), data: RuntimeData, guid: []const u8) ![]Mod {
     var updated = std.ArrayList(Mod).init(data.allocator);
+    defer updated.deinit();
 
     while (paths.next()) |p| {
         const trimmed_name = std.mem.trim(u8, p, " \t\r\n");
