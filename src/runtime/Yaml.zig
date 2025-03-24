@@ -5,11 +5,15 @@ const This = @This();
 
 const c_alloc = std.heap.raw_c_allocator;
 
+const OutputError = error{NoOutput} || std.mem.Allocator.Error;
+const ParseError = error{InvalidYaml} || std.mem.Allocator.Error;
+const UpdateError = ParseError || OutputError;
+
 in: In,
-out: Out,
+out: ?Out,
 allocator: std.mem.Allocator,
 
-pub fn init(in: In, out: Out, allocator: std.mem.Allocator) This {
+pub fn init(in: In, out: ?Out, allocator: std.mem.Allocator) This {
     const self = This{
         .in = in,
         .out = out,
@@ -19,7 +23,7 @@ pub fn init(in: In, out: Out, allocator: std.mem.Allocator) This {
     return self;
 }
 
-pub fn rename(self: *This, old_scalar: []const u8, new_scalar: []const u8) std.mem.Allocator.Error!void {
+pub fn rename(self: *This, old_scalar: []const u8, new_scalar: []const u8) UpdateError!void {
     const parser = try self.getParser();
     defer self.closeParser(parser);
 
@@ -35,7 +39,7 @@ pub fn rename(self: *This, old_scalar: []const u8, new_scalar: []const u8) std.m
     while (!done) {
         event = try events.addOne(self.allocator);
         if (libyaml.yaml_parser_parse(parser, event) == 0) {
-            break;
+            return error.InvalidYaml;
         }
         if (event.type == libyaml.YAML_MAPPING_START_EVENT) {
             level += 1;
@@ -61,7 +65,7 @@ pub fn rename(self: *This, old_scalar: []const u8, new_scalar: []const u8) std.m
     _ = libyaml.yaml_emitter_flush(emitter);
 }
 
-pub fn matchGUID(self: *This, guid: []const u8) std.mem.Allocator.Error!bool {
+pub fn matchGUID(self: *This, guid: []const u8) ParseError!bool {
     const parser = try self.getParser();
     defer self.closeParser(parser);
 
@@ -76,7 +80,7 @@ pub fn matchGUID(self: *This, guid: []const u8) std.mem.Allocator.Error!bool {
     while (!done) {
         event = try events.addOne(self.allocator);
         if (libyaml.yaml_parser_parse(parser, event) == 0) {
-            return error.OutOfMemory;
+            return error.InvalidYaml;
         }
 
         if (event.type == libyaml.YAML_MAPPING_START_EVENT) {
@@ -124,7 +128,7 @@ fn closeParser(self: *This, parser: *libyaml.yaml_parser_t) void {
     self.allocator.destroy(parser);
 }
 
-fn getEmitter(self: *This) std.mem.Allocator.Error!*libyaml.yaml_emitter_t {
+fn getEmitter(self: *This) OutputError!*libyaml.yaml_emitter_t {
     const emitter = try self.allocator.create(libyaml.yaml_emitter_t);
     errdefer self.allocator.destroy(emitter);
 
@@ -133,9 +137,11 @@ fn getEmitter(self: *This) std.mem.Allocator.Error!*libyaml.yaml_emitter_t {
 
     libyaml.yaml_emitter_set_encoding(emitter, libyaml.YAML_UTF8_ENCODING);
 
-    switch (self.out) {
+    if (self.out) |*out| switch (out.*) {
         .string => |str| libyaml.yaml_emitter_set_output_string(emitter, str.ptr, str.len, &str.len),
         .writer => |*writer| libyaml.yaml_emitter_set_output(emitter, &writeHandler, @ptrCast(writer)),
+    } else {
+        return error.NoOutput;
     }
 
     return emitter;
