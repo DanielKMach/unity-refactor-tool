@@ -6,10 +6,8 @@ const log = std.log.scoped(.usql_tokenizer);
 
 const This = @This();
 
-allocator: std.mem.Allocator,
-
-pub fn tokenize(self: *This, expression: []const u8) !errors.CompilerError(TokenIterator) {
-    var list = std.ArrayList(Token).init(self.allocator);
+pub fn tokenize(expression: []const u8, allocator: std.mem.Allocator) !errors.CompilerError(TokenIterator) {
+    var list = std.ArrayList(Token).init(allocator);
     defer list.deinit();
 
     var si: usize = 0;
@@ -73,6 +71,12 @@ pub const Token = struct {
     pub fn isType(self: Token, typ: TokenType) bool {
         return self.type == typ;
     }
+
+    pub fn hash(self: Token) u64 {
+        const str = std.hash.RapidHash.hash(0, self.value);
+        const typ = std.hash.RapidHash.hash(0, &.{@intFromEnum(self.type)});
+        return @addWithOverflow(str, typ)[0];
+    }
 };
 
 pub const TokenType = enum {
@@ -97,7 +101,7 @@ pub const TokenIterator = struct {
 
     pub fn peek(self: TokenIterator, steps: isize) ?Token {
         const i = self.index + steps;
-        if (i + steps >= self.tokens.len or i + steps < 0) {
+        if (i >= self.tokens.len or i < 0) {
             return null;
         }
         return self.tokens[@intCast(i)];

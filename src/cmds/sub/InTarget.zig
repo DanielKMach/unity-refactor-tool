@@ -3,7 +3,7 @@ const core = @import("root");
 const errors = core.errors;
 
 const This = @This();
-const RuntimeData = core.RuntimeData;
+const RuntimeData = core.runtime.RuntimeData;
 const Tokenizer = core.language.Tokenizer;
 
 dir: []const u8,

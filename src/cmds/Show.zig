@@ -1,13 +1,12 @@
 const std = @import("std");
 const core = @import("root");
-const libyaml = @cImport(@cInclude("yaml.h"));
 const errors = core.errors;
 const log = std.log.scoped(.show_command);
 
 const This = @This();
-const Scanner = core.Scanner;
 const Tokenizer = core.language.Tokenizer;
-const RuntimeData = core.RuntimeData;
+const Scanner = core.runtime.Scanner;
+const RuntimeData = core.runtime.RuntimeData;
 const InTarget = core.cmds.sub.InTarget;
 const AssetTarget = core.cmds.sub.AssetTarget;
 
@@ -115,120 +114,77 @@ pub fn run(self: This, data: RuntimeData) !errors.RuntimeError(void) {
     });
     defer data.allocator.free(guid);
 
-    var searchData = SearchData{
+    var searchData = Search{
         .cmd = &self,
         .guid = guid,
         .data = data,
     };
 
-    var scanner = try Scanner.init(dir, search, filter, data.allocator);
+    var scanner = try Scanner(Search).init(dir, &Search.search, Search.filter, data.allocator);
     defer scanner.deinit();
+
+    const start = std.time.milliTimestamp();
 
     try scanner.scan(&searchData);
 
-    std.debug.print("\r\n", .{});
+    const time = std.time.milliTimestamp() - start;
+
+    if (data.verbose) {
+        std.debug.print("Scanned {d} files in {d} milliseconds \r\n", .{ searchData.fileCount, time });
+    }
     return .OK(void{});
 }
 
-fn filter(self: *anyopaque, entry: std.fs.Dir.Walker.Entry) ?std.fs.File {
-    if (entry.kind != .file) return null;
-
-    const data: *SearchData = @alignCast(@ptrCast(self));
-    for (data.cmd.exts) |ext| {
-        if (std.mem.endsWith(u8, entry.path, ext)) break;
-    } else return null;
-
-    return entry.dir.openFile(entry.basename, .{ .mode = .read_only }) catch |err| {
-        log.warn("Error ({s}) opening file: '{s}'", .{ @errorName(err), entry.path });
-        return null;
-    };
-}
-
-fn search(self: *anyopaque, entry: std.fs.Dir.Walker.Entry, file: std.fs.File) !void {
-    const data: *SearchData = @alignCast(@ptrCast(self));
-    const reader = file.reader();
-
-    main: while (true) {
-        try reader.skipUntilDelimiterOrEof(data.guid[0]);
-        for (1..data.guid.len) |i| {
-            const c = reader.readByte() catch |err| {
-                data.logMtx.lock();
-                defer data.logMtx.unlock();
-                switch (err) {
-                    error.EndOfStream => void{},
-                    else => log.warn("Error ({s}) reading file: '{s}'", .{ @errorName(err), entry.path }),
-                }
-                break :main;
-            };
-            if (c != data.guid[i]) break;
-        } else {
-            data.logMtx.lock();
-            defer data.logMtx.unlock();
-            std.debug.print("{s}\r\n", .{entry.path});
-            break;
-        }
-    }
-
-    data.logMtx.lock();
-    defer data.logMtx.unlock();
-    data.fileCount += 1;
-    std.debug.print("{d} files scanned\r", .{data.fileCount});
-}
-
-const SearchData = struct {
+const Search = struct {
     cmd: *const This,
     data: RuntimeData,
     guid: []const u8,
     fileCount: usize = 0,
     logMtx: std.Thread.Mutex = .{},
-};
 
-pub fn getGUID(asset: []const u8, allocator: std.mem.Allocator) ![]const u8 {
-    const metaPath = try std.mem.concat(allocator, u8, &.{ asset, ".meta" });
-    defer allocator.free(metaPath);
+    fn filter(self: *Search, entry: std.fs.Dir.Walker.Entry) ?std.fs.File {
+        if (entry.kind != .file) return null;
 
-    var file = try std.fs.cwd().openFile(metaPath, .{ .mode = .read_only });
-    const contents = try file.readToEndAlloc(allocator, 4096);
-    defer allocator.free(contents);
+        for (self.cmd.exts) |ext| {
+            if (std.mem.endsWith(u8, entry.path, ext)) break;
+        } else return null;
 
-    var parser: libyaml.yaml_parser_t = undefined;
-    _ = libyaml.yaml_parser_initialize(&parser);
-    defer libyaml.yaml_parser_delete(&parser);
+        return entry.dir.openFile(entry.basename, .{ .mode = .read_only }) catch |err| {
+            log.warn("Error ({s}) opening file: '{s}'", .{ @errorName(err), entry.path });
+            return null;
+        };
+    }
 
-    libyaml.yaml_parser_set_input_string(&parser, contents.ptr, contents.len);
+    fn search(self: *Search, entry: std.fs.Dir.Walker.Entry, file: std.fs.File) !void {
+        var bufrdr = std.io.bufferedReader(file.reader());
+        const reader = bufrdr.reader();
 
-    var guid: []const u8 = undefined;
-
-    var done: bool = false;
-    var next_guid: bool = false;
-    while (!done) {
-        var event: libyaml.yaml_event_t = undefined;
-        if (libyaml.yaml_parser_parse(&parser, &event) == 0) {
-            return error.InvalidMetaFile;
-        }
-        defer libyaml.yaml_event_delete(&event);
-
-        if (next_guid and event.type != libyaml.YAML_SCALAR_EVENT) {
-            return error.InvalidMetaFile;
-        }
-
-        if (event.type == libyaml.YAML_SCALAR_EVENT) {
-            const scalar = event.data.scalar.value[0..event.data.scalar.length];
-            if (next_guid) {
-                guid = try allocator.dupe(u8, scalar);
-                break;
+        main: while (true) {
+            try reader.skipUntilDelimiterOrEof(self.guid[0]);
+            for (1..self.guid.len) |i| {
+                const c = reader.readByte() catch |err| {
+                    self.logMtx.lock();
+                    defer self.logMtx.unlock();
+                    switch (err) {
+                        error.EndOfStream => void{},
+                        else => log.warn("Error ({s}) reading file: '{s}'", .{ @errorName(err), entry.path }),
+                    }
+                    break :main;
+                };
+                if (c != self.guid[i]) break;
             } else {
-                next_guid = std.mem.eql(u8, scalar, "guid");
-                continue;
+                self.logMtx.lock();
+                defer self.logMtx.unlock();
+                try self.data.out.print("{s}\r\n", .{entry.path});
+                break;
             }
         }
 
-        done = event.type == libyaml.YAML_STREAM_END_EVENT;
+        self.logMtx.lock();
+        defer self.logMtx.unlock();
+        self.fileCount += 1;
+        if (self.data.verbose) {
+            try self.data.out.print("{d} files scanned\r", .{self.fileCount});
+        }
     }
-
-    if (guid.len != 32) {
-        return error.InvalidMetaFile;
-    }
-
-    return guid;
-}
+};
