@@ -251,10 +251,11 @@ pub fn scopeAndReplace(self: This, data: RuntimeData, file: std.fs.File, path: [
         });
     }
 
-    try data.out.print(" DONE.\r\n", .{});
-
     if (modified.items.len == 0) {
+        try data.out.print(" UNCHANGED.\r\n", .{});
         return null;
+    } else {
+        try data.out.print(" DONE.\r\n", .{});
     }
 
     const mod = try Mod.new(path, data.cwd);
