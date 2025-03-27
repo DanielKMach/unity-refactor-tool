@@ -69,40 +69,42 @@ pub fn matchGUID(self: *This, guid: []const u8) ParseError!bool {
     const parser = try self.getParser();
     defer self.closeParser(parser);
 
-    var events = newEventsList();
-    defer deleteEventsList(self.allocator, &events);
+    if (!try runTo(parser, "MonoBehaviour")) return false;
+    if (!try runTo(parser, "m_Script")) return false;
+    if (!try runTo(parser, "guid")) return false;
 
-    var event: *libyaml.yaml_event_t = undefined;
-    var done: bool = false;
+    var event: libyaml.yaml_event_t = undefined;
+    if (libyaml.yaml_parser_parse(parser, &event) == 0) {
+        return error.InvalidYaml;
+    }
+    defer libyaml.yaml_event_delete(&event);
+
+    if (event.type != libyaml.YAML_SCALAR_EVENT) {
+        return false;
+    }
+
+    return std.mem.eql(u8, event.data.scalar.value[0..event.data.scalar.length], guid);
+}
+
+fn runTo(parser: *libyaml.yaml_parser_t, key: []const u8) ParseError!bool {
+    var event = libyaml.yaml_event_t{};
     var level: usize = 0;
-    var script_level: usize = 0;
 
-    while (!done) {
-        event = try events.addOne(self.allocator);
-        if (libyaml.yaml_parser_parse(parser, event) == 0) {
+    while (event.type != libyaml.YAML_STREAM_END_EVENT) {
+        if (libyaml.yaml_parser_parse(parser, &event) == 0) {
             return error.InvalidYaml;
         }
+        defer libyaml.yaml_event_delete(&event);
 
         if (event.type == libyaml.YAML_MAPPING_START_EVENT) {
             level += 1;
-        }
-
-        if (events.count() > 1) {
-            const last = events.at(events.count() - 2);
-            if (script_level == 0 and last.type == libyaml.YAML_SCALAR_EVENT and event.type == libyaml.YAML_MAPPING_START_EVENT and std.mem.eql(u8, last.data.scalar.value[0..last.data.scalar.length], "m_Script")) {
-                script_level = level;
-            }
-
-            if (script_level == level and last.type == libyaml.YAML_SCALAR_EVENT and event.type == libyaml.YAML_SCALAR_EVENT and std.mem.eql(u8, last.data.scalar.value[0..last.data.scalar.length], "guid")) {
-                return std.mem.eql(u8, event.data.scalar.value[0..event.data.scalar.length], guid);
-            }
-        }
-
-        if (event.type == libyaml.YAML_MAPPING_END_EVENT) {
+        } else if (event.type == libyaml.YAML_MAPPING_END_EVENT) {
             level -= 1;
         }
 
-        done = event.type == libyaml.YAML_STREAM_END_EVENT;
+        if (level == 1 and event.type == libyaml.YAML_SCALAR_EVENT and std.mem.eql(u8, event.data.scalar.value[0..event.data.scalar.length], key)) {
+            return true;
+        }
     }
 
     return false;
