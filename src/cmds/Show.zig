@@ -109,9 +109,11 @@ pub fn run(self: This, data: RuntimeData) !errors.RuntimeError(void) {
     };
     defer dir.close();
 
-    const guid = of.getGUID(data) catch return .ERR(.{
-        .invalid_asset = .{ .path = of.str },
-    });
+    const guid = switch (try of.getGUID(data.allocator, data.cwd)) {
+        .ok => |v| v,
+        .err => |err| return .ERR(err),
+    };
+
     defer data.allocator.free(guid);
 
     var searchData = Search{
@@ -138,7 +140,7 @@ pub fn run(self: This, data: RuntimeData) !errors.RuntimeError(void) {
 const Search = struct {
     cmd: *const This,
     data: RuntimeData,
-    guid: []const u8,
+    guid: []const []const u8,
     fileCount: usize = 0,
     logMtx: std.Thread.Mutex = .{},
 
@@ -159,24 +161,34 @@ const Search = struct {
         var bufrdr = std.io.bufferedReader(file.reader());
         const reader = bufrdr.reader();
 
+        const progress = try self.data.allocator.alloc(usize, self.guid.len);
+        for (0..self.guid.len) |i| {
+            progress[i] = 0;
+        }
+        defer self.data.allocator.free(progress);
+
         main: while (true) {
-            try reader.skipUntilDelimiterOrEof(self.guid[0]);
-            for (1..self.guid.len) |i| {
-                const c = reader.readByte() catch |err| {
+            const c = reader.readByte() catch |err| {
+                if (err != error.EndOfStream) {
                     self.logMtx.lock();
                     defer self.logMtx.unlock();
-                    switch (err) {
-                        error.EndOfStream => void{},
-                        else => log.warn("Error ({s}) reading file: '{s}'", .{ @errorName(err), entry.path }),
-                    }
-                    break :main;
-                };
-                if (c != self.guid[i]) break;
-            } else {
-                self.logMtx.lock();
-                defer self.logMtx.unlock();
-                try self.data.out.print("{s}\r\n", .{entry.path});
+                    log.warn("Error ({s}) reading file: '{s}'", .{ @errorName(err), entry.path });
+                }
                 break;
+            };
+
+            for (0..self.guid.len) |i| {
+                if (c == self.guid[i][progress[i]]) {
+                    progress[i] += 1;
+                    if (progress[i] == self.guid[i].len) {
+                        self.logMtx.lock();
+                        defer self.logMtx.unlock();
+                        try self.data.out.print("{s}\r\n", .{entry.path});
+                        break :main;
+                    }
+                } else {
+                    progress[i] = 0;
+                }
             }
         }
 

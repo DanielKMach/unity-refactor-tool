@@ -5,10 +5,8 @@ const errors = core.errors;
 
 const This = @This();
 const Tokenizer = core.language.Tokenizer;
-const RuntimeData = core.runtime.RuntimeData;
 
-tpe: Type,
-str: []const u8,
+targets: std.BoundedArray(AssetTarget, 10),
 
 pub fn parse(tokens: *Tokenizer.TokenIterator) !errors.CompilerError(This) {
     if (tokens.next()) |tkn| {
@@ -30,15 +28,16 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !errors.CompilerError(This) {
         });
     }
 
-    var tpe: Type = undefined;
-    var str: []const u8 = undefined;
+    var targets = std.BoundedArray(AssetTarget, 10){};
     while (true) {
         if (tokens.next()) |tkn| {
             if (tkn.is(.keyword, "GUID")) {
                 if (tokens.next()) |tkn_guid| {
                     if ((tkn_guid.isType(.literal_string) or tkn_guid.isType(.literal)) and isGUID(tkn_guid.value)) {
-                        tpe = .guid;
-                        str = tkn_guid.value;
+                        try targets.append(.{
+                            .tpe = .guid,
+                            .str = tkn_guid.value,
+                        });
                     } else {
                         return .ERR(.{
                             .unexpected_token = .{
@@ -56,11 +55,15 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !errors.CompilerError(This) {
                 }
             } else if (tkn.isType(.literal) or tkn.isType(.literal_string)) {
                 if (isCSharpIdentifier(tkn.value)) {
-                    tpe = .name;
-                    str = tkn.value;
+                    try targets.append(.{
+                        .tpe = .name,
+                        .str = tkn.value,
+                    });
                 } else if (tkn.isType(.literal_string)) {
-                    tpe = .path;
-                    str = tkn.value;
+                    try targets.append(.{
+                        .tpe = .path,
+                        .str = tkn.value,
+                    });
                 } else {
                     return .ERR(.{
                         .unexpected_token = .{
@@ -95,33 +98,53 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !errors.CompilerError(This) {
     }
 
     return .OK(.{
-        .tpe = tpe,
-        .str = str,
+        .targets = targets,
     });
 }
 
-pub fn getGUID(self: This, data: RuntimeData) ![]u8 {
-    return switch (self.tpe) {
-        .guid => try data.allocator.dupe(u8, self.str),
-        .name => blk: {
-            const path = try searchComponent(self.str, data);
-            defer data.allocator.free(path);
+pub fn getGUID(self: This, allocator: std.mem.Allocator, dir: std.fs.Dir) !errors.RuntimeError([][]u8) {
+    var guids = std.ArrayList([]u8).init(allocator);
+    errdefer {
+        for (guids.items) |guid| allocator.free(guid);
+        guids.deinit();
+    }
 
-            const file = try data.cwd.openFile(path, .{});
-            defer file.close();
+    for (0..self.targets.len) |i| {
+        const str = self.targets.buffer[i].str;
+        const tpe = self.targets.buffer[i].tpe;
+        try guids.append(switch (tpe) {
+            .guid => try allocator.dupe(u8, str),
+            .name => blk: {
+                const path = searchComponent(str, allocator, dir) catch {
+                    return .ERR(.{ .invalid_asset = .{ .path = str } });
+                };
+                defer allocator.free(path);
 
-            break :blk try scanMetafile(file, data.allocator);
-        },
-        .path => blk: {
-            const metafile = try std.mem.concat(data.allocator, u8, &.{ self.str, ".meta" });
-            defer data.allocator.free(metafile);
+                const file = dir.openFile(path, .{}) catch {
+                    return .ERR(.{ .invalid_asset = .{ .path = str } });
+                };
+                defer file.close();
 
-            const file = try data.cwd.openFile(metafile, .{ .mode = .read_only });
-            defer file.close();
+                break :blk scanMetafile(file, allocator) catch {
+                    return .ERR(.{ .invalid_asset = .{ .path = str } });
+                };
+            },
+            .path => blk: {
+                const metafile = try std.mem.concat(allocator, u8, &.{ str, ".meta" });
+                defer allocator.free(metafile);
 
-            break :blk try scanMetafile(file, data.allocator);
-        },
-    };
+                const file = dir.openFile(metafile, .{ .mode = .read_only }) catch {
+                    return .ERR(.{ .invalid_asset = .{ .path = str } });
+                };
+                defer file.close();
+
+                break :blk scanMetafile(file, allocator) catch {
+                    return .ERR(.{ .invalid_asset = .{ .path = str } });
+                };
+            },
+        });
+    }
+    return .OK(try guids.toOwnedSlice());
 }
 
 fn isGUID(str: []const u8) bool {
@@ -142,24 +165,16 @@ fn isCSharpIdentifier(str: []const u8) bool {
 }
 
 /// The return value is owned by the caller.
-fn searchComponent(
-    name: []const u8,
-    data: RuntimeData,
-) ![]u8 {
-    var dir = data.cwd.openDir(".", .{ .iterate = true, .access_sub_paths = true }) catch {
-        return error.InvalidPath;
-    };
-    defer dir.close();
-
-    var walker = try dir.walk(data.allocator);
+fn searchComponent(name: []const u8, allocator: std.mem.Allocator, dir: std.fs.Dir) ![]u8 {
+    var walker = try dir.walk(allocator);
     defer walker.deinit();
 
-    const targetName = try std.mem.concat(data.allocator, u8, &.{ name, ".cs.meta" });
-    defer data.allocator.free(targetName);
+    const targetName = try std.mem.concat(allocator, u8, &.{ name, ".cs.meta" });
+    defer allocator.free(targetName);
 
     while (try walker.next()) |e| {
         if (std.mem.endsWith(u8, e.basename, targetName)) {
-            return data.allocator.dupe(u8, e.path);
+            return allocator.dupe(u8, e.path);
         }
     }
     return error.ComponentNotFound;
@@ -212,5 +227,10 @@ fn scanMetafile(file: std.fs.File, alloc: std.mem.Allocator) ![]u8 {
 
     return guid;
 }
+
+const AssetTarget = struct {
+    tpe: Type,
+    str: []const u8,
+};
 
 const Type = enum { path, guid, name };

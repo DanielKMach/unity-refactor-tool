@@ -142,9 +142,10 @@ pub fn run(self: This, data: RuntimeData) !errors.RuntimeError(void) {
     };
     defer dir.close();
 
-    const guid = of.getGUID(data) catch return .ERR(.{
-        .invalid_asset = .{ .path = of.str },
-    });
+    const guid = switch (try of.getGUID(data.allocator, data.cwd)) {
+        .ok => |v| v,
+        .err => |err| return .ERR(err),
+    };
     defer data.allocator.free(guid);
 
     var show_output = std.ArrayList(u8).init(data.allocator);
@@ -195,7 +196,7 @@ pub fn run(self: This, data: RuntimeData) !errors.RuntimeError(void) {
     return .OK(void{});
 }
 
-pub fn updateAll(self: This, paths: *std.mem.SplitIterator(u8, .scalar), data: RuntimeData, guid: []const u8) ![]Mod {
+pub fn updateAll(self: This, paths: *std.mem.SplitIterator(u8, .scalar), data: RuntimeData, guid: []const []const u8) ![]Mod {
     var updated = std.ArrayList(Mod).init(data.allocator);
     defer updated.deinit();
 
@@ -221,7 +222,7 @@ pub fn updateAll(self: This, paths: *std.mem.SplitIterator(u8, .scalar), data: R
     return try updated.toOwnedSlice();
 }
 
-pub fn scopeAndReplace(self: This, data: RuntimeData, file: std.fs.File, path: []const u8, guid: []const u8) !?Mod {
+pub fn scopeAndReplace(self: This, data: RuntimeData, file: std.fs.File, path: []const u8, guid: []const []const u8) !?Mod {
     var iterator = ComponentIterator.init(file, data.allocator);
     var modified = std.ArrayList(ComponentIterator.Component).init(data.allocator);
     defer {
@@ -236,7 +237,11 @@ pub fn scopeAndReplace(self: This, data: RuntimeData, file: std.fs.File, path: [
     while (try iterator.next()) |comp| {
         var yaml = Yaml.init(.{ .string = comp.document }, null, data.allocator);
 
-        if (!try yaml.matchGUID(guid)) {
+        for (guid) |g| {
+            if (try yaml.matchGUID(g)) {
+                break;
+            }
+        } else {
             continue;
         }
 
