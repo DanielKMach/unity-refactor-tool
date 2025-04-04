@@ -90,11 +90,15 @@ fn runTo(parser: *libyaml.yaml_parser_t, key: []const u8) ParseError!bool {
     var event = libyaml.yaml_event_t{};
     var level: usize = 0;
 
-    while (event.type != libyaml.YAML_STREAM_END_EVENT) {
+    while (true) {
         if (libyaml.yaml_parser_parse(parser, &event) == 0) {
             return error.InvalidYaml;
         }
         defer libyaml.yaml_event_delete(&event);
+
+        if (event.type == libyaml.YAML_STREAM_END_EVENT) {
+            break;
+        }
 
         if (event.type == libyaml.YAML_MAPPING_START_EVENT) {
             level += 1;

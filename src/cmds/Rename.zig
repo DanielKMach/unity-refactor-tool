@@ -166,8 +166,6 @@ pub fn run(self: This, data: RuntimeData) !errors.RuntimeError(void) {
         .verbose = false,
     };
 
-    try data.out.print("Looking for refereces...\r\n", .{});
-
     // Using SHOW command to search for references
     var res = try show.run(rundata);
     if (res.isErr()) |e| {

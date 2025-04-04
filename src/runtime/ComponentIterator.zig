@@ -98,22 +98,36 @@ fn findNextComponent(reader: std.fs.File.Reader, seekable: std.fs.File.SeekableS
 }
 
 pub fn patch(self: This, out: std.fs.File, components: []Component) !void {
-    const writer = out.writer();
+    var bufwtr = std.io.bufferedWriter(out.writer());
+
+    const writer = bufwtr.writer();
     const reader = self.file.reader();
     const seekable = self.file.seekableStream();
 
     try seekable.seekTo(0);
-    var buf: [32]u8 = undefined;
+    var buf: [4096]u8 = undefined;
 
     var i: usize = 0;
     for (components) |comp| {
-        var len = @min(comp.index - i, buf.len);
-        while (len > 0) {
-            i += try reader.read(buf[0..len]);
-            _ = try writer.write(buf[0..len]);
+        var len: usize = undefined;
+        var count: usize = undefined;
+        while (true) {
             len = @min(comp.index - i, buf.len);
+            if (len == 0) break;
+            count = try reader.read(buf[0..len]);
+            if (count == 0) break;
+            _ = try writer.write(buf[0..count]);
+            i += count;
         }
         _ = try writer.write(comp.document);
         try seekable.seekTo(comp.index + comp.len);
     }
+
+    while (true) {
+        const count = try reader.read(buf[0..]);
+        if (count == 0) break;
+        _ = try writer.write(buf[0..count]);
+    }
+
+    try bufwtr.flush();
 }
