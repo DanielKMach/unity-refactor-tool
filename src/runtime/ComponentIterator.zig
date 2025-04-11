@@ -1,7 +1,7 @@
 const std = @import("std");
 
 const This = @This();
-const History = @import("History.zig").History;
+const History = @import("history.zig").History;
 
 pub const Component = struct {
     index: usize,
