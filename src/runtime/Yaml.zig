@@ -142,6 +142,7 @@ fn getEmitter(self: *This) OutputError!*libyaml.yaml_emitter_t {
     if (result == 0) return error.OutOfMemory;
 
     libyaml.yaml_emitter_set_encoding(emitter, libyaml.YAML_UTF8_ENCODING);
+    libyaml.yaml_emitter_set_width(emitter, std.math.maxInt(c_int));
 
     if (self.out) |*out| switch (out.*) {
         .string => |str| libyaml.yaml_emitter_set_output_string(emitter, str.ptr, str.len, &str.len),
