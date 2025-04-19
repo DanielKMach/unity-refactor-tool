@@ -1,12 +1,12 @@
 const std = @import("std");
 const core = @import("root");
 const language = core.language;
-const errors = core.errors;
+const results = core.results;
 const log = std.log.scoped(.usql_tokenizer);
 
 const This = @This();
 
-pub fn tokenize(expression: []const u8, allocator: std.mem.Allocator) !errors.CompilerError(TokenIterator) {
+pub fn tokenize(expression: []const u8, allocator: std.mem.Allocator) !results.ParseResult(TokenIterator) {
     var list = std.ArrayList(Token).init(allocator);
     defer list.deinit();
 

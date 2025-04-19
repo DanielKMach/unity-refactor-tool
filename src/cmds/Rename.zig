@@ -1,6 +1,6 @@
 const std = @import("std");
 const core = @import("root");
-const errors = core.errors;
+const results = core.results;
 const log = std.log.scoped(.rename_command);
 
 const This = @This();
@@ -19,7 +19,7 @@ new_name: []const u8,
 of: AssetTarget,
 in: InTarget,
 
-pub fn parse(tokens: *Tokenizer.TokenIterator) !errors.CompilerError(This) {
+pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
     if (tokens.next()) |tkn| {
         if (!tkn.is(.keyword, "RENAME")) {
             return .ERR(.{
@@ -131,7 +131,7 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !errors.CompilerError(This) {
     });
 }
 
-pub fn run(self: This, data: RuntimeData) !errors.RuntimeError(void) {
+pub fn run(self: This, data: RuntimeData) !results.RuntimeResult(void) {
     const in = self.in;
     const of = self.of;
 

@@ -1,6 +1,6 @@
 const std = @import("std");
 const core = @import("root");
-const errors = core.errors;
+const results = core.results;
 
 const This = @This();
 const RuntimeData = core.runtime.RuntimeData;
@@ -10,7 +10,7 @@ dir: []const u8,
 
 pub const default: This = .{ .dir = "." };
 
-pub fn parse(tokens: *Tokenizer.TokenIterator) !errors.CompilerError(This) {
+pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
     if (tokens.next()) |tkn| {
         if (!tkn.is(.keyword, "IN")) {
             return .ERR(.{

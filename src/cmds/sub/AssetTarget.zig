@@ -1,14 +1,14 @@
 const std = @import("std");
 const core = @import("root");
 const libyaml = @cImport(@cInclude("yaml.h"));
-const errors = core.errors;
+const results = core.results;
 
 const This = @This();
 const Tokenizer = core.language.Tokenizer;
 
 targets: std.BoundedArray(AssetTarget, 10),
 
-pub fn parse(tokens: *Tokenizer.TokenIterator) !errors.CompilerError(This) {
+pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
     if (tokens.next()) |tkn| {
         if (!tkn.is(.keyword, "OF")) {
             return .ERR(.{
@@ -102,7 +102,7 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !errors.CompilerError(This) {
     });
 }
 
-pub fn getGUID(self: This, allocator: std.mem.Allocator, dir: std.fs.Dir) !errors.RuntimeError([][]u8) {
+pub fn getGUID(self: This, allocator: std.mem.Allocator, dir: std.fs.Dir) !results.RuntimeResult([][]u8) {
     var guids = std.ArrayList([]u8).init(allocator);
     errdefer {
         for (guids.items) |guid| allocator.free(guid);

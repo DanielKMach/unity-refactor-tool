@@ -3,8 +3,13 @@ const core = @import("root");
 
 const Tokenizer = core.language.Tokenizer;
 
-pub fn RichError(T: type, E: type) type {
-    return union(RichErrorType) {
+pub const ResultType = enum {
+    ok,
+    err,
+};
+
+pub fn Result(T: type, E: type) type {
+    return union(ResultType) {
         const This = @This();
 
         ok: T,
@@ -28,45 +33,31 @@ pub fn RichError(T: type, E: type) type {
     };
 }
 
-pub const RichErrorType = enum {
-    ok,
-    err,
-};
-
-pub fn CompilerError(T: type) type {
-    return RichError(T, union(CompilerErrorType) {
-        unknown_command: void,
-        never_closed_string: struct {
-            index: usize,
-        },
-        unexpected_token: struct {
-            expected_type: Tokenizer.TokenType,
-            expected_value: ?[]const u8 = null,
-            found: Tokenizer.Token,
-        },
-        unexpected_eof: struct {
-            expected_type: Tokenizer.TokenType,
-            expected_value: ?[]const u8 = null,
-        },
-    });
-}
-
-pub const CompilerErrorType = enum {
+pub const ParseErrorType = enum {
     unknown_command,
     never_closed_string,
     unexpected_token,
     unexpected_eof,
 };
 
-pub fn RuntimeError(T: type) type {
-    return RichError(T, union(RuntimeErrorType) {
-        invalid_asset: struct {
-            path: []const u8,
-        },
-        invalid_path: struct {
-            path: []const u8,
-        },
-    });
+pub const ParseError = union(ParseErrorType) {
+    unknown_command: void,
+    never_closed_string: struct {
+        index: usize,
+    },
+    unexpected_token: struct {
+        expected_type: Tokenizer.TokenType,
+        expected_value: ?[]const u8 = null,
+        found: Tokenizer.Token,
+    },
+    unexpected_eof: struct {
+        expected_type: Tokenizer.TokenType,
+        expected_value: ?[]const u8 = null,
+    },
+};
+
+pub fn ParseResult(T: type) type {
+    return Result(T, ParseError);
 }
 
 pub const RuntimeErrorType = enum {
@@ -74,12 +65,25 @@ pub const RuntimeErrorType = enum {
     invalid_path,
 };
 
-pub fn showCompilerError(out: std.io.AnyWriter, errUnion: anytype, command: []const u8) !void {
+pub const RuntimeError = union(RuntimeErrorType) {
+    invalid_asset: struct {
+        path: []const u8,
+    },
+    invalid_path: struct {
+        path: []const u8,
+    },
+};
+
+pub fn RuntimeResult(T: type) type {
+    return Result(T, RuntimeError);
+}
+
+pub fn printParseError(out: std.io.AnyWriter, errUnion: ParseError, command: []const u8) !void {
     try out.print("Compiler error: ", .{});
     switch (errUnion) {
         .never_closed_string => |err| {
             try out.print("Never closed string at index {d}\r\n", .{err.index});
-            try showLineHighlightRange(out, command, err.index, err.index);
+            try printLineHighlightRange(out, command, err.index, err.index);
         },
         .unexpected_token => |err| {
             if (err.expected_value) |expected_value| {
@@ -96,7 +100,7 @@ pub fn showCompilerError(out: std.io.AnyWriter, errUnion: anytype, command: []co
                     err.found.value,
                 });
             }
-            try showLineHighlight(out, command, err.found.value);
+            try printLineHighlight(out, command, err.found.value);
         },
         .unexpected_eof => |err| {
             if (err.expected_value) |expected_value| {
@@ -116,7 +120,7 @@ pub fn showCompilerError(out: std.io.AnyWriter, errUnion: anytype, command: []co
     }
 }
 
-pub fn showRuntimeError(out: std.io.AnyWriter, errUnion: anytype) !void {
+pub fn printRuntimeError(out: std.io.AnyWriter, errUnion: RuntimeError) !void {
     std.debug.print("Runtime error: ", .{});
     switch (errUnion) {
         .invalid_asset => |err| {
@@ -130,7 +134,7 @@ pub fn showRuntimeError(out: std.io.AnyWriter, errUnion: anytype) !void {
 
 /// Shows a line with a highlight.
 /// Asserts that `highlight` is a slice of `line`.
-pub fn showLineHighlight(out: std.io.AnyWriter, line: []const u8, highlight: []const u8) !void {
+pub fn printLineHighlight(out: std.io.AnyWriter, line: []const u8, highlight: []const u8) !void {
     const zero = @intFromPtr(line.ptr);
     const start = @intFromPtr(highlight.ptr) - zero;
     const end = start + highlight.len - 1;
@@ -139,10 +143,10 @@ pub fn showLineHighlight(out: std.io.AnyWriter, line: []const u8, highlight: []c
     std.debug.assert(start < line.len);
     std.debug.assert(end < line.len);
 
-    try showLineHighlightRange(out, line, start, end);
+    try printLineHighlightRange(out, line, start, end);
 }
 
-pub fn showLineHighlightRange(out: std.io.AnyWriter, line: []const u8, start: usize, end: usize) !void {
+pub fn printLineHighlightRange(out: std.io.AnyWriter, line: []const u8, start: usize, end: usize) !void {
     std.debug.assert(start <= end);
     std.debug.assert(start < line.len);
     std.debug.assert(end < line.len);

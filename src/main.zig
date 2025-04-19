@@ -1,5 +1,5 @@
 pub const language = @import("language.zig");
-pub const errors = @import("errors.zig");
+pub const results = @import("results.zig");
 pub const cmds = @import("cmds.zig");
 pub const runtime = @import("runtime.zig");
 
@@ -48,7 +48,7 @@ pub fn main() !void {
 
         const tokenizeResult = try language.Tokenizer.tokenize(arg, allocator);
         if (tokenizeResult.isErr()) |err| {
-            try errors.showCompilerError(out.any(), err, arg);
+            try results.printParseError(out.any(), err, arg);
             return;
         }
         var tokens = tokenizeResult.ok;
@@ -63,8 +63,8 @@ pub fn main() !void {
                 try runCommand(cmds.Rename, &tokens, data);
             },
             else => {
-                const Err = @FieldType(errors.CompilerError(void), "err");
-                try errors.showCompilerError(out.any(), @as(Err, .{ .unknown_command = void{} }), arg);
+                const Err = @FieldType(results.ParseResult(void), "err");
+                try results.printParseError(out.any(), @as(Err, .{ .unknown_command = void{} }), arg);
                 return;
             },
         }
@@ -74,13 +74,13 @@ pub fn main() !void {
 pub fn runCommand(Command: type, tokens: *language.Tokenizer.TokenIterator, data: runtime.RuntimeData) !void {
     const parseResult = try Command.parse(tokens);
     if (parseResult.isErr()) |err| {
-        try errors.showCompilerError(data.out, err, data.query);
+        try results.printParseError(data.out, err, data.query);
         return;
     }
 
     const runResult = try parseResult.ok.run(data);
     if (runResult.isErr()) |err| {
-        try errors.showRuntimeError(data.out, err);
+        try results.printRuntimeError(data.out, err);
         return;
     }
 }
