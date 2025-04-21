@@ -1,5 +1,6 @@
 const std = @import("std");
 const libyaml = @cImport(@cInclude("yaml.h"));
+const log = std.log.scoped(.yaml);
 
 const This = @This();
 
@@ -65,13 +66,13 @@ pub fn rename(self: *This, old_scalar: []const u8, new_scalar: []const u8) Updat
     _ = libyaml.yaml_emitter_flush(emitter);
 }
 
-pub fn matchGUID(self: *This, guid: []const u8) ParseError!bool {
+pub fn getAlloc(self: *This, path: []const []const u8, allocator: std.mem.Allocator) ParseError!?[]u8 {
     const parser = try self.getParser();
     defer self.closeParser(parser);
 
-    if (!try runTo(parser, "MonoBehaviour")) return false;
-    if (!try runTo(parser, "m_Script")) return false;
-    if (!try runTo(parser, "guid")) return false;
+    for (path) |key| {
+        if (!try runTo(parser, key)) return null;
+    }
 
     var event: libyaml.yaml_event_t = undefined;
     if (libyaml.yaml_parser_parse(parser, &event) == 0) {
@@ -80,10 +81,59 @@ pub fn matchGUID(self: *This, guid: []const u8) ParseError!bool {
     defer libyaml.yaml_event_delete(&event);
 
     if (event.type != libyaml.YAML_SCALAR_EVENT) {
-        return false;
+        return null;
     }
 
-    return std.mem.eql(u8, event.data.scalar.value[0..event.data.scalar.length], guid);
+    return try allocator.dupe(u8, event.data.scalar.value[0..event.data.scalar.length]);
+}
+
+pub fn get(self: *This, path: []const []const u8, buf: []u8) ParseError!?[]u8 {
+    const parser = try self.getParser();
+    defer self.closeParser(parser);
+
+    for (path) |key| {
+        if (!try runTo(parser, key)) return null;
+    }
+
+    var event: libyaml.yaml_event_t = undefined;
+    if (libyaml.yaml_parser_parse(parser, &event) == 0) {
+        return error.InvalidYaml;
+    }
+    defer libyaml.yaml_event_delete(&event);
+
+    if (event.type != libyaml.YAML_SCALAR_EVENT) {
+        return null;
+    }
+
+    const length = @min(buf.len, event.data.scalar.length);
+    @memcpy(buf[0..length], event.data.scalar.value[0..length]);
+    return buf[0..length];
+}
+
+pub fn matchScriptGUID(self: *This, guid: []const u8) ParseError!bool {
+    const parser = try self.getParser();
+    defer self.closeParser(parser);
+
+    var buf: [32]u8 = undefined;
+    const nullableGuid = try self.get(&.{ "MonoBehaviour", "m_Script", "guid" }, &buf);
+    const assetGuid = nullableGuid orelse return false;
+
+    std.debug.assert(assetGuid.len == 32);
+
+    return std.mem.eql(u8, assetGuid, guid);
+}
+
+pub fn matchPrefabGUID(self: *This, guid: []const u8) ParseError!bool {
+    const parser = try self.getParser();
+    defer self.closeParser(parser);
+
+    var buf: [32]u8 = undefined;
+    const nullableGuid = try self.get(&.{ "PrefabInstance", "m_SourcePrefab", "guid" }, &buf);
+    const assetGuid = nullableGuid orelse return false;
+
+    std.debug.assert(assetGuid.len == 32);
+
+    return std.mem.eql(u8, assetGuid, guid);
 }
 
 fn runTo(parser: *libyaml.yaml_parser_t, key: []const u8) ParseError!bool {

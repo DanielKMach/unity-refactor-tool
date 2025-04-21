@@ -1,10 +1,10 @@
 const std = @import("std");
 const core = @import("root");
-const libyaml = @cImport(@cInclude("yaml.h"));
 const results = core.results;
 
 const This = @This();
 const Tokenizer = core.language.Tokenizer;
+const Yaml = core.runtime.Yaml;
 
 targets: std.BoundedArray(AssetTarget, 10),
 
@@ -185,44 +185,21 @@ fn scanMetafile(file: std.fs.File, alloc: std.mem.Allocator) ![]u8 {
     const contents = try file.readToEndAlloc(alloc, 4096);
     defer alloc.free(contents);
 
-    var parser: libyaml.yaml_parser_t = undefined;
-    _ = libyaml.yaml_parser_initialize(&parser);
-    defer libyaml.yaml_parser_delete(&parser);
+    var yaml = Yaml.init(.{ .string = contents }, null, alloc);
 
-    libyaml.yaml_parser_set_input_string(&parser, contents.ptr, contents.len);
+    const nullableGuid = try yaml.getAlloc(&.{"guid"}, alloc);
 
-    var guid: []u8 = undefined;
-
-    var done: bool = false;
-    var next_guid: bool = false;
-    while (!done) {
-        var event: libyaml.yaml_event_t = undefined;
-        if (libyaml.yaml_parser_parse(&parser, &event) == 0) {
-            return error.InvalidMetaFile;
-        }
-        defer libyaml.yaml_event_delete(&event);
-
-        if (next_guid and event.type != libyaml.YAML_SCALAR_EVENT) {
-            return error.InvalidMetaFile;
-        }
-
-        if (event.type == libyaml.YAML_SCALAR_EVENT) {
-            const scalar = event.data.scalar.value[0..event.data.scalar.length];
-            if (next_guid) {
-                guid = try alloc.dupe(u8, scalar);
-                break;
-            } else {
-                next_guid = std.mem.eql(u8, scalar, "guid");
-                continue;
-            }
-        }
-
-        done = event.type == libyaml.YAML_STREAM_END_EVENT;
-    }
+    const guid = nullableGuid orelse return error.InvalidMetaFile;
+    errdefer alloc.free(guid);
 
     if (guid.len != 32) {
-        alloc.free(guid);
         return error.InvalidMetaFile;
+    }
+
+    for (guid) |c| {
+        if (!std.ascii.isHex(c)) {
+            return error.InvalidMetaFile;
+        }
     }
 
     return guid;

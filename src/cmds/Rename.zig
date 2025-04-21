@@ -236,7 +236,7 @@ pub fn scopeAndReplace(self: This, data: RuntimeData, file: std.fs.File, path: [
         var yaml = Yaml.init(.{ .string = comp.document }, null, data.allocator);
 
         for (guid) |g| {
-            if (try yaml.matchGUID(g)) {
+            if (try yaml.matchScriptGUID(g)) {
                 break;
             }
         } else {
