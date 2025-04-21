@@ -113,8 +113,10 @@ pub fn run(self: This, data: RuntimeData) !results.RuntimeResult(void) {
         .ok => |v| v,
         .err => |err| return .ERR(err),
     };
-
-    defer data.allocator.free(guid);
+    defer {
+        for (guid) |g| data.allocator.free(g);
+        data.allocator.free(guid);
+    }
 
     var searchData = Search{
         .cmd = &self,
