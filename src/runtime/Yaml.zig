@@ -7,7 +7,7 @@ const This = @This();
 const c_alloc = std.heap.raw_c_allocator;
 
 const OutputError = error{NoOutput} || std.mem.Allocator.Error;
-const ParseError = error{InvalidYaml} || std.mem.Allocator.Error;
+const ParseError = error{LibyamlError} || std.mem.Allocator.Error;
 const UpdateError = ParseError || OutputError;
 
 in: In,
@@ -40,7 +40,7 @@ pub fn rename(self: *This, old_scalar: []const u8, new_scalar: []const u8) Updat
     while (!done) {
         event = try events.addOne(self.allocator);
         if (libyaml.yaml_parser_parse(parser, event) == 0) {
-            return error.InvalidYaml;
+            return error.LibyamlError;
         }
         if (event.type == libyaml.YAML_MAPPING_START_EVENT) {
             level += 1;
@@ -76,7 +76,7 @@ pub fn getAlloc(self: *This, path: []const []const u8, allocator: std.mem.Alloca
 
     var event: libyaml.yaml_event_t = undefined;
     if (libyaml.yaml_parser_parse(parser, &event) == 0) {
-        return error.InvalidYaml;
+        return error.LibyamlError;
     }
     defer libyaml.yaml_event_delete(&event);
 
@@ -97,7 +97,7 @@ pub fn get(self: *This, path: []const []const u8, buf: []u8) ParseError!?[]u8 {
 
     var event: libyaml.yaml_event_t = undefined;
     if (libyaml.yaml_parser_parse(parser, &event) == 0) {
-        return error.InvalidYaml;
+        return error.LibyamlError;
     }
     defer libyaml.yaml_event_delete(&event);
 
@@ -142,7 +142,7 @@ fn runTo(parser: *libyaml.yaml_parser_t, key: []const u8) ParseError!bool {
 
     while (true) {
         if (libyaml.yaml_parser_parse(parser, &event) == 0) {
-            return error.InvalidYaml;
+            return error.LibyamlError;
         }
         defer libyaml.yaml_event_delete(&event);
 
