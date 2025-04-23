@@ -3,6 +3,9 @@ const std = @import("std");
 const This = @This();
 const History = @import("history.zig").History;
 
+pub const IterateError = std.mem.Allocator.Error || std.fs.File.ReadError || std.fs.File.SeekError || std.fs.File.GetSeekPosError;
+pub const PatchError = IterateError || std.fs.File.WriteError;
+
 pub const Component = struct {
     index: usize,
     len: usize,
@@ -25,7 +28,7 @@ pub fn deinit(self: *This) void {
     self.freeLast();
 }
 
-pub fn next(self: *This) !?Component {
+pub fn next(self: *This) IterateError!?Component {
     const reader = self.file.reader();
     const seekable = self.file.seekableStream();
 
@@ -40,7 +43,7 @@ pub fn next(self: *This) !?Component {
     var len: usize = undefined;
     findNextComponent(reader, seekable, &index, &len) catch |err| switch (err) {
         error.EndOfStream => {},
-        else => return err,
+        else => |e| return e,
     };
 
     if (len == 0) {
@@ -108,7 +111,7 @@ fn findNextComponent(reader: std.fs.File.Reader, seekable: std.fs.File.SeekableS
     }
 }
 
-pub fn patch(self: This, out: std.fs.File, components: []Component) !void {
+pub fn patch(self: This, out: std.fs.File, components: []Component) PatchError!void {
     var bufwtr = std.io.bufferedWriter(out.writer());
 
     const writer = bufwtr.writer();
