@@ -221,24 +221,24 @@ fn deleteEventsList(allocator: std.mem.Allocator, events: *std.SegmentedList(lib
     events.deinit(allocator);
 }
 
-fn readHandler(ext: ?*anyopaque, buffer: [*c]u8, size: usize, length: [*c]usize) callconv(.C) c_int {
-    const reader: *std.io.AnyReader = @alignCast(@ptrCast(ext.?));
+fn readHandler(context: ?*anyopaque, buffer: [*c]u8, size: usize, length: [*c]usize) callconv(.C) c_int {
+    const reader: *std.io.AnyReader = @alignCast(@ptrCast(context.?));
     const read = reader.read(buffer[0..size]);
     if (read) |count| {
         length.* = count;
-        return 0;
-    } else |_| {
         return 1;
+    } else |_| {
+        return 0;
     }
 }
 
-fn writeHandler(ext: ?*anyopaque, buffer: [*c]u8, size: usize) callconv(.C) c_int {
-    const writer: *std.io.AnyWriter = @alignCast(@ptrCast(ext.?));
+fn writeHandler(context: ?*anyopaque, buffer: [*c]u8, size: usize) callconv(.C) c_int {
+    const writer: *std.io.AnyWriter = @alignCast(@ptrCast(context.?));
     const write = writer.write(buffer[0..size]);
     if (write) |_| {
-        return 0;
-    } else |_| {
         return 1;
+    } else |_| {
+        return 0;
     }
 }
 
