@@ -21,16 +21,20 @@ pub fn init(file: std.fs.File, allocator: std.mem.Allocator) This {
     };
 }
 
+pub fn deinit(self: *This) void {
+    self.freeLast();
+}
+
 pub fn next(self: *This) !?Component {
     const reader = self.file.reader();
     const seekable = self.file.seekableStream();
 
+    var target: usize = 0;
     if (self.last) |c| {
-        self.allocator.free(c.document);
-        try seekable.seekTo(c.index + c.len);
-    } else {
-        try seekable.seekTo(0);
+        target = c.index + c.len;
+        self.freeLast();
     }
+    try seekable.seekTo(target);
 
     var index: usize = undefined;
     var len: usize = undefined;
@@ -56,6 +60,13 @@ pub fn next(self: *This) !?Component {
     };
     self.last = comp;
     return comp;
+}
+
+fn freeLast(self: *This) void {
+    if (self.last) |c| {
+        self.allocator.free(c.document);
+        self.last = null;
+    }
 }
 
 fn findNextComponent(reader: std.fs.File.Reader, seekable: std.fs.File.SeekableStream, index: *usize, len: *usize) !void {
