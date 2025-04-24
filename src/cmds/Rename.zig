@@ -156,7 +156,7 @@ pub fn run(self: This, data: RuntimeData) !results.RuntimeResult(void) {
     const writer = show_output.writer();
 
     const show = core.cmds.Show{
-        .exts = &.{ ".unity", ".prefab", ".asset" },
+        .mode = .indirect_uses,
         .of = of,
         .in = in,
     };
@@ -225,6 +225,7 @@ pub fn updateAll(self: This, paths: *std.mem.SplitIterator(u8, .scalar), data: R
 
 pub fn scopeAndReplace(self: This, data: RuntimeData, file: std.fs.File, path: []const u8, guid: []const []const u8) !?Mod {
     var iterator = ComponentIterator.init(file, data.allocator);
+    defer iterator.deinit();
     var modified = std.ArrayList(ComponentIterator.Component).init(data.allocator);
     defer {
         for (modified.items) |comp| {

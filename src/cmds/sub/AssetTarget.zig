@@ -181,7 +181,7 @@ fn searchComponent(name: []const u8, allocator: std.mem.Allocator, dir: std.fs.D
 }
 
 /// The return value is owned by the caller.
-fn scanMetafile(file: std.fs.File, alloc: std.mem.Allocator) ![]u8 {
+pub fn scanMetafile(file: std.fs.File, alloc: std.mem.Allocator) ![]u8 {
     const contents = try file.readToEndAlloc(alloc, 4096);
     defer alloc.free(contents);
 
