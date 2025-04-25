@@ -128,9 +128,10 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
 
 pub fn run(self: This, data: RuntimeData) !results.RuntimeResult(void) {
     var fileCount: usize = 0;
+    var loops: usize = 0;
 
     const start = std.time.milliTimestamp();
-    const result = try self.search(data, &fileCount);
+    const result = try self.search(data, &fileCount, &loops);
     const time = std.time.milliTimestamp() - start;
 
     if (result.isErr()) |err| {
@@ -143,26 +144,24 @@ pub fn run(self: This, data: RuntimeData) !results.RuntimeResult(void) {
         data.allocator.free(references);
     }
 
-    sort(references);
+    sort(@ptrCast(references));
     for (references) |r| {
         try data.out.print("{s}\r\n", .{r});
     }
 
     if (data.verbose) {
-        std.debug.print("Scanned {d} files in {d} milliseconds \r\n", .{ fileCount, time });
+        std.debug.print("Scanned {d} files {d} times in {d} milliseconds \r\n", .{ fileCount, loops, time });
     }
     return .OK(void{});
 }
 
-pub fn search(self: This, data: RuntimeData, count: ?*usize) !results.RuntimeResult([][]const u8) {
-    var guids = std.ArrayList([]const u8).init(data.allocator);
+pub fn search(self: This, data: RuntimeData, count: ?*usize, times: ?*usize) !results.RuntimeResult([][]u8) {
+    var guids = core.runtime.StringList.init(data.allocator);
     defer guids.deinit();
-    defer for (guids.items) |g| data.allocator.free(g);
     var searched: usize = 0;
 
-    var references = std.ArrayList([]const u8).init(data.allocator);
+    var references = core.runtime.StringList.init(data.allocator);
     defer references.deinit();
-    errdefer for (references.items) |g| data.allocator.free(g);
     var scanned: usize = 0;
 
     var dir = self.in.openDir(data, .{ .iterate = true, .access_sub_paths = true }) catch {
@@ -176,19 +175,20 @@ pub fn search(self: This, data: RuntimeData, count: ?*usize) !results.RuntimeRes
         .ok => |v| v,
         .err => |err| return .ERR(err),
     };
-    defer data.allocator.free(assets);
-    errdefer for (assets) |g| data.allocator.free(g);
-    try guids.appendSlice(assets);
+    defer {
+        for (assets) |g| data.allocator.free(g);
+        data.allocator.free(assets);
+    }
+    try guids.pushSlice(assets);
 
-    while (guids.items.len > searched) {
+    while (guids.length() > searched) {
         var searchData = Search{
             .mode = self.mode,
-            .guid = guids.items[searched..],
+            .guid = guids.ctx.items[searched..],
             .data = data,
             .references = &references,
         };
-        if (count) |c| searchData.fileCount = c.*;
-        searched = guids.items.len;
+        searched = guids.length();
 
         var scanner = try Scanner(Search).init(dir, Search.search, Search.filter, data.allocator);
         defer scanner.deinit();
@@ -197,27 +197,27 @@ pub fn search(self: This, data: RuntimeData, count: ?*usize) !results.RuntimeRes
 
         if (count) |c| c.* = searchData.fileCount;
 
-        // if (self.mode == .indirect_uses or self.mode == .direct_uses) {
-        //     var i: usize = references.items.len - 1;
-        //     while (i > 0) : (i -= 1) {
-        //         const ref = references.items[i];
-        //         if (!try verifyUse(dir, ref, searchData.guid, data.allocator)) {
-        //             _ = references.orderedRemove(i);
-        //             data.allocator.free(ref);
-        //         }
-        //     }
-        // }
+        if (self.mode == .indirect_uses or self.mode == .direct_uses) {
+            var i: usize = references.length() - 1;
+            while (i > 0) : (i -= 1) {
+                const ref = references.get(i) catch break;
+                if (!try verifyUse(dir, ref, searchData.guid, data.allocator)) {
+                    try references.remove(i);
+                }
+            }
+        }
 
         // Feeds the guid list with any prefab references found in the files, if in indirect mode.
         if (self.mode == .indirect_uses) {
-            const prefab_guids = try getPrefabGuids(dir, references.items[scanned..], data.allocator);
+            const prefab_guids = try getPrefabGuids(dir, references.ctx.items[scanned..], data.allocator);
             defer data.allocator.free(prefab_guids);
-            try guids.appendSlice(prefab_guids);
-            scanned = references.items.len;
+            try guids.pushSlice(prefab_guids);
+            scanned = references.length();
         }
+        if (times) |t| t.* += 1;
     }
 
-    return .OK(try references.toOwnedSlice());
+    return .OK(@ptrCast(try references.toOwnedSlice()));
 }
 
 /// Get the GUIDs of all prefabs in `assets`.
@@ -227,7 +227,7 @@ pub fn search(self: This, data: RuntimeData, count: ?*usize) !results.RuntimeRes
 ///
 /// The caller owns the returned slice and its children.
 fn getPrefabGuids(cwd: std.fs.Dir, assets: []const []const u8, allocator: std.mem.Allocator) ![]const []const u8 {
-    var guids = std.ArrayList([]const u8).init(allocator);
+    var guids = core.runtime.StringList.init(allocator);
     defer guids.deinit();
     for (assets) |ass| {
         if (!std.mem.endsWith(u8, ass, ".prefab")) continue;
@@ -237,7 +237,8 @@ fn getPrefabGuids(cwd: std.fs.Dir, assets: []const []const u8, allocator: std.me
         const file = try cwd.openFile(path, .{ .mode = .read_only });
         defer file.close();
         const prefab_guid = AssetTarget.scanMetafile(file, allocator) catch continue;
-        try guids.append(prefab_guid);
+        defer allocator.free(prefab_guid);
+        try guids.push(prefab_guid);
     }
     return guids.toOwnedSlice();
 }
@@ -283,7 +284,7 @@ const Search = struct {
     fileCount: usize = 0,
     dataMtx: std.Thread.Mutex = .{},
 
-    references: *std.ArrayList([]const u8),
+    references: *core.runtime.StringList,
     refsMtx: std.Thread.Mutex = .{},
 
     logMtx: std.Thread.Mutex = .{},
@@ -352,11 +353,11 @@ const Search = struct {
     fn addPath(self: *Search, path: []const u8) !void {
         self.refsMtx.lock();
         defer self.refsMtx.unlock();
-        for (self.references.items) |g| {
+        for (self.references.ctx.items) |g| {
             if (std.mem.eql(u8, g, path)) {
                 return;
             }
         }
-        try self.references.append(try self.data.allocator.dupe(u8, path));
+        try self.references.push(path);
     }
 };
