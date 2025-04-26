@@ -236,9 +236,9 @@ fn getPrefabGuids(cwd: std.fs.Dir, assets: []const []const u8, allocator: std.me
         defer allocator.free(path);
         const file = try cwd.openFile(path, .{ .mode = .read_only });
         defer file.close();
-        const prefab_guid = AssetTarget.scanMetafile(file, allocator) catch continue;
-        defer allocator.free(prefab_guid);
-        try guids.push(prefab_guid);
+
+        var buf: [32]u8 = undefined;
+        try guids.push(AssetTarget.scanMetafile(file, &buf, allocator) catch continue);
     }
     return guids.toOwnedSlice();
 }

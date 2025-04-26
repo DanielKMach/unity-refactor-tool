@@ -125,7 +125,7 @@ pub fn getGUID(self: This, allocator: std.mem.Allocator, dir: std.fs.Dir) !resul
                 };
                 defer file.close();
 
-                break :blk scanMetafile(file, allocator) catch {
+                break :blk scanMetafileAlloc(file, allocator) catch {
                     return .ERR(.{ .invalid_asset = .{ .path = str } });
                 };
             },
@@ -138,7 +138,7 @@ pub fn getGUID(self: This, allocator: std.mem.Allocator, dir: std.fs.Dir) !resul
                 };
                 defer file.close();
 
-                break :blk scanMetafile(file, allocator) catch {
+                break :blk scanMetafileAlloc(file, allocator) catch {
                     return .ERR(.{ .invalid_asset = .{ .path = str } });
                 };
             },
@@ -180,29 +180,29 @@ fn searchComponent(name: []const u8, allocator: std.mem.Allocator, dir: std.fs.D
     return error.ComponentNotFound;
 }
 
-/// The return value is owned by the caller.
-pub fn scanMetafile(file: std.fs.File, alloc: std.mem.Allocator) ![]u8 {
-    const contents = try file.readToEndAlloc(alloc, 4096);
+pub fn scanMetafile(file: std.fs.File, buf: []u8, alloc: std.mem.Allocator) ![]u8 {
+    std.debug.assert(buf.len >= 32);
+
+    const contents = try file.readToEndAlloc(alloc, std.math.maxInt(u16));
     defer alloc.free(contents);
 
     var yaml = Yaml.init(.{ .string = contents }, null, alloc);
 
-    const nullableGuid = try yaml.getAlloc(&.{"guid"}, alloc);
-
+    const nullableGuid = try yaml.get(&.{"guid"}, buf);
     const guid = nullableGuid orelse return error.InvalidMetaFile;
-    errdefer alloc.free(guid);
 
-    if (guid.len != 32) {
+    if (!isGUID(guid)) {
         return error.InvalidMetaFile;
     }
 
-    for (guid) |c| {
-        if (!std.ascii.isHex(c)) {
-            return error.InvalidMetaFile;
-        }
-    }
-
     return guid;
+}
+
+/// The return value is owned by the caller.
+pub fn scanMetafileAlloc(file: std.fs.File, alloc: std.mem.Allocator) ![]u8 {
+    var buf: [32]u8 = undefined;
+    const guid = try scanMetafile(file, &buf, alloc);
+    return try alloc.dupe(u8, guid);
 }
 
 const AssetTarget = struct {
