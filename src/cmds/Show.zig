@@ -185,12 +185,11 @@ pub fn search(self: This, data: RuntimeData, count: ?*usize, times: ?*usize) !re
         var searchData = Search{
             .mode = self.mode,
             .guid = guids.ctx.items[searched..],
-            .data = data,
             .references = &references,
         };
         searched = guids.length();
 
-        var scanner = try Scanner(Search).init(dir, Search.search, Search.filter, data.allocator);
+        var scanner = try Scanner(Search).init(dir, data.allocator);
         defer scanner.deinit();
 
         try scanner.scan(&searchData);
@@ -281,7 +280,6 @@ fn sort(arr: [][]const u8) void {
 }
 
 const Search = struct {
-    data: RuntimeData,
     mode: SearchMode,
     guid: []const []const u8,
     fileCount: usize = 0,
@@ -292,7 +290,7 @@ const Search = struct {
 
     logMtx: std.Thread.Mutex = .{},
 
-    fn filter(self: *Search, entry: std.fs.Dir.Walker.Entry) ?std.fs.File {
+    pub fn filter(self: *Search, entry: std.fs.Dir.Walker.Entry, _: std.mem.Allocator) ?std.fs.File {
         if (entry.kind != .file) return null;
 
         const exts: []const []const u8 = switch (self.mode) {
@@ -311,15 +309,15 @@ const Search = struct {
         };
     }
 
-    fn search(self: *Search, entry: std.fs.Dir.Walker.Entry, file: std.fs.File) !void {
+    pub fn scan(self: *Search, entry: std.fs.Dir.Walker.Entry, file: std.fs.File, allocator: std.mem.Allocator) anyerror!void {
         var bufrdr = std.io.bufferedReader(file.reader());
         const reader = bufrdr.reader();
 
-        const progress = try self.data.allocator.alloc(usize, self.guid.len);
+        const progress = try allocator.alloc(usize, self.guid.len);
         for (0..self.guid.len) |i| {
             progress[i] = 0;
         }
-        defer self.data.allocator.free(progress);
+        defer allocator.free(progress);
 
         main: while (true) {
             const c = reader.readByte() catch |err| {
