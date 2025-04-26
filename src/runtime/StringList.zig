@@ -57,7 +57,7 @@ pub fn pop(self: *This, index: usize) UpdateError![]u8 {
     if (index >= self.ctx.items.len) {
         return error.OutOfBounds;
     }
-    return try self.ctx.orderedRemove(index);
+    return self.ctx.orderedRemove(index);
 }
 
 pub fn remove(self: *This, index: usize) UpdateError!void {
