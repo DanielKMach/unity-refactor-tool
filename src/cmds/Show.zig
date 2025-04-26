@@ -201,7 +201,7 @@ pub fn search(self: This, data: RuntimeData, count: ?*usize, times: ?*usize) !re
             var i: usize = references.length() - 1;
             while (i > 0) : (i -= 1) {
                 const ref = references.get(i) catch break;
-                if (!try verifyUse(dir, ref, searchData.guid, data.allocator)) {
+                if (!try verifyUse(dir, ref, guids.ctx.items, data.allocator)) {
                     try references.remove(i);
                 }
             }
@@ -210,7 +210,10 @@ pub fn search(self: This, data: RuntimeData, count: ?*usize, times: ?*usize) !re
         // Feeds the guid list with any prefab references found in the files, if in indirect mode.
         if (self.mode == .indirect_uses) {
             const prefab_guids = try getPrefabGuids(dir, references.ctx.items[scanned..], data.allocator);
-            defer data.allocator.free(prefab_guids);
+            defer {
+                for (prefab_guids) |g| data.allocator.free(g);
+                data.allocator.free(prefab_guids);
+            }
             try guids.pushSlice(prefab_guids);
             scanned = references.length();
         }
