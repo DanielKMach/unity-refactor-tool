@@ -173,7 +173,7 @@ fn searchComponent(name: []const u8, allocator: std.mem.Allocator, dir: std.fs.D
     defer allocator.free(targetName);
 
     while (try walker.next()) |e| {
-        if (std.mem.endsWith(u8, e.basename, targetName)) {
+        if (std.mem.eql(u8, e.basename, targetName)) {
             return allocator.dupe(u8, e.path);
         }
     }
