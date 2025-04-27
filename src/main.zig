@@ -6,12 +6,16 @@ pub const runtime = @import("runtime.zig");
 const std = @import("std");
 const builtin = @import("builtin");
 
+const log = std.log.scoped(.main);
+
 pub const std_options: std.Options = .{
-    .logFn = log,
+    .logFn = logFn,
 };
 
 pub fn main() !void {
-    var debug_allocator: std.heap.DebugAllocator(.{}) = undefined;
+    const start = std.time.milliTimestamp();
+
+    var debug_allocator: std.heap.DebugAllocator(.{ .enable_memory_limit = true }) = undefined;
     defer _ = if (builtin.mode == .Debug) debug_allocator.deinit();
     if (builtin.mode == .Debug) {
         debug_allocator = .init;
@@ -69,6 +73,9 @@ pub fn main() !void {
             },
         }
     }
+
+    log.debug("Total memory allocated {d:.3}MB", .{@as(f32, @floatFromInt(debug_allocator.total_requested_bytes)) / 1000000.0});
+    log.debug("Total execution time {d}ms", .{std.time.milliTimestamp() - start});
 }
 
 pub fn runCommand(Command: type, tokens: *language.Tokenizer.TokenIterator, data: runtime.RuntimeData) !void {
@@ -85,7 +92,7 @@ pub fn runCommand(Command: type, tokens: *language.Tokenizer.TokenIterator, data
     }
 }
 
-fn log(
+fn logFn(
     comptime message_level: std.log.Level,
     comptime scope: @TypeOf(.enum_literal),
     comptime format: []const u8,
