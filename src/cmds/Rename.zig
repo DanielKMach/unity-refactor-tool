@@ -151,38 +151,26 @@ pub fn run(self: This, data: RuntimeData) !results.RuntimeResult(void) {
         data.allocator.free(guid);
     }
 
-    var show_output = std.ArrayList(u8).init(data.allocator);
-    defer show_output.deinit();
-    const writer = show_output.writer();
-
     const show = core.cmds.Show{
-        .exts = &.{ ".unity", ".prefab", ".asset" },
+        .mode = .indirect_uses,
         .of = of,
         .in = in,
     };
 
-    const rundata = RuntimeData{
-        .allocator = data.allocator,
-        .out = writer.any(),
-        .cwd = data.cwd,
-        .query = data.query,
-        .verbose = false,
-    };
-
-    // Using SHOW command to search for references
-    var res = try show.run(rundata);
-    if (res.isErr()) |e| {
-        return .ERR(e);
+    const search_result = try show.search(data, null, null);
+    if (search_result.isErr()) |err| {
+        return .ERR(err);
+    }
+    const target_assets = search_result.ok;
+    defer {
+        for (target_assets) |asset| {
+            data.allocator.free(asset);
+        }
+        data.allocator.free(target_assets);
     }
 
     // Parsing files and storing the changes
-    var paths = std.mem.SplitIterator(u8, .scalar){
-        .buffer = show_output.items,
-        .index = 0,
-        .delimiter = '\n',
-    };
-
-    const updated = try self.updateAll(&paths, data, guid);
+    const updated = try self.updateAll(target_assets, data, guid);
     defer {
         for (updated) |mod| {
             mod.modifications.close();
@@ -197,11 +185,11 @@ pub fn run(self: This, data: RuntimeData) !results.RuntimeResult(void) {
     return .OK(void{});
 }
 
-pub fn updateAll(self: This, paths: *std.mem.SplitIterator(u8, .scalar), data: RuntimeData, guid: []const []const u8) ![]Mod {
+pub fn updateAll(self: This, asset_paths: []const []const u8, data: RuntimeData, guid: []const []const u8) ![]Mod {
     var updated = std.ArrayList(Mod).init(data.allocator);
     defer updated.deinit();
 
-    while (paths.next()) |p| {
+    for (asset_paths) |p| {
         const trimmed_name = std.mem.trim(u8, p, " \t\r\n");
         if (trimmed_name.len == 0) continue;
 
@@ -225,6 +213,7 @@ pub fn updateAll(self: This, paths: *std.mem.SplitIterator(u8, .scalar), data: R
 
 pub fn scopeAndReplace(self: This, data: RuntimeData, file: std.fs.File, path: []const u8, guid: []const []const u8) !?Mod {
     var iterator = ComponentIterator.init(file, data.allocator);
+    defer iterator.deinit();
     var modified = std.ArrayList(ComponentIterator.Component).init(data.allocator);
     defer {
         for (modified.items) |comp| {
