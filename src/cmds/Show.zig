@@ -184,6 +184,7 @@ pub fn search(self: This, data: RuntimeData, count: ?*usize, times: ?*usize) !re
     while (guids.length() > searched) {
         var searchData = Search{
             .mode = self.mode,
+            .dir = dir,
             .guid = guids.ctx.items[searched..],
             .references = &references,
         };
@@ -192,19 +193,11 @@ pub fn search(self: This, data: RuntimeData, count: ?*usize, times: ?*usize) !re
         var scanner = try Scanner(Search).init(dir, data.allocator);
         defer scanner.deinit();
 
+        log.debug("Scanning...", .{});
+
         try scanner.scan(&searchData);
 
         if (count) |c| c.* = searchData.fileCount;
-
-        if (self.mode == .indirect_uses or self.mode == .direct_uses) {
-            var i: usize = references.length() - 1;
-            while (i > 0) : (i -= 1) {
-                const ref = references.get(i) catch break;
-                if (!try verifyUse(dir, ref, guids.ctx.items, data.allocator)) {
-                    try references.remove(i);
-                }
-            }
-        }
 
         // Feeds the guid list with any prefab references found in the files, if in indirect mode.
         if (self.mode == .indirect_uses) {
@@ -248,21 +241,32 @@ fn getPrefabGuids(cwd: std.fs.Dir, assets: []const []const u8, allocator: std.me
 /// Verify if a component or prefab instance of guid `guid` is being used within the file at `path`.
 ///
 /// `cwd` is the directory relative to `path`.
-fn verifyUse(cwd: std.fs.Dir, path: []const u8, guid: []const []const u8, allocator: std.mem.Allocator) !bool {
-    const file = try cwd.openFile(path, .{ .mode = .read_only });
-    defer file.close();
+fn verifyUse(file: std.fs.File, guid: []const []const u8, allocator: std.mem.Allocator) !bool {
+    const offset = try file.getPos();
+    try file.seekTo(0);
+    defer file.seekTo(offset) catch {};
+
     var iterator = ComponentIterator.init(file, allocator);
     defer iterator.deinit();
 
-    while (try iterator.next()) |comp| {
+    return while (try iterator.next()) |comp| {
         var yaml = Yaml.init(.{ .string = comp.document }, null, allocator);
-        for (guid) |g| {
-            if (try yaml.matchScriptGUID(g) or try yaml.matchPrefabGUID(g)) {
-                return true;
-            }
-        }
+        if (try matchScriptOrPrefabGUID(guid, &yaml)) return true;
+    } else false;
+}
+
+/// Check if the GUID of the document in `yaml` matches any of the GUIDs in `guids`.
+pub fn matchScriptOrPrefabGUID(guids: []const []const u8, yaml: *Yaml) !bool {
+    var buf: [32]u8 = undefined;
+    var nullableGuid = try yaml.get(&.{ "MonoBehaviour", "m_Script", "guid" }, &buf);
+    if (nullableGuid == null) {
+        nullableGuid = try yaml.get(&.{ "PrefabInstance", "m_SourcePrefab", "guid" }, &buf);
     }
-    return false;
+    const guid = nullableGuid orelse return false;
+
+    return for (guids) |g| {
+        if (std.mem.eql(u8, g, guid)) break true;
+    } else false;
 }
 
 fn sort(arr: [][]const u8) void {
@@ -281,6 +285,7 @@ fn sort(arr: [][]const u8) void {
 
 const Search = struct {
     mode: SearchMode,
+    dir: std.fs.Dir,
     guid: []const []const u8,
     fileCount: usize = 0,
     dataMtx: std.Thread.Mutex = .{},
@@ -333,7 +338,7 @@ const Search = struct {
                 if (c == self.guid[i][progress[i]]) {
                     progress[i] += 1;
                     if (progress[i] == self.guid[i].len) {
-                        try self.addPath(entry.path);
+                        try self.addPath(entry.path, file, allocator);
                         break :main;
                     }
                 } else {
@@ -351,14 +356,21 @@ const Search = struct {
     /// `path` does not need to be allocated, as it will be duplicated.
     ///
     /// This function is thread-safe.
-    fn addPath(self: *Search, path: []const u8) !void {
-        self.refsMtx.lock();
-        defer self.refsMtx.unlock();
+    fn addPath(self: *Search, path: []const u8, file: std.fs.File, allocator: std.mem.Allocator) !void {
         for (self.references.ctx.items) |g| {
             if (std.mem.eql(u8, g, path)) {
                 return;
             }
         }
+
+        if (self.mode == .indirect_uses or self.mode == .direct_uses) {
+            if (!try verifyUse(file, self.guid, allocator)) {
+                return;
+            }
+        }
+
+        self.refsMtx.lock();
+        defer self.refsMtx.unlock();
         try self.references.push(path);
     }
 };
