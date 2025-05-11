@@ -66,6 +66,9 @@ pub fn main() !void {
             language.Tokenizer.Token.new(.keyword, "RENAME").hash() => {
                 try runCommand(cmds.Rename, &tokens, data);
             },
+            language.Tokenizer.Token.new(.keyword, "EVALUATE").hash() => {
+                try runCommand(cmds.Evaluate, &tokens, data);
+            },
             else => {
                 const Err = @FieldType(results.ParseResult(void), "err");
                 try results.printParseError(out.any(), @as(Err, .{ .unknown_command = void{} }), arg);
