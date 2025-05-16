@@ -11,6 +11,7 @@ const ComponentIterator = core.runtime.ComponentIterator;
 const Yaml = core.runtime.Yaml;
 const InTarget = core.cmds.sub.InTarget;
 const AssetTarget = core.cmds.sub.AssetTarget;
+const GUID = core.runtime.GUID;
 
 const files = &.{ ".prefab", ".unity", ".asset" };
 
@@ -102,12 +103,12 @@ pub fn run(self: This, data: RuntimeData) !results.RuntimeResult(void) {
     };
     defer dir.close();
 
-    const guid = switch (try of.getGUID(data.allocator, data.cwd)) {
+    const guid = switch (try of.getGUID(data.cwd, data.allocator)) {
         .ok => |v| v,
         .err => |err| return .ERR(err),
     };
     defer {
-        for (guid) |g| data.allocator.free(g);
+        for (guid) |g| g.deinit(data.allocator);
         data.allocator.free(guid);
     }
 
@@ -133,53 +134,45 @@ pub fn run(self: This, data: RuntimeData) !results.RuntimeResult(void) {
 
     log.debug("Evaluating found...", .{});
 
-    try self.searchAndPrint(target_assets, guid, data);
+    try self.searchAndPrint(target_assets, guid, data.allocator, data.out);
 
     return .OK(void{});
 }
 
-pub fn searchAndPrint(self: This, asset_paths: []const []const u8, guid: []const []const u8, data: RuntimeData) !void {
-    for (asset_paths) |p| {
-        const trimmed_name = std.mem.trim(u8, p, " \t\r\n");
-        if (trimmed_name.len == 0) continue;
-
-        const path = std.fs.path.join(data.allocator, &.{ self.in.dir, trimmed_name }) catch |err| {
-            log.warn("Error joining path: '{s}'", .{@errorName(err)});
-            continue;
-        };
-
-        const file = data.cwd.openFile(path, .{ .mode = .read_only }) catch |err| {
+pub fn searchAndPrint(self: This, assets: []const []const u8, guid: []const GUID, allocator: std.mem.Allocator, out: std.io.AnyWriter) !void {
+    for (assets) |path| {
+        const file = std.fs.openFileAbsolute(path, .{ .mode = .read_only }) catch |err| {
             log.warn("Error ({s}) opening file: '{s}'", .{ @errorName(err), path });
             continue;
         };
         defer file.close();
 
-        self.scanAndPrint(file, path, guid, data) catch |err| {
+        self.scanAndPrint(file, path, guid, allocator, out) catch |err| {
             log.warn("Error ({s}) scanning file: '{s}'", .{ @errorName(err), path });
             continue;
         };
     }
 }
 
-pub fn scanAndPrint(self: This, file: std.fs.File, file_path: []const u8, guid: []const []const u8, data: RuntimeData) !void {
-    var iter = ComponentIterator.init(file, data.allocator);
+pub fn scanAndPrint(self: This, file: std.fs.File, file_path: []const u8, guid: []const GUID, allocator: std.mem.Allocator, out: std.io.AnyWriter) !void {
+    var iter = ComponentIterator.init(file, allocator);
     defer iter.deinit();
 
     while (try iter.next()) |comp| {
-        var yaml = Yaml.init(.{ .string = comp.document }, null, data.allocator);
+        var yaml = Yaml.init(.{ .string = comp.document }, null, allocator);
 
         if (!(core.cmds.Show.matchScriptOrPrefabGUID(guid, &yaml) catch false)) continue;
 
-        const value = yaml.getAlloc(self.path.slice(), data.allocator) catch |err| {
+        const value = yaml.getAlloc(self.path.slice(), allocator) catch |err| {
             log.warn("Error ({s}) getting value in '{s}'", .{ @errorName(err), file_path });
             continue;
         };
-        defer if (value) |v| data.allocator.free(v) else {};
+        defer if (value) |v| allocator.free(v) else {};
 
-        try print(file_path, value orelse continue, data);
+        try print(file_path, value orelse continue, out);
     }
 }
 
-pub fn print(path: []const u8, value: []const u8, data: RuntimeData) !void {
-    try data.out.print("{s} => {s}\r\n", .{ path, value });
+pub fn print(path: []const u8, value: []const u8, out: std.io.AnyWriter) !void {
+    try out.print("{s} => {s}\r\n", .{ path, value });
 }

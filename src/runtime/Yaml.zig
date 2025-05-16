@@ -110,32 +110,6 @@ pub fn get(self: *This, path: []const []const u8, buf: []u8) ParseError!?[]u8 {
     return buf[0..length];
 }
 
-pub fn matchScriptGUID(self: *This, guid: []const u8) ParseError!bool {
-    const parser = try self.getParser();
-    defer self.closeParser(parser);
-
-    var buf: [32]u8 = undefined;
-    const nullableGuid = try self.get(&.{ "MonoBehaviour", "m_Script", "guid" }, &buf);
-    const assetGuid = nullableGuid orelse return false;
-
-    std.debug.assert(assetGuid.len == 32);
-
-    return std.mem.eql(u8, assetGuid, guid);
-}
-
-pub fn matchPrefabGUID(self: *This, guid: []const u8) ParseError!bool {
-    const parser = try self.getParser();
-    defer self.closeParser(parser);
-
-    var buf: [32]u8 = undefined;
-    const nullableGuid = try self.get(&.{ "PrefabInstance", "m_SourcePrefab", "guid" }, &buf);
-    const assetGuid = nullableGuid orelse return false;
-
-    std.debug.assert(assetGuid.len == 32);
-
-    return std.mem.eql(u8, assetGuid, guid);
-}
-
 fn runTo(parser: *libyaml.yaml_parser_t, key: []const u8) ParseError!bool {
     var event = libyaml.yaml_event_t{};
     var level: usize = 0;

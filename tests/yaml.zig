@@ -65,15 +65,6 @@ test "buffered reader parsing" {
     }
 }
 
-test "match script guid" {
-    for (data1.test_prefab.components) |doc| {
-        var yaml = Yaml.init(.{ .string = doc.content }, null, testing.allocator);
-
-        const result = try yaml.matchScriptGUID(doc.guid orelse "");
-        try testing.expect((doc.guid != null) == result);
-    }
-}
-
 test "out of memory" {
     const content = try std.fs.cwd().readFileAlloc(testing.allocator, test_file.path, std.math.maxInt(u16));
     defer testing.allocator.free(content);
