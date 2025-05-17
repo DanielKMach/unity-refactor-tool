@@ -20,6 +20,9 @@ of: AssetTarget,
 in: InTarget,
 
 pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
+    core.profiling.begin(parse);
+    defer core.profiling.stop();
+
     if (tokens.next()) |tkn| {
         if (!tkn.is(.keyword, "EVALUATE")) {
             return .ERR(.{
@@ -93,6 +96,9 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
 }
 
 pub fn run(self: This, data: RuntimeData) !results.RuntimeResult(void) {
+    core.profiling.begin(run);
+    defer core.profiling.stop();
+
     const in = self.in;
     const of = self.of;
 
@@ -140,6 +146,9 @@ pub fn run(self: This, data: RuntimeData) !results.RuntimeResult(void) {
 }
 
 pub fn searchAndPrint(self: This, assets: []const []const u8, guid: []const GUID, allocator: std.mem.Allocator, out: std.io.AnyWriter) !void {
+    core.profiling.begin(searchAndPrint);
+    defer core.profiling.stop();
+
     for (assets) |path| {
         const file = std.fs.openFileAbsolute(path, .{ .mode = .read_only }) catch |err| {
             log.warn("Error ({s}) opening file: '{s}'", .{ @errorName(err), path });
@@ -155,6 +164,9 @@ pub fn searchAndPrint(self: This, assets: []const []const u8, guid: []const GUID
 }
 
 pub fn scanAndPrint(self: This, file: std.fs.File, file_path: []const u8, guid: []const GUID, allocator: std.mem.Allocator, out: std.io.AnyWriter) !void {
+    core.profiling.begin(scanAndPrint);
+    defer core.profiling.stop();
+
     var iter = ComponentIterator.init(file, allocator);
     defer iter.deinit();
 
@@ -174,5 +186,8 @@ pub fn scanAndPrint(self: This, file: std.fs.File, file_path: []const u8, guid: 
 }
 
 pub fn print(path: []const u8, value: []const u8, out: std.io.AnyWriter) !void {
+    core.profiling.begin(print);
+    defer core.profiling.stop();
+
     try out.print("{s} => {s}\r\n", .{ path, value });
 }

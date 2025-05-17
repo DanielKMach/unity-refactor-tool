@@ -11,6 +11,9 @@ dir: []const u8,
 pub const default: This = .{ .dir = "." };
 
 pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
+    core.profiling.begin(parse);
+    defer core.profiling.stop();
+
     if (tokens.next()) |tkn| {
         if (!tkn.is(.keyword, "IN")) {
             return .ERR(.{

@@ -21,6 +21,9 @@ of: AssetTarget,
 in: InTarget,
 
 pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
+    core.profiling.begin(parse);
+    defer core.profiling.stop();
+
     if (tokens.next()) |tkn| {
         if (!tkn.is(.keyword, "RENAME")) {
             return .ERR(.{
@@ -133,6 +136,9 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
 }
 
 pub fn run(self: This, data: RuntimeData) !results.RuntimeResult(void) {
+    core.profiling.begin(run);
+    defer core.profiling.stop();
+
     const in = self.in;
     const of = self.of;
 
@@ -187,6 +193,9 @@ pub fn run(self: This, data: RuntimeData) !results.RuntimeResult(void) {
 }
 
 pub fn updateAll(self: This, asset_paths: []const []const u8, data: RuntimeData, guid: []const GUID) ![]Mod {
+    core.profiling.begin(updateAll);
+    defer core.profiling.stop();
+
     var updated = std.ArrayList(Mod).init(data.allocator);
     defer updated.deinit();
 
@@ -205,6 +214,9 @@ pub fn updateAll(self: This, asset_paths: []const []const u8, data: RuntimeData,
 }
 
 pub fn scopeAndReplace(self: This, data: RuntimeData, file: std.fs.File, path: []const u8, guid: []const GUID) !?Mod {
+    core.profiling.begin(scopeAndReplace);
+    defer core.profiling.stop();
+
     var iterator = ComponentIterator.init(file, data.allocator);
     defer iterator.deinit();
     var modified = std.ArrayList(ComponentIterator.Component).init(data.allocator);
@@ -247,6 +259,9 @@ pub fn scopeAndReplace(self: This, data: RuntimeData, file: std.fs.File, path: [
 }
 
 pub fn applyAll(mods: []Mod, cwd: std.fs.Dir) !void {
+    core.profiling.begin(applyAll);
+    defer core.profiling.stop();
+
     for (mods) |mod| {
         const path = mod.path;
         const cache = mod.modifications;

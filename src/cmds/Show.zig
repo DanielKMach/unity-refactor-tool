@@ -27,6 +27,9 @@ of: AssetTarget,
 in: InTarget,
 
 pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
+    core.profiling.begin(parse);
+    defer core.profiling.stop();
+
     if (tokens.next()) |tkn| {
         if (!tkn.is(.keyword, "SHOW")) {
             return .ERR(.{
@@ -157,6 +160,9 @@ pub fn run(self: This, data: RuntimeData) !results.RuntimeResult(void) {
 }
 
 pub fn search(self: This, data: RuntimeData, count: ?*usize, times: ?*usize) !results.RuntimeResult([][]u8) {
+    core.profiling.begin(search);
+    defer core.profiling.stop();
+
     var guids = std.ArrayList(GUID).init(data.allocator);
     defer guids.deinit();
     defer for (guids.items) |g| g.deinit(data.allocator);
@@ -223,6 +229,9 @@ pub fn search(self: This, data: RuntimeData, count: ?*usize, times: ?*usize) !re
 ///
 /// `cwd` is the directory relative to `path`.
 fn verifyUse(file: std.fs.File, guid: []const GUID, allocator: std.mem.Allocator) !bool {
+    core.profiling.begin(verifyUse);
+    defer core.profiling.stop();
+
     var iterator = ComponentIterator.init(file, allocator);
     defer iterator.deinit();
 
@@ -234,6 +243,9 @@ fn verifyUse(file: std.fs.File, guid: []const GUID, allocator: std.mem.Allocator
 
 /// Check if the GUID of the document in `yaml` matches any of the GUIDs in `guids`.
 pub fn matchScriptOrPrefabGUID(guids: []const GUID, yaml: *Yaml) !bool {
+    core.profiling.begin(matchScriptOrPrefabGUID);
+    defer core.profiling.stop();
+
     var buf: [32]u8 = undefined;
     var nullableGuid = try yaml.get(&.{ "MonoBehaviour", "m_Script", "guid" }, &buf);
     if (nullableGuid == null) {
@@ -273,6 +285,9 @@ const Search = struct {
     logMtx: std.Thread.Mutex = .{},
 
     pub fn filter(self: *Search, entry: std.fs.Dir.Walker.Entry, _: std.mem.Allocator) ?std.fs.File {
+        core.profiling.begin(filter);
+        defer core.profiling.stop();
+
         if (entry.kind != .file) return null;
 
         const exts: []const []const u8 = switch (self.mode) {
@@ -292,6 +307,9 @@ const Search = struct {
     }
 
     pub fn scan(self: *Search, entry: std.fs.Dir.Walker.Entry, file: std.fs.File, allocator: std.mem.Allocator) anyerror!void {
+        core.profiling.begin(scan);
+        defer core.profiling.stop();
+
         var bufrdr = std.io.bufferedReader(file.reader());
         const reader = bufrdr.reader();
 
@@ -334,6 +352,9 @@ const Search = struct {
     ///
     /// This function is thread-safe.
     fn addPath(self: *Search, path: []const u8, file: std.fs.File, allocator: std.mem.Allocator) !void {
+        core.profiling.begin(addPath);
+        defer core.profiling.stop();
+
         const abs_path = try self.dir.realpathAlloc(allocator, path);
         defer allocator.free(abs_path);
 

@@ -2,6 +2,7 @@ pub const language = @import("language.zig");
 pub const results = @import("results.zig");
 pub const cmds = @import("cmds.zig");
 pub const runtime = @import("runtime.zig");
+pub const profiling = @import("profiling.zig");
 
 const std = @import("std");
 const builtin = @import("builtin");
@@ -13,6 +14,11 @@ pub const std_options: std.Options = .{
 };
 
 pub fn main() !void {
+    defer profiling.finalize();
+
+    profiling.begin(main);
+    defer profiling.stop();
+
     const start = std.time.milliTimestamp();
 
     var debug_allocator: std.heap.DebugAllocator(.{ .enable_memory_limit = true }) = undefined;
@@ -82,6 +88,9 @@ pub fn main() !void {
 }
 
 pub fn runCommand(Command: type, tokens: *language.Tokenizer.TokenIterator, data: runtime.RuntimeData) !void {
+    profiling.begin(runCommand);
+    defer profiling.stop();
+
     const parseResult = try Command.parse(tokens);
     if (parseResult.isErr()) |err| {
         try results.printParseError(data.out, err, data.query);

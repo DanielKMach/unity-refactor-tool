@@ -10,6 +10,9 @@ const GUID = core.runtime.GUID;
 targets: std.BoundedArray(AssetTarget, 10),
 
 pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
+    core.profiling.begin(parse);
+    defer core.profiling.stop();
+
     if (tokens.next()) |tkn| {
         if (!tkn.is(.keyword, "OF")) {
             return .ERR(.{
@@ -104,6 +107,9 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
 }
 
 pub fn getGUID(self: This, dir: std.fs.Dir, allocator: std.mem.Allocator) !results.RuntimeResult([]GUID) {
+    core.profiling.begin(getGUID);
+    defer core.profiling.stop();
+
     var guids = std.ArrayList(GUID).init(allocator);
     errdefer {
         for (guids.items) |guid| guid.deinit(allocator);
@@ -150,6 +156,9 @@ fn isCSharpIdentifier(str: []const u8) bool {
 ///
 /// The return value is owned by the caller.
 fn searchComponent(name: []const u8, dir: std.fs.Dir, allocator: std.mem.Allocator) !?[]u8 {
+    core.profiling.begin(searchComponent);
+    defer core.profiling.stop();
+
     var walker = try dir.walk(allocator);
     defer walker.deinit();
 
