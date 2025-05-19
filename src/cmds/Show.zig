@@ -242,7 +242,7 @@ fn verifyUse(file: std.fs.File, guid: []const GUID, allocator: std.mem.Allocator
 }
 
 /// Check if the GUID of the document in `yaml` matches any of the GUIDs in `guids`.
-pub fn matchScriptOrPrefabGUID(guids: []const GUID, yaml: *Yaml) !bool {
+pub fn matchScriptOrPrefabGUID(guids: []const GUID, yaml: *Yaml) Yaml.ParseError!bool {
     core.profiling.begin(matchScriptOrPrefabGUID);
     defer core.profiling.stop();
 

@@ -113,10 +113,8 @@ pub fn run(self: This, data: RuntimeData) !results.RuntimeResult(void) {
         .ok => |v| v,
         .err => |err| return .ERR(err),
     };
-    defer {
-        for (guid) |g| g.deinit(data.allocator);
-        data.allocator.free(guid);
-    }
+    defer data.allocator.free(guid);
+    defer for (guid) |g| g.deinit(data.allocator);
 
     const show = core.cmds.Show{
         .mode = .indirect_uses,
@@ -131,12 +129,10 @@ pub fn run(self: This, data: RuntimeData) !results.RuntimeResult(void) {
         return .ERR(err);
     }
     const target_assets = search_result.ok;
-    defer {
-        for (target_assets) |asset| {
-            data.allocator.free(asset);
-        }
-        data.allocator.free(target_assets);
-    }
+    defer data.allocator.free(target_assets);
+    defer for (target_assets) |asset| {
+        data.allocator.free(asset);
+    };
 
     log.debug("Evaluating found...", .{});
 
@@ -173,12 +169,9 @@ pub fn scanAndPrint(self: This, file: std.fs.File, file_path: []const u8, guid: 
     while (try iter.next()) |comp| {
         var yaml = Yaml.init(.{ .string = comp.document }, null, allocator);
 
-        if (!(core.cmds.Show.matchScriptOrPrefabGUID(guid, &yaml) catch false)) continue;
+        if (!(try core.cmds.Show.matchScriptOrPrefabGUID(guid, &yaml))) continue;
 
-        const value = yaml.getAlloc(self.path.slice(), allocator) catch |err| {
-            log.warn("Error ({s}) getting value in '{s}'", .{ @errorName(err), file_path });
-            continue;
-        };
+        const value = try yaml.getAlloc(self.path.slice(), allocator);
         defer if (value) |v| allocator.free(v) else {};
 
         try print(file_path, value orelse continue, out);

@@ -6,9 +6,9 @@ const This = @This();
 
 const c_alloc = std.heap.raw_c_allocator;
 
-const OutputError = error{NoOutput} || std.mem.Allocator.Error;
-const ParseError = error{LibyamlError} || std.mem.Allocator.Error;
-const UpdateError = ParseError || OutputError;
+pub const OutputError = error{NoOutput} || std.mem.Allocator.Error;
+pub const ParseError = error{LibyamlError} || std.mem.Allocator.Error;
+pub const UpdateError = ParseError || OutputError;
 
 in: In,
 out: ?Out,
