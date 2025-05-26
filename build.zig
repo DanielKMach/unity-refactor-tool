@@ -23,8 +23,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
-    exe.root_module.linkLibrary(libyaml.artifact("libyaml"));
-    exe.root_module.addIncludePath(libyaml.path("lib/include"));
+    exe.root_module.addImport("libyaml", libyaml.module("libyaml"));
 
     const options = b.addOptions();
     options.addOption(bool, "profiling", profile);
@@ -55,8 +54,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    urt_mod.linkLibrary(libyaml.artifact("libyaml"));
-    urt_mod.addIncludePath(libyaml.path("lib/include"));
+    tests.root_module.addImport("libyaml", libyaml.module("libyaml"));
     tests.root_module.addImport("urt", urt_mod);
 
     const run_tests = b.addRunArtifact(tests);

@@ -1,5 +1,5 @@
 const std = @import("std");
-const libyaml = @cImport(@cInclude("yaml.h"));
+const libyaml = @import("libyaml");
 const log = std.log.scoped(.yaml);
 
 const This = @This();
