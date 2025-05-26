@@ -171,7 +171,13 @@ pub fn scanAndPrint(self: This, file: std.fs.File, file_path: []const u8, guid: 
 
         if (!(try core.cmds.Show.matchScriptOrPrefabGUID(guid, &yaml))) continue;
 
-        const value = try yaml.getAlloc(self.path.slice(), allocator);
+        const path = self.path.slice();
+        const new_path = try allocator.alloc([]const u8, path.len + 1);
+        defer allocator.free(new_path);
+        @memcpy(new_path[1..], path);
+        new_path[0] = "MonoBehaviour";
+
+        const value = try yaml.getAlloc(new_path, allocator);
         defer if (value) |v| allocator.free(v) else {};
 
         try print(file_path, value orelse continue, out);
