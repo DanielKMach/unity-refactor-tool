@@ -54,7 +54,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    tests.root_module.addImport("libyaml", libyaml.module("libyaml"));
+    urt_mod.addImport("libyaml", libyaml.module("libyaml"));
     tests.root_module.addImport("urt", urt_mod);
 
     const run_tests = b.addRunArtifact(tests);
