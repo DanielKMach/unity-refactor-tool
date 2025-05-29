@@ -113,4 +113,8 @@ pub const TokenIterator = struct {
     pub fn len(self: TokenIterator) usize {
         return self.tokens.len - self.index;
     }
+
+    pub fn reset(self: *TokenIterator) void {
+        self.index = -1;
+    }
 };
