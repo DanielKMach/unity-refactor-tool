@@ -78,23 +78,6 @@ pub fn main() !void {
     log.debug("Total execution time {d}ms", .{std.time.milliTimestamp() - start});
 }
 
-pub fn runCommand(Command: type, tokens: *language.Tokenizer.TokenIterator, data: runtime.RuntimeData) !void {
-    profiling.begin(runCommand);
-    defer profiling.stop();
-
-    const parseResult = try Command.parse(tokens);
-    if (parseResult.isErr()) |err| {
-        try results.printParseError(data.out, err, data.query);
-        return;
-    }
-
-    const runResult = try parseResult.ok.run(data);
-    if (runResult.isErr()) |err| {
-        try results.printRuntimeError(data.out, err);
-        return;
-    }
-}
-
 fn logFn(
     comptime message_level: std.log.Level,
     comptime scope: @TypeOf(.enum_literal),
