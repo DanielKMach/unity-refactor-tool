@@ -65,21 +65,12 @@ pub fn main() !void {
 
         data.query = arg;
 
-        switch (tokens.peek(1).?.hash()) {
-            language.Tokenizer.Token.new(.keyword, "SHOW").hash() => {
-                try runCommand(cmds.Show, &tokens, data);
+        switch (try cmds.Statement.parse(&tokens)) {
+            .ok => |stmt| switch (try stmt.run(data)) {
+                .ok => {},
+                .err => |err| try results.printRuntimeError(out.any(), err),
             },
-            language.Tokenizer.Token.new(.keyword, "RENAME").hash() => {
-                try runCommand(cmds.Rename, &tokens, data);
-            },
-            language.Tokenizer.Token.new(.keyword, "EVALUATE").hash() => {
-                try runCommand(cmds.Evaluate, &tokens, data);
-            },
-            else => {
-                const Err = @FieldType(results.ParseResult(void), "err");
-                try results.printParseError(out.any(), @as(Err, .{ .unknown_command = void{} }), arg);
-                return;
-            },
+            .err => |err| try results.printParseError(out.any(), err, arg),
         }
     }
 

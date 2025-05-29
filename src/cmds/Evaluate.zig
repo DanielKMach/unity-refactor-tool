@@ -26,19 +26,12 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
     if (tokens.next()) |tkn| {
         if (!tkn.is(.keyword, "EVALUATE")) {
             return .ERR(.{
-                .unexpected_token = .{
-                    .found = tkn,
-                    .expected_type = .keyword,
-                    .expected_value = "EVALUATE",
-                },
+                .unknown_command = void{},
             });
         }
     } else {
         return .ERR(.{
-            .unexpected_eof = .{
-                .expected_type = .keyword,
-                .expected_value = "EVALUATE",
-            },
+            .unknown_command = void{},
         });
     }
 
