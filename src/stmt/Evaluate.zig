@@ -26,12 +26,12 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
     if (tokens.next()) |tkn| {
         if (!tkn.is(.keyword, "EVALUATE")) {
             return .ERR(.{
-                .unknown_command = void{},
+                .unknown = void{},
             });
         }
     } else {
         return .ERR(.{
-            .unknown_command = void{},
+            .unknown = void{},
         });
     }
 

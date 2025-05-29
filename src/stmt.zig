@@ -31,12 +31,12 @@ pub const Statement = union(enum) {
             switch (try fld.type.parse(tokens)) {
                 .ok => |ok| return .OK(try Statement.init(ok)),
                 .err => |err| switch (err) {
-                    .unknown_command => {},
+                    .unknown => {},
                     else => |errr| return .ERR(errr),
                 },
             }
         }
-        return .ERR(.{ .unknown_command = void{} });
+        return .ERR(.{ .unknown = void{} });
     }
 
     pub fn run(this: Statement, data: core.runtime.RuntimeData) !RuntimeResult(void) {

@@ -34,14 +34,14 @@ pub fn Result(T: type, E: type) type {
 }
 
 pub const ParseErrorType = enum {
-    unknown_command,
+    unknown,
     never_closed_string,
     unexpected_token,
     unexpected_eof,
 };
 
 pub const ParseError = union(ParseErrorType) {
-    unknown_command: void,
+    unknown: void,
     never_closed_string: struct {
         index: usize,
     },
@@ -114,8 +114,8 @@ pub fn printParseError(out: std.io.AnyWriter, errUnion: ParseError, command: []c
                 });
             }
         },
-        .unknown_command => {
-            try out.print("Unknown command\r\n", .{});
+        .unknown => {
+            try out.print("Unknown statement\r\n", .{});
         },
     }
 }
