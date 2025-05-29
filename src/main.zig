@@ -1,6 +1,6 @@
 pub const language = @import("language.zig");
 pub const results = @import("results.zig");
-pub const cmds = @import("cmds.zig");
+pub const stmt = @import("stmt.zig");
 pub const runtime = @import("runtime.zig");
 pub const profiling = @import("profiling.zig");
 
@@ -65,8 +65,8 @@ pub fn main() !void {
 
         data.query = arg;
 
-        switch (try cmds.Statement.parse(&tokens)) {
-            .ok => |stmt| switch (try stmt.run(data)) {
+        switch (try stmt.Statement.parse(&tokens)) {
+            .ok => |s| switch (try s.run(data)) {
                 .ok => {},
                 .err => |err| try results.printRuntimeError(out.any(), err),
             },

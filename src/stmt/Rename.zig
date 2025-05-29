@@ -9,8 +9,8 @@ const Scanner = core.runtime.Scanner;
 const RuntimeData = core.runtime.RuntimeData;
 const ComponentIterator = core.runtime.ComponentIterator;
 const Yaml = core.runtime.Yaml;
-const InTarget = core.cmds.sub.InTarget;
-const AssetTarget = core.cmds.sub.AssetTarget;
+const InTarget = core.stmt.clse.InTarget;
+const AssetTarget = core.stmt.clse.AssetTarget;
 const GUID = core.runtime.GUID;
 
 const files = &.{ ".prefab", ".unity", ".asset" };
@@ -151,7 +151,7 @@ pub fn run(self: This, data: RuntimeData) !results.RuntimeResult(void) {
         data.allocator.free(guid);
     }
 
-    const show = core.cmds.Show{
+    const show = core.stmt.Show{
         .mode = .indirect_uses,
         .of = of,
         .in = in,
@@ -225,7 +225,7 @@ pub fn scopeAndReplace(self: This, data: RuntimeData, file: std.fs.File, path: [
     while (try iterator.next()) |comp| {
         var yaml = Yaml.init(.{ .string = comp.document }, null, data.allocator);
 
-        if (!(core.cmds.Show.matchScriptOrPrefabGUID(guid, &yaml) catch false)) continue;
+        if (!(core.stmt.Show.matchScriptOrPrefabGUID(guid, &yaml) catch false)) continue;
 
         var buf = try data.allocator.alloc(u8, comp.len * 2);
         yaml.out = .{ .string = &buf };

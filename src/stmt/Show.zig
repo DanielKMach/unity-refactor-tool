@@ -9,8 +9,8 @@ const Yaml = core.runtime.Yaml;
 const ComponentIterator = core.runtime.ComponentIterator;
 const Scanner = core.runtime.Scanner;
 const RuntimeData = core.runtime.RuntimeData;
-const InTarget = core.cmds.sub.InTarget;
-const AssetTarget = core.cmds.sub.AssetTarget;
+const InTarget = core.stmt.clse.InTarget;
+const AssetTarget = core.stmt.clse.AssetTarget;
 const GUID = core.runtime.GUID;
 
 pub const SearchMode = enum {

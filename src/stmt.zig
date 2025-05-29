@@ -4,16 +4,16 @@ const core = @import("root");
 const ParseResult = core.results.ParseResult;
 const RuntimeResult = core.results.RuntimeResult;
 
-pub const sub = @import("cmds/sub.zig");
+pub const clse = @import("stmt/clse.zig");
 
-pub const Show = @import("cmds/Show.zig");
-pub const Rename = @import("cmds/Rename.zig");
-pub const Evaluate = @import("cmds/Evaluate.zig");
+pub const Show = @import("stmt/Show.zig");
+pub const Rename = @import("stmt/Rename.zig");
+pub const Evaluate = @import("stmt/Evaluate.zig");
 
 pub const Statement = union(enum) {
-    show: core.cmds.Show,
-    rename: core.cmds.Rename,
-    evaluate: core.cmds.Evaluate,
+    show: Show,
+    rename: Rename,
+    evaluate: Evaluate,
 
     const fields = @typeInfo(Statement).@"union".fields;
 

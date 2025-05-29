@@ -9,8 +9,8 @@ const Scanner = core.runtime.Scanner;
 const RuntimeData = core.runtime.RuntimeData;
 const ComponentIterator = core.runtime.ComponentIterator;
 const Yaml = core.runtime.Yaml;
-const InTarget = core.cmds.sub.InTarget;
-const AssetTarget = core.cmds.sub.AssetTarget;
+const InTarget = core.stmt.clse.InTarget;
+const AssetTarget = core.stmt.clse.AssetTarget;
 const GUID = core.runtime.GUID;
 
 const files = &.{ ".prefab", ".unity", ".asset" };
@@ -109,7 +109,7 @@ pub fn run(self: This, data: RuntimeData) !results.RuntimeResult(void) {
     defer data.allocator.free(guid);
     defer for (guid) |g| g.deinit(data.allocator);
 
-    const show = core.cmds.Show{
+    const show = core.stmt.Show{
         .mode = .indirect_uses,
         .of = of,
         .in = in,
@@ -162,7 +162,7 @@ pub fn scanAndPrint(self: This, file: std.fs.File, file_path: []const u8, guid: 
     while (try iter.next()) |comp| {
         var yaml = Yaml.init(.{ .string = comp.document }, null, allocator);
 
-        if (!(try core.cmds.Show.matchScriptOrPrefabGUID(guid, &yaml))) continue;
+        if (!(try core.stmt.Show.matchScriptOrPrefabGUID(guid, &yaml))) continue;
 
         const path = self.path.slice();
         const new_path = try allocator.alloc([]const u8, path.len + 1);
