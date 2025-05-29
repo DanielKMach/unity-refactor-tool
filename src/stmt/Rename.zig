@@ -42,20 +42,20 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
     var in: ?InTarget = null;
 
     if (tokens.next()) |tkn| {
-        if (tkn.isType(.literal) or tkn.isType(.literal_string)) {
+        if (tkn.isType(.literal) or tkn.isType(.string)) {
             old_name = tkn.value;
         } else {
             return .ERR(.{
                 .unexpected_token = .{
                     .found = tkn,
-                    .expected_type = .literal_string,
+                    .expected_type = .string,
                 },
             });
         }
     } else {
         return .ERR(.{
             .unexpected_eof = .{
-                .expected_type = .literal_string,
+                .expected_type = .string,
             },
         });
     }
@@ -80,20 +80,20 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
     }
 
     if (tokens.next()) |tkn| {
-        if (tkn.isType(.literal) or tkn.isType(.literal_string)) {
+        if (tkn.isType(.literal) or tkn.isType(.string)) {
             new_name = tkn.value;
         } else {
             return .ERR(.{
                 .unexpected_token = .{
                     .found = tkn,
-                    .expected_type = .literal_string,
+                    .expected_type = .string,
                 },
             });
         }
     } else {
         return .ERR(.{
             .unexpected_eof = .{
-                .expected_type = .literal_string,
+                .expected_type = .string,
             },
         });
     }

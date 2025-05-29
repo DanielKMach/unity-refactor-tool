@@ -42,7 +42,7 @@ pub fn tokenize(expression: []const u8, allocator: std.mem.Allocator) !results.P
                     return .ERR(.{ .never_closed_string = .{ .index = si } });
                 }
             }
-            try list.append(Token.new(.literal_string, expression[si + 1 .. i]));
+            try list.append(Token.new(.string, expression[si + 1 .. i]));
             si = i + 1;
             continue;
         }
@@ -85,9 +85,10 @@ pub const Token = struct {
 pub const TokenType = enum {
     keyword,
     operator,
-    literal_number,
-    literal_string,
+    number,
+    string,
     literal,
+    eos, // End of Statement
 };
 
 pub const TokenIterator = struct {

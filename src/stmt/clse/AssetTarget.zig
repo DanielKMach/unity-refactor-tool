@@ -37,7 +37,7 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
         if (tokens.next()) |tkn| {
             if (tkn.is(.keyword, "GUID")) {
                 if (tokens.next()) |tkn_guid| {
-                    if ((tkn_guid.isType(.literal_string) or tkn_guid.isType(.literal)) and GUID.isGUID(tkn_guid.value)) {
+                    if ((tkn_guid.isType(.string) or tkn_guid.isType(.literal)) and GUID.isGUID(tkn_guid.value)) {
                         try targets.append(.{
                             .tpe = .guid,
                             .str = tkn_guid.value,
@@ -46,24 +46,24 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
                         return .ERR(.{
                             .unexpected_token = .{
                                 .found = tkn_guid,
-                                .expected_type = .literal_string,
+                                .expected_type = .string,
                             },
                         });
                     }
                 } else {
                     return .ERR(.{
                         .unexpected_eof = .{
-                            .expected_type = .literal_string,
+                            .expected_type = .string,
                         },
                     });
                 }
-            } else if (tkn.isType(.literal) or tkn.isType(.literal_string)) {
+            } else if (tkn.isType(.literal) or tkn.isType(.string)) {
                 if (isCSharpIdentifier(tkn.value)) {
                     try targets.append(.{
                         .tpe = .name,
                         .str = tkn.value,
                     });
-                } else if (tkn.isType(.literal_string)) {
+                } else if (tkn.isType(.string)) {
                     try targets.append(.{
                         .tpe = .path,
                         .str = tkn.value,
@@ -72,7 +72,7 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
                     return .ERR(.{
                         .unexpected_token = .{
                             .found = tkn,
-                            .expected_type = .literal_string,
+                            .expected_type = .string,
                         },
                     });
                 }
@@ -80,14 +80,14 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
                 return .ERR(.{
                     .unexpected_token = .{
                         .found = tkn,
-                        .expected_type = .literal_string,
+                        .expected_type = .string,
                     },
                 });
             }
         } else {
             return .ERR(.{
                 .unexpected_eof = .{
-                    .expected_type = .literal_string,
+                    .expected_type = .string,
                 },
             });
         }

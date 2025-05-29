@@ -35,20 +35,20 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
 
     var dir: []const u8 = undefined;
     if (tokens.next()) |tkn| {
-        if (tkn.isType(.literal_string)) {
+        if (tkn.isType(.string)) {
             dir = tkn.value;
         } else {
             return .ERR(.{
                 .unexpected_token = .{
                     .found = tkn,
-                    .expected_type = .literal_string,
+                    .expected_type = .string,
                 },
             });
         }
     } else {
         return .ERR(.{
             .unexpected_eof = .{
-                .expected_type = .literal_string,
+                .expected_type = .string,
             },
         });
     }

@@ -42,7 +42,7 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
     var analyzing_key = true;
     while (tokens.peek(1)) |tkn| {
         if (analyzing_key) {
-            if (tkn.isType(.literal) or tkn.isType(.literal_string)) {
+            if (tkn.isType(.literal) or tkn.isType(.string)) {
                 try path.append(tkn.value);
             } else {
                 return .ERR(.{
