@@ -56,9 +56,7 @@ pub fn main() !void {
     while (args.next()) |arg| {
         defer _ = arena.reset(.retain_capacity);
 
-        var buf = std.io.fixedBufferStream(arg);
-        const reader = buf.reader();
-        const script = switch (try language.Parser.parse(reader.any(), allocator)) {
+        const script = switch (try language.Parser.parse(arg, allocator)) {
             .ok => |s| s,
             .err => |err| {
                 try results.printParseError(out.any(), err, arg);

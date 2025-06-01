@@ -3,12 +3,11 @@ const core = @import("root");
 
 const Tokenizer = core.language.Tokenizer;
 
-pub fn parse(reader: std.io.AnyReader, allocator: std.mem.Allocator) !core.results.ParseResult(core.runtime.Script) {
+pub fn parse(source: []const u8, allocator: std.mem.Allocator) !core.results.ParseResult(core.runtime.Script) {
     core.profiling.begin(parse);
     defer core.profiling.stop();
 
-    const str = try reader.readAllAlloc(allocator, std.math.maxInt(u32));
-    var tokens = switch (try Tokenizer.tokenize(str, allocator)) {
+    var tokens = switch (try Tokenizer.tokenize(source, allocator)) {
         .ok => |it| it,
         .err => |err| return .ERR(err),
     };
@@ -28,5 +27,16 @@ pub fn parse(reader: std.io.AnyReader, allocator: std.mem.Allocator) !core.resul
         try statements.append(stmt);
     }
 
-    return .OK(core.runtime.Script{ .statements = try statements.toOwnedSlice() });
+    return .OK(core.runtime.Script{ .source = source, .statements = try statements.toOwnedSlice() });
+}
+
+pub fn parseFrom(reader: std.io.AnyReader, allocator: std.mem.Allocator, out_source: ?*[]u8) !core.results.ParseResult(core.runtime.Script) {
+    core.profiling.begin(parseFrom);
+    defer core.profiling.stop();
+
+    const source = try reader.readAllAlloc(allocator, std.math.maxInt(u16));
+    if (out_source) |src| {
+        src.* = source;
+    }
+    return parse(source, allocator);
 }

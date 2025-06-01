@@ -1,9 +1,12 @@
 const std = @import("std");
 const core = @import("root");
 
-statements: []core.stmt.Statement,
+const This = @This();
 
-pub fn run(this: *const @This(), data: core.runtime.RuntimeData) !core.results.RuntimeResult(void) {
+statements: []core.stmt.Statement,
+source: []const u8,
+
+pub fn run(this: This, data: core.runtime.RuntimeData) !core.results.RuntimeResult(void) {
     core.profiling.begin(run);
     defer core.profiling.stop();
 
