@@ -56,21 +56,24 @@ pub fn main() !void {
     while (args.next()) |arg| {
         defer _ = arena.reset(.retain_capacity);
 
-        const tokenizeResult = try language.Tokenizer.tokenize(arg, allocator);
-        if (tokenizeResult.isErr()) |err| {
-            try results.printParseError(out.any(), err, arg);
-            return;
-        }
-        var tokens = tokenizeResult.ok;
+        var buf = std.io.fixedBufferStream(arg);
+        const reader = buf.reader();
+        const script = switch (try language.Parser.parse(reader.any(), allocator)) {
+            .ok => |s| s,
+            .err => |err| {
+                try results.printParseError(out.any(), err, arg);
+                continue;
+            },
+        };
 
         data.query = arg;
 
-        switch (try stmt.Statement.parse(&tokens)) {
-            .ok => |s| switch (try s.run(data)) {
-                .ok => {},
-                .err => |err| try results.printRuntimeError(out.any(), err),
+        switch (try script.run(data)) {
+            .ok => {},
+            .err => |err| {
+                try results.printRuntimeError(out.any(), err);
+                continue;
             },
-            .err => |err| try results.printParseError(out.any(), err, arg),
         }
     }
 

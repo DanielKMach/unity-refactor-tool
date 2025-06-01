@@ -46,6 +46,11 @@ pub fn tokenize(expression: []const u8, allocator: std.mem.Allocator) !results.P
             si = i + 1;
             continue;
         }
+        if (si == i and char == ';') {
+            try list.append(Token.new(.eos, expression[i .. i + 1]));
+            si = i + 1;
+            continue;
+        }
     }
 
     for (list.items) |tkn| {
@@ -112,10 +117,28 @@ pub const TokenIterator = struct {
     }
 
     pub fn len(self: TokenIterator) usize {
-        return self.tokens.len - self.index;
+        return self.tokens.len - @as(usize, @intCast(self.index + 1));
     }
 
     pub fn reset(self: *TokenIterator) void {
         self.index = -1;
+    }
+
+    /// The slice is owned by the caller.
+    pub fn split(self: *TokenIterator, delimiter: Token, allocator: std.mem.Allocator) std.mem.Allocator.Error![]TokenIterator {
+        var list = std.ArrayList(TokenIterator).init(allocator);
+        defer list.deinit();
+        var start: usize = 0;
+
+        for (self.tokens, 0..) |tkn, i| {
+            if (tkn.eql(delimiter)) {
+                try list.append(.{ .tokens = self.tokens[start..i] });
+                start = i + 1;
+                continue;
+            }
+        }
+        try list.append(.{ .tokens = self.tokens[start..] });
+
+        return list.toOwnedSlice();
     }
 };
