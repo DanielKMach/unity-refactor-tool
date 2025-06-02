@@ -6,7 +6,7 @@ const log = std.log.scoped(.rename_command);
 const This = @This();
 const Tokenizer = core.language.Tokenizer;
 const Scanner = core.runtime.Scanner;
-const RuntimeData = core.runtime.RuntimeData;
+const RuntimeEnv = core.runtime.RuntimeEnv;
 const ComponentIterator = core.runtime.ComponentIterator;
 const Yaml = core.runtime.Yaml;
 const InTarget = core.stmt.clse.InTarget;
@@ -128,7 +128,7 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
     });
 }
 
-pub fn run(self: This, data: RuntimeData) !results.RuntimeResult(void) {
+pub fn run(self: This, data: RuntimeEnv) !results.RuntimeResult(void) {
     core.profiling.begin(run);
     defer core.profiling.stop();
 
@@ -185,7 +185,7 @@ pub fn run(self: This, data: RuntimeData) !results.RuntimeResult(void) {
     return .OK(void{});
 }
 
-pub fn updateAll(self: This, asset_paths: []const []const u8, data: RuntimeData, guid: []const GUID) ![]Mod {
+pub fn updateAll(self: This, asset_paths: []const []const u8, data: RuntimeEnv, guid: []const GUID) ![]Mod {
     core.profiling.begin(updateAll);
     defer core.profiling.stop();
 
@@ -206,7 +206,7 @@ pub fn updateAll(self: This, asset_paths: []const []const u8, data: RuntimeData,
     return try updated.toOwnedSlice();
 }
 
-pub fn scopeAndReplace(self: This, data: RuntimeData, file: std.fs.File, path: []const u8, guid: []const GUID) !?Mod {
+pub fn scopeAndReplace(self: This, data: RuntimeEnv, file: std.fs.File, path: []const u8, guid: []const GUID) !?Mod {
     core.profiling.begin(scopeAndReplace);
     defer core.profiling.stop();
 

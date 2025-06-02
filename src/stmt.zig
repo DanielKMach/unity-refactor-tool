@@ -40,7 +40,7 @@ pub const Statement = union(enum) {
         return .ERR(.{ .unknown = void{} });
     }
 
-    pub fn run(this: Statement, data: core.runtime.RuntimeData) !RuntimeResult(void) {
+    pub fn run(this: Statement, data: core.runtime.RuntimeEnv) !RuntimeResult(void) {
         const active = @tagName(this);
         inline for (fields) |fld| {
             if (std.mem.eql(u8, fld.name, active)) {

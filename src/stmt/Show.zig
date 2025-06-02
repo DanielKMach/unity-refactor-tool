@@ -8,7 +8,7 @@ const Tokenizer = core.language.Tokenizer;
 const Yaml = core.runtime.Yaml;
 const ComponentIterator = core.runtime.ComponentIterator;
 const Scanner = core.runtime.Scanner;
-const RuntimeData = core.runtime.RuntimeData;
+const RuntimeEnv = core.runtime.RuntimeEnv;
 const InTarget = core.stmt.clse.InTarget;
 const AssetTarget = core.stmt.clse.AssetTarget;
 const GUID = core.runtime.GUID;
@@ -123,7 +123,7 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
     });
 }
 
-pub fn run(self: This, data: RuntimeData) !results.RuntimeResult(void) {
+pub fn run(self: This, data: RuntimeEnv) !results.RuntimeResult(void) {
     var fileCount: usize = 0;
     var loops: usize = 0;
 
@@ -146,13 +146,11 @@ pub fn run(self: This, data: RuntimeData) !results.RuntimeResult(void) {
         try data.out.print("{s}\r\n", .{r});
     }
 
-    if (data.verbose) {
-        std.debug.print("Scanned {d} files {d} times in {d} milliseconds \r\n", .{ fileCount, loops, time });
-    }
+    try data.out.print("Scanned {d} files {d} times in {d} milliseconds \r\n", .{ fileCount, loops, time });
     return .OK(void{});
 }
 
-pub fn search(self: This, data: RuntimeData, count: ?*usize, times: ?*usize) !results.RuntimeResult([][]u8) {
+pub fn search(self: This, data: RuntimeEnv, count: ?*usize, times: ?*usize) !results.RuntimeResult([][]u8) {
     core.profiling.begin(search);
     defer core.profiling.stop();
 

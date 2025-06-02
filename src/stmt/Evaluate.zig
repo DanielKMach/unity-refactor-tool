@@ -6,7 +6,7 @@ const log = std.log.scoped(.evaluate_command);
 const This = @This();
 const Tokenizer = core.language.Tokenizer;
 const Scanner = core.runtime.Scanner;
-const RuntimeData = core.runtime.RuntimeData;
+const RuntimeEnv = core.runtime.RuntimeEnv;
 const ComponentIterator = core.runtime.ComponentIterator;
 const Yaml = core.runtime.Yaml;
 const InTarget = core.stmt.clse.InTarget;
@@ -88,7 +88,7 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
     });
 }
 
-pub fn run(self: This, data: RuntimeData) !results.RuntimeResult(void) {
+pub fn run(self: This, data: RuntimeEnv) !results.RuntimeResult(void) {
     core.profiling.begin(run);
     defer core.profiling.stop();
 

@@ -3,7 +3,7 @@ const core = @import("root");
 const results = core.results;
 
 const This = @This();
-const RuntimeData = core.runtime.RuntimeData;
+const RuntimeEnv = core.runtime.RuntimeEnv;
 const Tokenizer = core.language.Tokenizer;
 
 dir: []const u8,
@@ -56,7 +56,7 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
     return .OK(.{ .dir = dir });
 }
 
-pub fn openDir(self: This, data: RuntimeData, options: std.fs.Dir.OpenDirOptions) !std.fs.Dir {
+pub fn openDir(self: This, data: RuntimeEnv, options: std.fs.Dir.OpenDirOptions) !std.fs.Dir {
     const dir = try data.cwd.openDir(self.dir, options);
     return dir;
 }

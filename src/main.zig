@@ -45,14 +45,6 @@ pub fn main() !void {
 
     const allocator = arena.allocator();
 
-    var data = runtime.RuntimeData{
-        .allocator = allocator,
-        .out = out.any(),
-        .cwd = cwd,
-        .verbose = true,
-        .query = undefined,
-    };
-
     while (args.next()) |arg| {
         defer _ = arena.reset(.retain_capacity);
 
@@ -64,9 +56,13 @@ pub fn main() !void {
             },
         };
 
-        data.query = arg;
+        const config = runtime.Script.RunConfig{
+            .allocator = allocator,
+            .out = out.any(),
+            .cwd = cwd,
+        };
 
-        switch (try script.run(data)) {
+        switch (try script.run(config)) {
             .ok => {},
             .err => |err| {
                 try results.printRuntimeError(out.any(), err);
