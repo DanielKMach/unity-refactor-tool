@@ -6,7 +6,7 @@ const log = std.log.scoped(.usql_tokenizer);
 
 const This = @This();
 
-pub fn tokenize(expression: []const u8, allocator: std.mem.Allocator) !results.ParseResult(TokenIterator) {
+pub fn tokenize(expression: []const u8, allocator: std.mem.Allocator) !results.ParseResult([]Token) {
     core.profiling.begin(tokenize);
     defer core.profiling.stop();
 
@@ -57,7 +57,7 @@ pub fn tokenize(expression: []const u8, allocator: std.mem.Allocator) !results.P
         log.info("Token({s}, '{s}')", .{ @tagName(tkn.type), tkn.value });
     }
 
-    return .OK(.{ .allocator = allocator, .tokens = try list.toOwnedSlice() });
+    return .OK(try list.toOwnedSlice());
 }
 
 pub const Token = struct {
@@ -97,9 +97,15 @@ pub const TokenType = enum {
 };
 
 pub const TokenIterator = struct {
-    allocator: std.mem.Allocator,
-    tokens: []Token,
+    tokens: []const Token,
     index: isize = -1,
+
+    pub fn init(tokens: []const Token) TokenIterator {
+        return TokenIterator{
+            .tokens = tokens,
+            .index = -1,
+        };
+    }
 
     pub fn next(self: *TokenIterator) ?Token {
         if (self.index + 1 >= self.tokens.len) {
@@ -126,24 +132,20 @@ pub const TokenIterator = struct {
     }
 
     /// The slice is owned by the caller.
-    pub fn split(self: *TokenIterator, delimiter: Token, allocator: std.mem.Allocator) std.mem.Allocator.Error![]TokenIterator {
+    pub fn split(tokens: []const Token, delimiter: Token, allocator: std.mem.Allocator) std.mem.Allocator.Error![]TokenIterator {
         var list = std.ArrayList(TokenIterator).init(allocator);
         defer list.deinit();
         var start: usize = 0;
 
-        for (self.tokens, 0..) |tkn, i| {
+        for (tokens, 0..) |tkn, i| {
             if (tkn.eql(delimiter)) {
-                try list.append(.{ .allocator = self.allocator, .tokens = self.tokens[start..i] });
+                try list.append(.init(tokens[start..i]));
                 start = i + 1;
                 continue;
             }
         }
-        try list.append(.{ .allocator = self.allocator, .tokens = self.tokens[start..] });
+        try list.append(.init(tokens[start..]));
 
         return list.toOwnedSlice();
-    }
-
-    pub fn deinit(self: *TokenIterator) void {
-        self.allocator.free(self.tokens);
     }
 };

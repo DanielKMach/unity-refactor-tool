@@ -7,13 +7,13 @@ pub fn parse(source: []const u8, allocator: std.mem.Allocator) !core.results.Par
     core.profiling.begin(parse);
     defer core.profiling.stop();
 
-    var tokens = switch (try Tokenizer.tokenize(source, allocator)) {
+    const tokens = switch (try Tokenizer.tokenize(source, allocator)) {
         .ok => |it| it,
         .err => |err| return .ERR(err),
     };
-    defer tokens.deinit();
+    defer allocator.free(tokens);
 
-    const iterators = try tokens.split(Tokenizer.Token.new(.eos, ";"), allocator);
+    const iterators = try Tokenizer.TokenIterator.split(tokens, Tokenizer.Token.new(.eos, ";"), allocator);
     defer allocator.free(iterators);
 
     var statements = std.ArrayList(core.stmt.Statement).init(allocator);
