@@ -57,7 +57,7 @@ pub fn tokenize(expression: []const u8, allocator: std.mem.Allocator) !results.P
         log.debug("Token: ({s}, '{s}')", .{ @tagName(tkn.type), tkn.value });
     }
 
-    return .OK(.{ .tokens = try list.toOwnedSlice() });
+    return .OK(.{ .allocator = allocator, .tokens = try list.toOwnedSlice() });
 }
 
 pub const Token = struct {
@@ -97,6 +97,7 @@ pub const TokenType = enum {
 };
 
 pub const TokenIterator = struct {
+    allocator: std.mem.Allocator,
     tokens: []Token,
     index: isize = -1,
 
@@ -132,13 +133,17 @@ pub const TokenIterator = struct {
 
         for (self.tokens, 0..) |tkn, i| {
             if (tkn.eql(delimiter)) {
-                try list.append(.{ .tokens = self.tokens[start..i] });
+                try list.append(.{ .allocator = self.allocator, .tokens = self.tokens[start..i] });
                 start = i + 1;
                 continue;
             }
         }
-        try list.append(.{ .tokens = self.tokens[start..] });
+        try list.append(.{ .allocator = self.allocator, .tokens = self.tokens[start..] });
 
         return list.toOwnedSlice();
+    }
+
+    pub fn deinit(self: *TokenIterator) void {
+        self.allocator.free(self.tokens);
     }
 };

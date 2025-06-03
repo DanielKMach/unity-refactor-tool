@@ -3,6 +3,7 @@ pub usingnamespace std.ascii;
 
 pub const Tokenizer = @import("language/Tokenizer.zig");
 pub const Parser = @import("language/Parser.zig");
+pub const ParsetimeEnv = @import("language/ParsetimeEnv.zig");
 
 pub const keywords: []const []const u8 = &.{
     "SHOW",

@@ -23,56 +23,90 @@ pub fn main() !void {
 
     var debug_allocator: std.heap.DebugAllocator(.{ .enable_memory_limit = true }) = undefined;
     defer _ = if (builtin.mode == .Debug) debug_allocator.deinit();
-    if (builtin.mode == .Debug) {
-        debug_allocator = .init;
-        debug_allocator.backing_allocator = std.heap.page_allocator;
-    }
 
-    const main_allocator = if (builtin.mode == .Debug) debug_allocator.allocator() else std.heap.page_allocator;
-
-    if (builtin.mode == .Debug) {}
+    const allocator = switch (builtin.mode) {
+        .Debug => bdy: {
+            debug_allocator = .init;
+            debug_allocator.backing_allocator = std.heap.page_allocator;
+            break :bdy debug_allocator.allocator();
+        },
+        else => std.heap.page_allocator,
+    };
 
     const out = std.io.getStdOut().writer();
     var cwd = try std.fs.cwd().openDir(".", .{ .iterate = true, .access_sub_paths = true });
     defer cwd.close();
 
-    var args = try std.process.argsWithAllocator(main_allocator);
+    var args = try std.process.argsWithAllocator(allocator);
     _ = args.next(); // skip the first argument
     defer args.deinit();
 
-    var arena = std.heap.ArenaAllocator.init(main_allocator);
-    defer arena.deinit();
+    var mode: ExecutionMode = .args;
 
-    const allocator = arena.allocator();
-
-    while (args.next()) |arg| {
-        defer _ = arena.reset(.retain_capacity);
-
-        const script = switch (try language.Parser.parse(arg, allocator)) {
-            .ok => |s| s,
-            .err => |err| {
-                try results.printParseError(out.any(), err, arg);
-                continue;
-            },
-        };
-
-        const config = runtime.Script.RunConfig{
-            .allocator = allocator,
-            .out = out.any(),
-            .cwd = cwd,
-        };
-
-        switch (try script.run(config)) {
-            .ok => {},
-            .err => |err| {
-                try results.printRuntimeError(out.any(), err);
-                continue;
-            },
+    if (args.next()) |arg| {
+        if (std.mem.eql(u8, arg, "--file") or std.mem.eql(u8, arg, "-f")) {
+            mode = .file;
+        } else if (std.mem.eql(u8, arg, "--")) {
+            mode = .stdin;
+        } else {
+            try execute(arg, allocator, cwd, out.any());
         }
+    } else {
+        // TODO: Print manual and quit
+    }
+
+    switch (mode) {
+        .file => {
+            while (args.next()) |path| {
+                const file = try cwd.openFile(path, .{ .mode = .read_only });
+                defer file.close();
+
+                const query = try file.readToEndAlloc(allocator, std.math.maxInt(u16));
+                defer allocator.free(query);
+
+                try execute(query, allocator, cwd, out.any());
+            }
+        },
+        .stdin => {
+            const query = try std.io.getStdIn().readToEndAlloc(allocator, std.math.maxInt(u16));
+            defer allocator.free(query);
+
+            try execute(query, allocator, cwd, out.any());
+        },
+        .args => {
+            while (args.next()) |query| {
+                try execute(query, allocator, cwd, out.any());
+            }
+        },
     }
 
     log.debug("Total memory allocated {d:.3}MB", .{@as(f32, @floatFromInt(debug_allocator.total_requested_bytes)) / 1000000.0});
     log.debug("Total execution time {d}ms", .{std.time.milliTimestamp() - start});
+}
+
+pub fn execute(query: []const u8, allocator: std.mem.Allocator, cwd: std.fs.Dir, out: std.io.AnyWriter) !void {
+    const script = switch (try language.Parser.parse(query, allocator)) {
+        .ok => |s| s,
+        .err => |err| {
+            try results.printParseError(out, err, query);
+            return error.ParseError;
+        },
+    };
+    defer script.deinit();
+
+    const config = runtime.Script.RunConfig{
+        .allocator = allocator,
+        .out = out,
+        .cwd = cwd,
+    };
+
+    switch (try script.run(config)) {
+        .ok => {},
+        .err => |err| {
+            try results.printRuntimeError(out, err);
+            return error.RuntimeError;
+        },
+    }
 }
 
 fn logFn(
@@ -105,9 +139,8 @@ fn logFn(
     }
 }
 
-test "simple test" {
-    var list = std.ArrayList(i32).init(std.testing.allocator);
-    defer list.deinit(); // try commenting this out and see if zig detects the memory leak!
-    try list.append(42);
-    try std.testing.expectEqual(@as(i32, 42), list.pop());
-}
+pub const ExecutionMode = enum {
+    args,
+    file,
+    stdin,
+};

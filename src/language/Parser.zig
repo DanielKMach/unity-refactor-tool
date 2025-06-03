@@ -11,6 +11,7 @@ pub fn parse(source: []const u8, allocator: std.mem.Allocator) !core.results.Par
         .ok => |it| it,
         .err => |err| return .ERR(err),
     };
+    defer tokens.deinit();
 
     const iterators = try tokens.split(Tokenizer.Token.new(.eos, ";"), allocator);
     defer allocator.free(iterators);
@@ -27,7 +28,11 @@ pub fn parse(source: []const u8, allocator: std.mem.Allocator) !core.results.Par
         try statements.append(stmt);
     }
 
-    return .OK(core.runtime.Script{ .source = source, .statements = try statements.toOwnedSlice() });
+    return .OK(core.runtime.Script{
+        .allocator = allocator,
+        .source = source,
+        .statements = try statements.toOwnedSlice(),
+    });
 }
 
 pub fn parseFrom(reader: std.io.AnyReader, allocator: std.mem.Allocator, out_source: ?*[]u8) !core.results.ParseResult(core.runtime.Script) {
