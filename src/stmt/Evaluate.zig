@@ -1,7 +1,7 @@
 const std = @import("std");
 const core = @import("root");
 const results = core.results;
-const log = std.log.scoped(.evaluate_command);
+const log = std.log.scoped(.evaluate_statement);
 
 const This = @This();
 const Tokenizer = core.language.Tokenizer;
@@ -115,7 +115,7 @@ pub fn run(self: This, data: RuntimeEnv) !results.RuntimeResult(void) {
         .in = in,
     };
 
-    log.debug("Searching for references...", .{});
+    log.info("Searching for references...", .{});
 
     const search_result = try show.search(data, null, null);
     if (search_result.isErr()) |err| {
@@ -127,7 +127,7 @@ pub fn run(self: This, data: RuntimeEnv) !results.RuntimeResult(void) {
         data.allocator.free(asset);
     };
 
-    log.debug("Evaluating found...", .{});
+    log.info("Printing references...", .{});
 
     try self.searchAndPrint(target_assets, guid, data.allocator, data.out);
 

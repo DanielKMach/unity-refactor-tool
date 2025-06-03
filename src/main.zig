@@ -80,8 +80,8 @@ pub fn main() !void {
         },
     }
 
-    log.debug("Total memory allocated {d:.3}MB", .{@as(f32, @floatFromInt(debug_allocator.total_requested_bytes)) / 1000000.0});
-    log.debug("Total execution time {d}ms", .{std.time.milliTimestamp() - start});
+    log.info("Total memory allocated {d:.3}MB", .{@as(f32, @floatFromInt(debug_allocator.total_requested_bytes)) / 1000000.0});
+    log.info("Total execution time {d}ms", .{std.time.milliTimestamp() - start});
 }
 
 pub fn execute(query: []const u8, allocator: std.mem.Allocator, cwd: std.fs.Dir, out: std.io.AnyWriter) !void {
@@ -123,7 +123,7 @@ fn logFn(
         .err => "\x1B[31m",
         .warn => "\x1B[33m",
         .debug => "\x1B[34m",
-        else => "",
+        .info => "\x1B[90m",
     };
     const level_txt = comptime message_level.asText();
     const prefix2 = if (scope == .default) ": " else "(" ++ @tagName(scope) ++ "): ";
@@ -134,7 +134,7 @@ fn logFn(
     std.debug.lockStdErr();
     defer std.debug.unlockStdErr();
     nosuspend {
-        writer.print(color ++ level_txt ++ prefix2 ++ format ++ "\x1B[39m" ++ "\n", args) catch return;
+        writer.print(color ++ level_txt ++ prefix2 ++ format ++ "\x1B[0m" ++ "\n", args) catch return;
         bw.flush() catch return;
     }
 }

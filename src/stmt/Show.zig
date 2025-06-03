@@ -1,7 +1,7 @@
 const std = @import("std");
 const core = @import("root");
 const results = core.results;
-const log = std.log.scoped(.show_command);
+const log = std.log.scoped(.show_statement);
 
 const This = @This();
 const Tokenizer = core.language.Tokenizer;
@@ -193,7 +193,7 @@ pub fn search(self: This, data: RuntimeEnv, count: ?*usize, times: ?*usize) !res
         var scanner = try Scanner(Search).init(dir, data.allocator);
         defer scanner.deinit();
 
-        log.debug("Scanning...", .{});
+        log.info("Scanning...", .{});
 
         try scanner.scan(&searchData);
 

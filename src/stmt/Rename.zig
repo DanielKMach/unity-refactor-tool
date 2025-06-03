@@ -1,7 +1,7 @@
 const std = @import("std");
 const core = @import("root");
 const results = core.results;
-const log = std.log.scoped(.rename_command);
+const log = std.log.scoped(.rename_statement);
 
 const This = @This();
 const Tokenizer = core.language.Tokenizer;

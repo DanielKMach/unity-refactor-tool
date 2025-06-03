@@ -54,7 +54,7 @@ pub fn tokenize(expression: []const u8, allocator: std.mem.Allocator) !results.P
     }
 
     for (list.items) |tkn| {
-        log.debug("Token: ({s}, '{s}')", .{ @tagName(tkn.type), tkn.value });
+        log.info("Token({s}, '{s}')", .{ @tagName(tkn.type), tkn.value });
     }
 
     return .OK(.{ .allocator = allocator, .tokens = try list.toOwnedSlice() });
