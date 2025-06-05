@@ -44,15 +44,28 @@ pub fn main() !void {
     var mode: ExecutionMode = .args;
 
     if (args.next()) |arg| {
-        if (std.mem.eql(u8, arg, "--file") or std.mem.eql(u8, arg, "-f")) {
-            mode = .file;
-        } else if (std.mem.eql(u8, arg, "--")) {
-            mode = .stdin;
+        if (std.mem.startsWith(u8, arg, "-")) {
+            if (std.mem.eql(u8, arg, "--file") or std.mem.eql(u8, arg, "-f")) {
+                mode = .file;
+            } else if (std.mem.eql(u8, arg, "--")) {
+                mode = .stdin;
+            } else if (std.mem.eql(u8, arg, "--manual") or std.mem.eql(u8, arg, "-m")) {
+                try printManual(out.any());
+                return;
+            } else if (std.mem.eql(u8, arg, "--help") or std.mem.eql(u8, arg, "-h")) {
+                try printHelp(out.any());
+                return;
+            } else {
+                try out.print("\x1b[31mUnknown option: {s}\x1b[0m\r\n", .{arg});
+                try printHelp(out.any());
+                return;
+            }
         } else {
             try execute(arg, allocator, cwd, out.any());
         }
     } else {
-        // TODO: Print manual and quit
+        try printHelp(out.any());
+        return;
     }
 
     switch (mode) {
@@ -107,6 +120,16 @@ pub fn execute(query: []const u8, allocator: std.mem.Allocator, cwd: std.fs.Dir,
             return error.RuntimeError;
         },
     }
+}
+
+/// Prints the standard help message to the given writer.
+pub fn printHelp(out: std.io.AnyWriter) anyerror!void {
+    try out.writeAll(@embedFile("help.txt"));
+}
+
+/// Prints the language manual to the given writer.
+pub fn printManual(out: std.io.AnyWriter) anyerror!void {
+    try out.writeAll(@embedFile("manual.txt"));
 }
 
 fn logFn(

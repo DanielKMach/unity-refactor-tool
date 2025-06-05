@@ -1,0 +1,9 @@
+Usage: urt [option] <args...>
+
+Options:
+    -f, --file      Specify one or more files to execute
+    -h, --help      Prints this help message and quits
+    -m, --manual    Prints the language manual and quits
+    --              Executes query through the stdin
+
+If no option is provided, each inserted argument will be executed as a query.
