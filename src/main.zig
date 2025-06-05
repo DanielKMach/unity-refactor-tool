@@ -124,7 +124,9 @@ pub fn execute(query: []const u8, allocator: std.mem.Allocator, cwd: std.fs.Dir,
     const script = switch (try language.Parser.parse(query, allocator)) {
         .ok => |s| s,
         .err => |err| {
-            try results.printParseError(out, err, query);
+            std.debug.lockStdErr();
+            defer std.debug.unlockStdErr();
+            try results.printParseError(std.io.getStdOut().writer().any(), err, query);
             return error.ParseError;
         },
     };
@@ -139,7 +141,9 @@ pub fn execute(query: []const u8, allocator: std.mem.Allocator, cwd: std.fs.Dir,
     switch (try script.run(config)) {
         .ok => {},
         .err => |err| {
-            try results.printRuntimeError(out, err);
+            std.debug.lockStdErr();
+            defer std.debug.unlockStdErr();
+            try results.printRuntimeError(std.io.getStdOut().writer().any(), err);
             return error.RuntimeError;
         },
     }
