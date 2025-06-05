@@ -3,6 +3,9 @@ const core = @import("root");
 
 const Tokenizer = core.language.Tokenizer;
 
+/// Parses the given query source code into a script.
+///
+/// `source` must only be freed after the returned script is deinitialized.
 pub fn parse(source: []const u8, allocator: std.mem.Allocator) !core.results.ParseResult(core.runtime.Script) {
     core.profiling.begin(parse);
     defer core.profiling.stop();
@@ -33,15 +36,4 @@ pub fn parse(source: []const u8, allocator: std.mem.Allocator) !core.results.Par
         .source = source,
         .statements = try statements.toOwnedSlice(),
     });
-}
-
-pub fn parseFrom(reader: std.io.AnyReader, allocator: std.mem.Allocator, out_source: ?*[]u8) !core.results.ParseResult(core.runtime.Script) {
-    core.profiling.begin(parseFrom);
-    defer core.profiling.stop();
-
-    const source = try reader.readAllAlloc(allocator, std.math.maxInt(u16));
-    if (out_source) |src| {
-        src.* = source;
-    }
-    return parse(source, allocator);
 }
