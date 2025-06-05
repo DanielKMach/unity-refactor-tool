@@ -49,6 +49,8 @@ pub fn main() !void {
                 mode = .file;
             } else if (std.mem.eql(u8, arg, "--")) {
                 mode = .stdin;
+            } else if (std.mem.eql(u8, arg, "--interactive") or std.mem.eql(u8, arg, "-i")) {
+                mode = .interactive;
             } else if (std.mem.eql(u8, arg, "--manual") or std.mem.eql(u8, arg, "-m")) {
                 try printManual(out.any());
                 return;
@@ -90,6 +92,27 @@ pub fn main() !void {
             while (args.next()) |query| {
                 try execute(query, allocator, cwd, out.any());
             }
+        },
+        .interactive => {
+            const in = std.io.getStdIn().reader();
+
+            while (true) {
+                try out.writeAll(">> ");
+                const line = try in.readUntilDelimiterOrEofAlloc(allocator, '\n', std.math.maxInt(u16)) orelse break;
+                defer allocator.free(line);
+
+                const query = std.mem.trim(u8, line, " \n\t\r");
+
+                if (query.len == 0) {
+                    continue; // skip empty lines
+                }
+
+                execute(query, allocator, cwd, out.any()) catch |err| switch (err) {
+                    error.ParseError, error.RuntimeError => {},
+                    else => return err,
+                };
+            }
+            try out.writeAll("\r\n");
         },
     }
 
@@ -166,4 +189,5 @@ pub const ExecutionMode = enum {
     args,
     file,
     stdin,
+    interactive,
 };
