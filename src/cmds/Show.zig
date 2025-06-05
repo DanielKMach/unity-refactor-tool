@@ -11,6 +11,7 @@ const Scanner = core.runtime.Scanner;
 const RuntimeData = core.runtime.RuntimeData;
 const InTarget = core.cmds.sub.InTarget;
 const AssetTarget = core.cmds.sub.AssetTarget;
+const GUID = core.runtime.GUID;
 
 pub const SearchMode = enum {
     refs,
@@ -26,6 +27,9 @@ of: AssetTarget,
 in: InTarget,
 
 pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
+    core.profiling.begin(parse);
+    defer core.profiling.stop();
+
     if (tokens.next()) |tkn| {
         if (!tkn.is(.keyword, "SHOW")) {
             return .ERR(.{
@@ -156,8 +160,12 @@ pub fn run(self: This, data: RuntimeData) !results.RuntimeResult(void) {
 }
 
 pub fn search(self: This, data: RuntimeData, count: ?*usize, times: ?*usize) !results.RuntimeResult([][]u8) {
-    var guids = core.runtime.StringList.init(data.allocator);
+    core.profiling.begin(search);
+    defer core.profiling.stop();
+
+    var guids = std.ArrayList(GUID).init(data.allocator);
     defer guids.deinit();
+    defer for (guids.items) |g| g.deinit(data.allocator);
     var searched: usize = 0;
 
     var references = core.runtime.StringList.init(data.allocator);
@@ -171,49 +179,44 @@ pub fn search(self: This, data: RuntimeData, count: ?*usize, times: ?*usize) !re
     };
     defer dir.close();
 
-    const assets = switch (try self.of.getGUID(data.allocator, data.cwd)) {
-        .ok => |v| v,
-        .err => |err| return .ERR(err),
-    };
-    defer {
-        for (assets) |g| data.allocator.free(g);
-        data.allocator.free(assets);
-    }
-    try guids.pushSlice(assets);
+    {
+        const starting_targets: []GUID = switch (try self.of.getGUID(data.cwd, data.allocator)) {
+            .ok => |v| v,
+            .err => |err| return .ERR(err),
+        };
+        defer data.allocator.free(starting_targets);
+        errdefer for (starting_targets) |g| g.deinit(data.allocator);
 
-    while (guids.length() > searched) {
+        try guids.appendSlice(starting_targets);
+    }
+
+    while (guids.items.len > searched) {
         var searchData = Search{
             .mode = self.mode,
-            .guid = guids.ctx.items[searched..],
+            .dir = dir,
+            .guid = guids.items[searched..],
             .references = &references,
         };
-        searched = guids.length();
+        searched = guids.items.len;
 
         var scanner = try Scanner(Search).init(dir, data.allocator);
         defer scanner.deinit();
+
+        log.debug("Scanning...", .{});
 
         try scanner.scan(&searchData);
 
         if (count) |c| c.* = searchData.fileCount;
 
-        if (self.mode == .indirect_uses or self.mode == .direct_uses) {
-            var i: usize = references.length() - 1;
-            while (i > 0) : (i -= 1) {
-                const ref = references.get(i) catch break;
-                if (!try verifyUse(dir, ref, guids.ctx.items, data.allocator)) {
-                    try references.remove(i);
-                }
-            }
-        }
-
         // Feeds the guid list with any prefab references found in the files, if in indirect mode.
         if (self.mode == .indirect_uses) {
-            const prefab_guids = try getPrefabGuids(dir, references.ctx.items[scanned..], data.allocator);
-            defer {
-                for (prefab_guids) |g| data.allocator.free(g);
-                data.allocator.free(prefab_guids);
+            for (references.ctx.items[scanned..]) |ref| {
+                if (!std.mem.endsWith(u8, ref, ".prefab")) continue;
+                const guid = try GUID.fromFile(ref, data.allocator);
+                errdefer guid.deinit(data.allocator);
+
+                try guids.append(guid);
             }
-            try guids.pushSlice(prefab_guids);
             scanned = references.length();
         }
         if (times) |t| t.* += 1;
@@ -222,47 +225,37 @@ pub fn search(self: This, data: RuntimeData, count: ?*usize, times: ?*usize) !re
     return .OK(@ptrCast(try references.toOwnedSlice()));
 }
 
-/// Get the GUIDs of all prefabs in `assets`.
-/// If a non prefab asset is found, it will be ignored.
-///
-/// `cwd` is the directory relative to the paths in `assets`.
-///
-/// The caller owns the returned slice and its children.
-fn getPrefabGuids(cwd: std.fs.Dir, assets: []const []const u8, allocator: std.mem.Allocator) ![]const []const u8 {
-    var guids = core.runtime.StringList.init(allocator);
-    defer guids.deinit();
-    for (assets) |ass| {
-        if (!std.mem.endsWith(u8, ass, ".prefab")) continue;
-
-        const path = try std.mem.concat(allocator, u8, &.{ ass, ".meta" });
-        defer allocator.free(path);
-        const file = try cwd.openFile(path, .{ .mode = .read_only });
-        defer file.close();
-
-        var buf: [32]u8 = undefined;
-        try guids.push(AssetTarget.scanMetafile(file, &buf, allocator) catch continue);
-    }
-    return guids.toOwnedSlice();
-}
-
 /// Verify if a component or prefab instance of guid `guid` is being used within the file at `path`.
 ///
 /// `cwd` is the directory relative to `path`.
-fn verifyUse(cwd: std.fs.Dir, path: []const u8, guid: []const []const u8, allocator: std.mem.Allocator) !bool {
-    const file = try cwd.openFile(path, .{ .mode = .read_only });
-    defer file.close();
+fn verifyUse(file: std.fs.File, guid: []const GUID, allocator: std.mem.Allocator) !bool {
+    core.profiling.begin(verifyUse);
+    defer core.profiling.stop();
+
     var iterator = ComponentIterator.init(file, allocator);
     defer iterator.deinit();
 
-    while (try iterator.next()) |comp| {
+    return while (try iterator.next()) |comp| {
         var yaml = Yaml.init(.{ .string = comp.document }, null, allocator);
-        for (guid) |g| {
-            if (try yaml.matchScriptGUID(g) or try yaml.matchPrefabGUID(g)) {
-                return true;
-            }
-        }
+        if (try matchScriptOrPrefabGUID(guid, &yaml)) return true;
+    } else false;
+}
+
+/// Check if the GUID of the document in `yaml` matches any of the GUIDs in `guids`.
+pub fn matchScriptOrPrefabGUID(guids: []const GUID, yaml: *Yaml) Yaml.ParseError!bool {
+    core.profiling.begin(matchScriptOrPrefabGUID);
+    defer core.profiling.stop();
+
+    var buf: [32]u8 = undefined;
+    var nullableGuid = try yaml.get(&.{ "MonoBehaviour", "m_Script", "guid" }, &buf);
+    if (nullableGuid == null) {
+        nullableGuid = try yaml.get(&.{ "PrefabInstance", "m_SourcePrefab", "guid" }, &buf);
     }
-    return false;
+    const guid = nullableGuid orelse return false;
+
+    return for (guids) |g| {
+        if (std.mem.eql(u8, g.value, guid)) break true;
+    } else false;
 }
 
 fn sort(arr: [][]const u8) void {
@@ -281,7 +274,8 @@ fn sort(arr: [][]const u8) void {
 
 const Search = struct {
     mode: SearchMode,
-    guid: []const []const u8,
+    dir: std.fs.Dir,
+    guid: []const GUID,
     fileCount: usize = 0,
     dataMtx: std.Thread.Mutex = .{},
 
@@ -291,6 +285,9 @@ const Search = struct {
     logMtx: std.Thread.Mutex = .{},
 
     pub fn filter(self: *Search, entry: std.fs.Dir.Walker.Entry, _: std.mem.Allocator) ?std.fs.File {
+        core.profiling.begin(filter);
+        defer core.profiling.stop();
+
         if (entry.kind != .file) return null;
 
         const exts: []const []const u8 = switch (self.mode) {
@@ -310,6 +307,9 @@ const Search = struct {
     }
 
     pub fn scan(self: *Search, entry: std.fs.Dir.Walker.Entry, file: std.fs.File, allocator: std.mem.Allocator) anyerror!void {
+        core.profiling.begin(scan);
+        defer core.profiling.stop();
+
         var bufrdr = std.io.bufferedReader(file.reader());
         const reader = bufrdr.reader();
 
@@ -330,10 +330,10 @@ const Search = struct {
             };
 
             for (0..self.guid.len) |i| {
-                if (c == self.guid[i][progress[i]]) {
+                if (c == self.guid[i].value[progress[i]]) {
                     progress[i] += 1;
-                    if (progress[i] == self.guid[i].len) {
-                        try self.addPath(entry.path);
+                    if (progress[i] == self.guid[i].value.len) {
+                        try self.addPath(entry.path, file, allocator);
                         break :main;
                     }
                 } else {
@@ -351,14 +351,28 @@ const Search = struct {
     /// `path` does not need to be allocated, as it will be duplicated.
     ///
     /// This function is thread-safe.
-    fn addPath(self: *Search, path: []const u8) !void {
-        self.refsMtx.lock();
-        defer self.refsMtx.unlock();
+    fn addPath(self: *Search, path: []const u8, file: std.fs.File, allocator: std.mem.Allocator) !void {
+        core.profiling.begin(addPath);
+        defer core.profiling.stop();
+
+        const abs_path = try self.dir.realpathAlloc(allocator, path);
+        defer allocator.free(abs_path);
+
         for (self.references.ctx.items) |g| {
-            if (std.mem.eql(u8, g, path)) {
+            if (std.mem.eql(u8, g, abs_path)) {
                 return;
             }
         }
-        try self.references.push(path);
+
+        if (self.mode == .indirect_uses or self.mode == .direct_uses) {
+            try file.seekTo(0);
+            if (!try verifyUse(file, self.guid, allocator)) {
+                return;
+            }
+        }
+
+        self.refsMtx.lock();
+        defer self.refsMtx.unlock();
+        try self.references.push(abs_path);
     }
 };

@@ -7,6 +7,9 @@ const log = std.log.scoped(.usql_tokenizer);
 const This = @This();
 
 pub fn tokenize(expression: []const u8, allocator: std.mem.Allocator) !results.ParseResult(TokenIterator) {
+    core.profiling.begin(tokenize);
+    defer core.profiling.stop();
+
     var list = std.ArrayList(Token).init(allocator);
     defer list.deinit();
 

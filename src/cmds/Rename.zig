@@ -11,6 +11,7 @@ const ComponentIterator = core.runtime.ComponentIterator;
 const Yaml = core.runtime.Yaml;
 const InTarget = core.cmds.sub.InTarget;
 const AssetTarget = core.cmds.sub.AssetTarget;
+const GUID = core.runtime.GUID;
 
 const files = &.{ ".prefab", ".unity", ".asset" };
 
@@ -20,6 +21,9 @@ of: AssetTarget,
 in: InTarget,
 
 pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
+    core.profiling.begin(parse);
+    defer core.profiling.stop();
+
     if (tokens.next()) |tkn| {
         if (!tkn.is(.keyword, "RENAME")) {
             return .ERR(.{
@@ -132,6 +136,9 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
 }
 
 pub fn run(self: This, data: RuntimeData) !results.RuntimeResult(void) {
+    core.profiling.begin(run);
+    defer core.profiling.stop();
+
     const in = self.in;
     const of = self.of;
 
@@ -142,12 +149,12 @@ pub fn run(self: This, data: RuntimeData) !results.RuntimeResult(void) {
     };
     defer dir.close();
 
-    const guid = switch (try of.getGUID(data.allocator, data.cwd)) {
+    const guid = switch (try of.getGUID(data.cwd, data.allocator)) {
         .ok => |v| v,
         .err => |err| return .ERR(err),
     };
     defer {
-        for (guid) |g| data.allocator.free(g);
+        for (guid) |g| g.deinit(data.allocator);
         data.allocator.free(guid);
     }
 
@@ -185,19 +192,14 @@ pub fn run(self: This, data: RuntimeData) !results.RuntimeResult(void) {
     return .OK(void{});
 }
 
-pub fn updateAll(self: This, asset_paths: []const []const u8, data: RuntimeData, guid: []const []const u8) ![]Mod {
+pub fn updateAll(self: This, asset_paths: []const []const u8, data: RuntimeData, guid: []const GUID) ![]Mod {
+    core.profiling.begin(updateAll);
+    defer core.profiling.stop();
+
     var updated = std.ArrayList(Mod).init(data.allocator);
     defer updated.deinit();
 
-    for (asset_paths) |p| {
-        const trimmed_name = std.mem.trim(u8, p, " \t\r\n");
-        if (trimmed_name.len == 0) continue;
-
-        const path = std.fs.path.join(data.allocator, &.{ self.in.dir, trimmed_name }) catch |err| {
-            log.warn("Error joining path: '{s}'", .{@errorName(err)});
-            continue;
-        };
-
+    for (asset_paths) |path| {
         const file = data.cwd.openFile(path, .{ .mode = .read_only }) catch |err| {
             log.warn("Error ({s}) opening file: '{s}'", .{ @errorName(err), path });
             continue;
@@ -211,7 +213,10 @@ pub fn updateAll(self: This, asset_paths: []const []const u8, data: RuntimeData,
     return try updated.toOwnedSlice();
 }
 
-pub fn scopeAndReplace(self: This, data: RuntimeData, file: std.fs.File, path: []const u8, guid: []const []const u8) !?Mod {
+pub fn scopeAndReplace(self: This, data: RuntimeData, file: std.fs.File, path: []const u8, guid: []const GUID) !?Mod {
+    core.profiling.begin(scopeAndReplace);
+    defer core.profiling.stop();
+
     var iterator = ComponentIterator.init(file, data.allocator);
     defer iterator.deinit();
     var modified = std.ArrayList(ComponentIterator.Component).init(data.allocator);
@@ -227,13 +232,7 @@ pub fn scopeAndReplace(self: This, data: RuntimeData, file: std.fs.File, path: [
     while (try iterator.next()) |comp| {
         var yaml = Yaml.init(.{ .string = comp.document }, null, data.allocator);
 
-        for (guid) |g| {
-            if (try yaml.matchScriptGUID(g)) {
-                break;
-            }
-        } else {
-            continue;
-        }
+        if (!(core.cmds.Show.matchScriptOrPrefabGUID(guid, &yaml) catch false)) continue;
 
         var buf = try data.allocator.alloc(u8, comp.len * 2);
         yaml.out = .{ .string = &buf };
@@ -260,6 +259,9 @@ pub fn scopeAndReplace(self: This, data: RuntimeData, file: std.fs.File, path: [
 }
 
 pub fn applyAll(mods: []Mod, cwd: std.fs.Dir) !void {
+    core.profiling.begin(applyAll);
+    defer core.profiling.stop();
+
     for (mods) |mod| {
         const path = mod.path;
         const cache = mod.modifications;

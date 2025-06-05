@@ -5,16 +5,20 @@ pub const Tokenizer = @import("language/Tokenizer.zig");
 
 pub const keywords: []const []const u8 = &.{
     "SHOW",
-    "OF",
-    "GUID",
-    "WHERE",
-    "IN",
     "RENAME",
     "FOR",
+    "EVALUATE",
+
+    "OF",
+    "IN",
+    "WHERE",
+
+    "GUID",
 };
 
 pub const operators: []const u8 = &.{
     ',',
+    '.',
 };
 
 pub fn isKeyword(str: []const u8) bool {
