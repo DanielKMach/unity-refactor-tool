@@ -16,7 +16,7 @@ pub fn parse(source: []const u8, allocator: std.mem.Allocator) !core.results.Par
     };
     defer allocator.free(tokens);
 
-    const iterators = try Tokenizer.TokenIterator.split(tokens, Tokenizer.Token.new(.eos, ";"), allocator);
+    const iterators = try Tokenizer.TokenIterator.split(tokens, .eos, allocator);
     defer allocator.free(iterators);
 
     var statements = std.ArrayList(core.stmt.Statement).init(allocator);

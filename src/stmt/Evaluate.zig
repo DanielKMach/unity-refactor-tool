@@ -24,62 +24,56 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
     defer core.profiling.stop();
 
     if (tokens.next()) |tkn| {
-        if (!tkn.is(.keyword, "EVALUATE")) {
-            return .ERR(.{
-                .unknown = void{},
-            });
+        if (!tkn.is(.EVALUATE)) {
+            return .ERR(.unknown);
         }
     } else {
-        return .ERR(.{
-            .unknown = void{},
-        });
+        return .ERR(.unknown);
     }
 
     var path: std.BoundedArray([]const u8, 8) = try .init(0);
     var of: ?AssetTarget = null;
     var in: ?InTarget = null;
 
-    var analyzing_key = true;
-    while (tokens.peek(1)) |tkn| {
-        if (analyzing_key) {
-            if (tkn.isType(.literal) or tkn.isType(.string)) {
-                try path.append(tkn.value);
-            } else {
-                return .ERR(.{
-                    .unexpected_token = .{
-                        .found = tkn,
-                        .expected_type = .literal,
-                    },
-                });
-            }
-        } else if (!tkn.is(.operator, ".")) {
-            break;
-        }
-        _ = tokens.next();
-        analyzing_key = !analyzing_key;
-    }
-
-    while (tokens.peek(1)) |tkn| {
-        if (of == null and tkn.is(.keyword, "OF")) {
-            const res = try AssetTarget.parse(tokens);
-            if (res.isErr()) |err| return .ERR(err);
-            of = res.ok;
-        } else if (in == null and tkn.is(.keyword, "IN")) {
-            const res = try InTarget.parse(tokens);
-            if (res.isErr()) |err| return .ERR(err);
-            in = res.ok;
+    while (tokens.next()) |tkn| {
+        if (tkn.is(.literal) or tkn.is(.string)) {
+            try path.append(if (tkn.is(.literal)) tkn.value.literal else tkn.value.string);
         } else {
+            return .ERR(.{
+                .unexpected_token = .{
+                    .found = tkn,
+                    .expected = &.{ .literal, .string },
+                },
+            });
+        }
+
+        if (tokens.peek(1)) |nxt| {
+            if (!nxt.is(.dot)) break;
+        }
+        _ = tokens.next(); // Consume dot
+    }
+
+    while (tokens.peek(1)) |tkn| {
+        if (of == null and tkn.is(.OF)) {
+            of = switch (try AssetTarget.parse(tokens)) {
+                .ok => |v| v,
+                .err => |err| return .ERR(err),
+            };
+        } else if (in == null and tkn.is(.IN)) {
+            in = switch (try InTarget.parse(tokens)) {
+                .ok => |v| v,
+                .err => |err| return .ERR(err),
+            };
+        } else {
+            if (of == null) return .ERR(.{
+                .unexpected_token = .{
+                    .found = tkn,
+                    .expected = &.{.OF},
+                },
+            });
             break;
         }
     }
-
-    if (of == null)
-        return .ERR(.{
-            .unexpected_eof = .{
-                .expected_type = .keyword,
-                .expected_value = "OF",
-            },
-        });
 
     return .OK(.{
         .path = path,

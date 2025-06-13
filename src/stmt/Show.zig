@@ -31,15 +31,11 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
     defer core.profiling.stop();
 
     if (tokens.next()) |tkn| {
-        if (!tkn.is(.keyword, "SHOW")) {
-            return .ERR(.{
-                .unknown = void{},
-            });
+        if (!tkn.is(.SHOW)) {
+            return .ERR(.unknown);
         }
     } else {
-        return .ERR(.{
-            .unknown = void{},
-        });
+        return .ERR(.unknown);
     }
 
     var direct: ?bool = null;
@@ -48,26 +44,25 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
     var in: ?InTarget = null;
 
     if (tokens.peek(1)) |tkn| {
-        if (tkn.is(.literal, "direct")) {
+        if (tkn.is(.DIRECT)) {
             direct = true;
             _ = tokens.next();
-        } else if (tkn.is(.literal, "indirect")) {
+        } else if (tkn.is(.INDIRECT)) {
             direct = false;
             _ = tokens.next();
         }
     }
 
     if (tokens.next()) |tkn| {
-        if (direct == null and tkn.is(.literal, "refs")) {
+        if (direct == null and tkn.is(.REFERENCES)) {
             mode = .refs;
-        } else if (tkn.is(.literal, "uses")) {
+        } else if (tkn.is(.USES)) {
             mode = if (direct orelse false) .direct_uses else .indirect_uses;
         } else {
             return .ERR(.{
                 .unexpected_token = .{
                     .found = tkn,
-                    .expected_type = .literal,
-                    .expected_value = "refs",
+                    .expected = &.{ .REFERENCES, .USES },
                 },
             });
         }
@@ -76,43 +71,44 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
             return .ERR(.{
                 .unexpected_token = .{
                     .found = tkn,
-                    .expected_type = .literal,
-                    .expected_value = "uses",
+                    .expected = &.{.USES},
                 },
             });
         }
     } else {
         return .ERR(.{
             .unexpected_eof = .{
-                .expected_type = .literal,
+                .expected = &.{ .REFERENCES, .USES },
             },
         });
     }
 
     while (tokens.peek(1)) |tkn| {
-        if (of == null and tkn.is(.keyword, "OF")) {
-            const res = try AssetTarget.parse(tokens);
-            if (res.isErr()) |err| return .ERR(err);
-            of = res.ok;
-        } else if (in == null and tkn.is(.keyword, "IN")) {
-            const res = try InTarget.parse(tokens);
-            if (res.isErr()) |err| return .ERR(err);
-            in = res.ok;
+        if (of == null and tkn.is(.OF)) {
+            of = switch (try AssetTarget.parse(tokens)) {
+                .ok => |v| v,
+                .err => |err| return .ERR(err),
+            };
+        } else if (in == null and tkn.is(.IN)) {
+            in = switch (try InTarget.parse(tokens)) {
+                .ok => |v| v,
+                .err => |err| return .ERR(err),
+            };
         } else {
-            return .ERR(.{
+            if (of == null) return .ERR(.{
                 .unexpected_token = .{
                     .found = tkn,
-                    .expected_type = .keyword,
+                    .expected = &.{.OF},
                 },
             });
+            break;
         }
     }
 
     if (of == null)
         return .ERR(.{
             .unexpected_eof = .{
-                .expected_type = .keyword,
-                .expected_value = "OF",
+                .expected = &.{.OF},
             },
         });
 

@@ -25,10 +25,8 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
     defer core.profiling.stop();
 
     if (tokens.next()) |tkn| {
-        if (!tkn.is(.keyword, "RENAME")) {
-            return .ERR(.{
-                .unknown = void{},
-            });
+        if (!tkn.is(.RENAME)) {
+            return .ERR(.unknown);
         }
     } else {
         return .ERR(.{
@@ -42,83 +40,81 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
     var in: ?InTarget = null;
 
     if (tokens.next()) |tkn| {
-        if (tkn.isType(.literal) or tkn.isType(.string)) {
-            old_name = tkn.value;
+        if (tkn.is(.literal) or tkn.is(.string)) {
+            old_name = if (tkn.is(.literal)) tkn.value.literal else tkn.value.string;
         } else {
             return .ERR(.{
                 .unexpected_token = .{
                     .found = tkn,
-                    .expected_type = .string,
+                    .expected = &.{ .literal, .string },
                 },
             });
         }
     } else {
         return .ERR(.{
             .unexpected_eof = .{
-                .expected_type = .string,
+                .expected = &.{ .literal, .string },
             },
         });
     }
 
     if (tokens.next()) |tkn| {
-        if (!tkn.is(.keyword, "FOR")) {
+        if (!tkn.is(.FOR)) {
             return .ERR(.{
                 .unexpected_token = .{
                     .found = tkn,
-                    .expected_type = .keyword,
-                    .expected_value = "FOR",
+                    .expected = &.{.FOR},
                 },
             });
         }
     } else {
         return .ERR(.{
             .unexpected_eof = .{
-                .expected_type = .keyword,
-                .expected_value = "FOR",
+                .expected = &.{.FOR},
             },
         });
     }
 
     if (tokens.next()) |tkn| {
-        if (tkn.isType(.literal) or tkn.isType(.string)) {
-            new_name = tkn.value;
+        if (tkn.is(.literal) or tkn.is(.string)) {
+            new_name = if (tkn.is(.literal)) tkn.value.literal else tkn.value.string;
         } else {
             return .ERR(.{
                 .unexpected_token = .{
                     .found = tkn,
-                    .expected_type = .string,
+                    .expected = &.{ .literal, .string },
                 },
             });
         }
     } else {
         return .ERR(.{
             .unexpected_eof = .{
-                .expected_type = .string,
+                .expected = &.{ .literal, .string },
             },
         });
     }
 
     while (tokens.peek(1)) |tkn| {
-        if (of == null and tkn.is(.keyword, "OF")) {
-            const res = try AssetTarget.parse(tokens);
-            if (res.isErr()) |err| return .ERR(err);
-            of = res.ok;
-        } else if (in == null and tkn.is(.keyword, "IN")) {
-            const res = try InTarget.parse(tokens);
-            if (res.isErr()) |err| return .ERR(err);
-            in = res.ok;
+        if (of == null and tkn.is(.OF)) {
+            of = switch (try AssetTarget.parse(tokens)) {
+                .ok => |v| v,
+                .err => |err| return .ERR(err),
+            };
+        } else if (in == null and tkn.is(.IN)) {
+            in = switch (try InTarget.parse(tokens)) {
+                .ok => |v| v,
+                .err => |err| return .ERR(err),
+            };
         } else {
+            if (of == null) return .ERR(.{
+                .unexpected_token = .{
+                    .found = tkn,
+                    .expected = &.{.OF},
+                },
+            });
             break;
         }
     }
-
-    if (of == null)
-        return .ERR(.{
-            .unexpected_eof = .{
-                .expected_type = .keyword,
-                .expected_value = "OF",
-            },
-        });
 
     return .OK(.{
         .old_name = old_name,

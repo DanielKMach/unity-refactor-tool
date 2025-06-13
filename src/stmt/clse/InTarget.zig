@@ -15,40 +15,38 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
     defer core.profiling.stop();
 
     if (tokens.next()) |tkn| {
-        if (!tkn.is(.keyword, "IN")) {
+        if (!tkn.is(.IN)) {
             return .ERR(.{
                 .unexpected_token = .{
                     .found = tkn,
-                    .expected_type = .keyword,
-                    .expected_value = "IN",
+                    .expected = &.{.IN},
                 },
             });
         }
     } else {
         return .ERR(.{
             .unexpected_eof = .{
-                .expected_type = .keyword,
-                .expected_value = "IN",
+                .expected = &.{.IN},
             },
         });
     }
 
     var dir: []const u8 = undefined;
     if (tokens.next()) |tkn| {
-        if (tkn.isType(.string)) {
-            dir = tkn.value;
+        if (tkn.is(.string)) {
+            dir = tkn.value.string;
         } else {
             return .ERR(.{
                 .unexpected_token = .{
                     .found = tkn,
-                    .expected_type = .string,
+                    .expected = &.{.string},
                 },
             });
         }
     } else {
         return .ERR(.{
             .unexpected_eof = .{
-                .expected_type = .string,
+                .expected = &.{.string},
             },
         });
     }
