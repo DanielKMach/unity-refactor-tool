@@ -58,7 +58,7 @@ pub fn tokenize(expression: []const u8, allocator: std.mem.Allocator) !results.P
             var best_match: ?@typeInfo(@TypeOf(Token.operator_list)).pointer.child = null;
             for (Token.operator_list) |op| {
                 const sign = op[0];
-                if (best_match == null or sign.len > best_match.?[0].len and std.mem.eql(u8, expression[i .. i + sign.len], sign)) {
+                if ((best_match == null or sign.len >= best_match.?[0].len) and std.mem.eql(u8, expression[i .. i + sign.len], sign)) {
                     best_match = op;
                 }
             }
@@ -68,6 +68,10 @@ pub fn tokenize(expression: []const u8, allocator: std.mem.Allocator) !results.P
                 return .ERR(.{ .unexpected_character = .{ .character = &expression[i] } });
             }
         }
+    }
+
+    if (!list.items[list.items.len - 1].is(.eos)) {
+        try list.append(Token.new(.eos, expression[expression.len..expression.len]));
     }
 
     for (list.items) |tkn| {
@@ -102,10 +106,10 @@ pub const TokenIterator = struct {
 
     /// Steps forward to the next token and returns it.
     ///
-    /// Returns `null` if there are no more tokens.
-    pub fn next(self: *TokenIterator) ?Token {
+    /// If out of bounds, returns the last token (usually end-of-statement)
+    pub fn next(self: *TokenIterator) Token {
         if (self.index + 1 >= self.tokens.len) {
-            return null;
+            return self.tokens[self.tokens.len - 1];
         }
         self.index += 1;
         return self.tokens[@intCast(self.index)];
@@ -114,15 +118,27 @@ pub const TokenIterator = struct {
     /// Returns the token `steps` steps ahead of the current index.
     ///
     /// To peek the next token, use `peek(1)`.
-    /// If `steps` is negative, it will peek backwards.
+    /// To peek the current token, use `peek(0)`.
     ///
-    /// Returns `null` if `steps` is out of bounds.
-    pub fn peek(self: TokenIterator, steps: isize) ?Token {
-        const i = self.index + steps;
-        if (i >= self.tokens.len or i < 0) {
-            return null;
+    /// If out of bounds, returns the last token (usually end-of-statement)
+    pub fn peek(self: TokenIterator, steps: usize) Token {
+        const i = self.index + @as(isize, @intCast(steps));
+        if (i >= self.tokens.len) {
+            return self.tokens[self.tokens.len - 1];
         }
+        if (i < 0) @panic("Cannot peek before the start of the iterator");
+
         return self.tokens[@intCast(i)];
+    }
+
+    /// Checks if the next token matches the given type.
+    /// If so, it consumes the token.
+    pub fn match(self: *TokenIterator, t: Token.Type) bool {
+        if (self.peek(1).is(t)) {
+            _ = self.next();
+            return true;
+        }
+        return false;
     }
 
     /// Returns the amount of tokens left to iterate.
@@ -137,6 +153,8 @@ pub const TokenIterator = struct {
 
     /// Splits the given slice of tokens by the given delimiter token.
     ///
+    /// The delimiter token is included at the end of each resulting iterator.
+    ///
     /// Useful for separating statements or expressions in a script.
     ///
     /// The returned slice is owned by the caller.
@@ -147,7 +165,7 @@ pub const TokenIterator = struct {
 
         for (tokens, 0..) |tkn, i| {
             if (tkn.is(delimiter)) {
-                try list.append(.init(tokens[start..i]));
+                try list.append(.init(tokens[start .. i + 1]));
                 start = i + 1;
                 continue;
             }

@@ -24,97 +24,74 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
     core.profiling.begin(parse);
     defer core.profiling.stop();
 
-    if (tokens.next()) |tkn| {
-        if (!tkn.is(.RENAME)) {
-            return .ERR(.unknown);
-        }
-    } else {
-        return .ERR(.{
-            .unknown = void{},
-        });
-    }
+    if (!tokens.match(.RENAME)) return .ERR(.unknown);
 
     var old_name: []const u8 = undefined;
     var new_name: []const u8 = undefined;
     var of: ?AssetTarget = null;
     var in: ?InTarget = null;
 
-    if (tokens.next()) |tkn| {
-        if (tkn.is(.literal) or tkn.is(.string)) {
-            old_name = if (tkn.is(.literal)) tkn.value.literal else tkn.value.string;
-        } else {
-            return .ERR(.{
-                .unexpected_token = .{
-                    .found = tkn,
-                    .expected = &.{ .literal, .string },
-                },
-            });
-        }
-    } else {
-        return .ERR(.{
-            .unexpected_eof = .{
+    switch (tokens.next().value) {
+        .string => |str| old_name = str,
+        .literal => |lit| old_name = lit,
+        else => return .ERR(.{
+            .unexpected_token = .{
+                .found = tokens.peek(0),
                 .expected = &.{ .literal, .string },
             },
-        });
+        }),
     }
 
-    if (tokens.next()) |tkn| {
-        if (!tkn.is(.FOR)) {
-            return .ERR(.{
-                .unexpected_token = .{
-                    .found = tkn,
-                    .expected = &.{.FOR},
-                },
-            });
-        }
-    } else {
-        return .ERR(.{
-            .unexpected_eof = .{
-                .expected = &.{.FOR},
-            },
-        });
-    }
+    if (!tokens.match(.FOR)) return .ERR(.{
+        .unexpected_token = .{
+            .found = tokens.peek(1),
+            .expected = &.{.FOR},
+        },
+    });
 
-    if (tokens.next()) |tkn| {
-        if (tkn.is(.literal) or tkn.is(.string)) {
-            new_name = if (tkn.is(.literal)) tkn.value.literal else tkn.value.string;
-        } else {
-            return .ERR(.{
-                .unexpected_token = .{
-                    .found = tkn,
-                    .expected = &.{ .literal, .string },
-                },
-            });
-        }
-    } else {
-        return .ERR(.{
-            .unexpected_eof = .{
+    switch (tokens.next().value) {
+        .string => |str| new_name = str,
+        .literal => |lit| new_name = lit,
+        else => return .ERR(.{
+            .unexpected_token = .{
+                .found = tokens.peek(0),
                 .expected = &.{ .literal, .string },
             },
-        });
+        }),
     }
 
-    while (tokens.peek(1)) |tkn| {
-        if (of == null and tkn.is(.OF)) {
+    clses: switch (tokens.peek(1).value) {
+        .OF => {
+            if (of != null) continue :clses .RENAME;
             of = switch (try AssetTarget.parse(tokens)) {
                 .ok => |v| v,
                 .err => |err| return .ERR(err),
             };
-        } else if (in == null and tkn.is(.IN)) {
+            continue :clses tokens.peek(1).value;
+        },
+        .IN => {
+            if (in != null) continue :clses .RENAME;
             in = switch (try InTarget.parse(tokens)) {
                 .ok => |v| v,
                 .err => |err| return .ERR(err),
             };
-        } else {
-            if (of == null) return .ERR(.{
-                .unexpected_token = .{
-                    .found = tkn,
-                    .expected = &.{.OF},
-                },
-            });
-            break;
-        }
+            continue :clses tokens.peek(1).value;
+        },
+        .eos => break :clses,
+        else => return .ERR(.{
+            .unexpected_token = .{
+                .found = tokens.next(),
+                .expected = &.{.eos},
+            },
+        }),
     }
+
+    if (of == null) return .ERR(.{
+        .unexpected_token = .{
+            .found = tokens.next(),
+            .expected = &.{.OF},
+        },
+    });
 
     return .OK(.{
         .old_name = old_name,

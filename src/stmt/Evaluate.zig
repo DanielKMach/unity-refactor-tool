@@ -23,57 +23,59 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
     core.profiling.begin(parse);
     defer core.profiling.stop();
 
-    if (tokens.next()) |tkn| {
-        if (!tkn.is(.EVALUATE)) {
-            return .ERR(.unknown);
-        }
-    } else {
-        return .ERR(.unknown);
-    }
+    if (!tokens.match(.EVAL)) return .ERR(.unknown);
 
     var path: std.BoundedArray([]const u8, 8) = try .init(0);
     var of: ?AssetTarget = null;
     var in: ?InTarget = null;
 
-    while (tokens.next()) |tkn| {
-        if (tkn.is(.literal) or tkn.is(.string)) {
-            try path.append(if (tkn.is(.literal)) tkn.value.literal else tkn.value.string);
-        } else {
-            return .ERR(.{
+    while (true) {
+        switch (tokens.next().value) {
+            .string => |str| try path.append(str),
+            .literal => |lit| try path.append(lit),
+            else => return .ERR(.{
                 .unexpected_token = .{
-                    .found = tkn,
+                    .found = tokens.peek(0),
                     .expected = &.{ .literal, .string },
                 },
-            });
+            }),
         }
 
-        if (tokens.peek(1)) |nxt| {
-            if (!nxt.is(.dot)) break;
-        }
-        _ = tokens.next(); // Consume dot
+        if (!tokens.match(.dot)) break;
     }
 
-    while (tokens.peek(1)) |tkn| {
-        if (of == null and tkn.is(.OF)) {
+    clses: switch (tokens.peek(1).value) {
+        .OF => {
+            if (of != null) continue :clses .EVAL;
             of = switch (try AssetTarget.parse(tokens)) {
                 .ok => |v| v,
                 .err => |err| return .ERR(err),
             };
-        } else if (in == null and tkn.is(.IN)) {
+            continue :clses tokens.peek(1).value;
+        },
+        .IN => {
+            if (in != null) continue :clses .EVAL;
             in = switch (try InTarget.parse(tokens)) {
                 .ok => |v| v,
                 .err => |err| return .ERR(err),
             };
-        } else {
-            if (of == null) return .ERR(.{
-                .unexpected_token = .{
-                    .found = tkn,
-                    .expected = &.{.OF},
-                },
-            });
-            break;
-        }
+            continue :clses tokens.peek(1).value;
+        },
+        .eos => break :clses,
+        else => return .ERR(.{
+            .unexpected_token = .{
+                .found = tokens.next(),
+                .expected = &.{.eos},
+            },
+        }),
     }
+
+    if (of == null) return .ERR(.{
+        .unexpected_token = .{
+            .found = tokens.next(),
+            .expected = &.{.OF},
+        },
+    });
 
     return .OK(.{
         .path = path,

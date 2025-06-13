@@ -128,7 +128,7 @@ pub fn printParseError(out: std.io.AnyWriter, errUnion: ParseError, command: []c
             try out.print("\r\n", .{});
         },
         .unexpected_character => |err| {
-            try out.print("Unexpected character: '{s}'\r\n", .{err.character});
+            try out.print("Unexpected character: '{c}'\r\n", .{err.character.*});
             try printLineHighlight(out, command, err.character[0..1]);
         },
         .invalid_csharp_identifier => |err| {

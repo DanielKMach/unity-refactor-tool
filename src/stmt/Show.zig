@@ -30,87 +30,76 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
     core.profiling.begin(parse);
     defer core.profiling.stop();
 
-    if (tokens.next()) |tkn| {
-        if (!tkn.is(.SHOW)) {
-            return .ERR(.unknown);
-        }
-    } else {
-        return .ERR(.unknown);
-    }
+    if (!tokens.match(.SHOW)) return .ERR(.unknown);
 
     var direct: ?bool = null;
     var mode: ?SearchMode = null;
     var of: ?AssetTarget = null;
     var in: ?InTarget = null;
 
-    if (tokens.peek(1)) |tkn| {
-        if (tkn.is(.DIRECT)) {
+    mode: switch (tokens.next().value) {
+        .DIRECT => {
+            if (direct != null) continue :mode .eos;
             direct = true;
-            _ = tokens.next();
-        } else if (tkn.is(.INDIRECT)) {
+            continue :mode tokens.next().value;
+        },
+        .INDIRECT => {
+            if (direct != null) continue :mode .eos;
             direct = false;
-            _ = tokens.next();
-        }
-    }
-
-    if (tokens.next()) |tkn| {
-        if (direct == null and tkn.is(.REFERENCES)) {
-            mode = .refs;
-        } else if (tkn.is(.USES)) {
+            continue :mode tokens.next().value;
+        },
+        .USES => {
             mode = if (direct orelse false) .direct_uses else .indirect_uses;
-        } else {
-            return .ERR(.{
+        },
+        .REFS => {
+            if (direct != null) return .ERR(.{
                 .unexpected_token = .{
-                    .found = tkn,
-                    .expected = &.{ .REFERENCES, .USES },
-                },
-            });
-        }
-
-        if (direct != null and mode != .direct_uses and mode != .indirect_uses) {
-            return .ERR(.{
-                .unexpected_token = .{
-                    .found = tkn,
+                    .found = tokens.peek(0),
                     .expected = &.{.USES},
                 },
             });
-        }
-    } else {
-        return .ERR(.{
-            .unexpected_eof = .{
-                .expected = &.{ .REFERENCES, .USES },
+            mode = .refs;
+        },
+        else => return .ERR(.{
+            .unexpected_token = .{
+                .found = tokens.peek(0),
+                .expected = &.{ .REFS, .USES },
             },
-        });
+        }),
     }
 
-    while (tokens.peek(1)) |tkn| {
-        if (of == null and tkn.is(.OF)) {
+    clses: switch (tokens.peek(1).value) {
+        .OF => {
+            if (of != null) continue :clses .SHOW;
             of = switch (try AssetTarget.parse(tokens)) {
                 .ok => |v| v,
                 .err => |err| return .ERR(err),
             };
-        } else if (in == null and tkn.is(.IN)) {
+            continue :clses tokens.peek(1).value;
+        },
+        .IN => {
+            if (in != null) continue :clses .SHOW;
             in = switch (try InTarget.parse(tokens)) {
                 .ok => |v| v,
                 .err => |err| return .ERR(err),
             };
-        } else {
-            if (of == null) return .ERR(.{
-                .unexpected_token = .{
-                    .found = tkn,
-                    .expected = &.{.OF},
-                },
-            });
-            break;
-        }
+            continue :clses tokens.peek(1).value;
+        },
+        .eos => break :clses,
+        else => return .ERR(.{
+            .unexpected_token = .{
+                .found = tokens.next(),
+                .expected = &.{.eos},
+            },
+        }),
     }
 
-    if (of == null)
-        return .ERR(.{
-            .unexpected_eof = .{
-                .expected = &.{.OF},
-            },
-        });
+    if (of == null) return .ERR(.{
+        .unexpected_token = .{
+            .found = tokens.next(),
+            .expected = &.{.OF},
+        },
+    });
 
     return .OK(.{
         .mode = mode.?,

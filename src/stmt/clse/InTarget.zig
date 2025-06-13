@@ -14,41 +14,23 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
     core.profiling.begin(parse);
     defer core.profiling.stop();
 
-    if (tokens.next()) |tkn| {
-        if (!tkn.is(.IN)) {
-            return .ERR(.{
-                .unexpected_token = .{
-                    .found = tkn,
-                    .expected = &.{.IN},
-                },
-            });
-        }
-    } else {
-        return .ERR(.{
-            .unexpected_eof = .{
-                .expected = &.{.IN},
-            },
-        });
-    }
+    if (!tokens.match(.IN)) return .ERR(.{
+        .unexpected_token = .{
+            .found = tokens.peek(1),
+            .expected = &.{.IN},
+        },
+    });
 
     var dir: []const u8 = undefined;
-    if (tokens.next()) |tkn| {
-        if (tkn.is(.string)) {
-            dir = tkn.value.string;
-        } else {
-            return .ERR(.{
-                .unexpected_token = .{
-                    .found = tkn,
-                    .expected = &.{.string},
-                },
-            });
-        }
-    } else {
-        return .ERR(.{
-            .unexpected_eof = .{
-                .expected = &.{.string},
+    switch (tokens.next().value) {
+        .string => |str| dir = str,
+        .literal => |lit| dir = lit,
+        else => return .ERR(.{
+            .unexpected_token = .{
+                .found = tokens.peek(0),
+                .expected = &.{ .string, .literal },
             },
-        });
+        }),
     }
 
     return .OK(.{ .dir = dir });

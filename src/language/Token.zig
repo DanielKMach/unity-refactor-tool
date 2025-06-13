@@ -5,7 +5,7 @@ const Token = @This();
 pub const keyword_list: []const struct { []const u8, Value } = &.{
     .{ "SHOW", .SHOW },
     .{ "RENAME", .RENAME },
-    .{ "EVAL", .EVALUATE },
+    .{ "EVAL", .EVAL },
     .{ "UPDATE", .UPDATE },
     .{ "OF", .OF },
     .{ "IN", .IN },
@@ -16,7 +16,7 @@ pub const keyword_list: []const struct { []const u8, Value } = &.{
     .{ "GUID", .GUID },
     .{ "DIRECT", .DIRECT },
     .{ "INDIRECT", .INDIRECT },
-    .{ "REFS", .REFERENCES },
+    .{ "REFS", .REFS },
     .{ "USES", .USES },
     .{ "FOR", .FOR },
 };
@@ -54,7 +54,7 @@ pub const Value = union(enum) {
     // Keywords for statements
     SHOW,
     RENAME,
-    EVALUATE,
+    EVAL,
     UPDATE,
 
     // Keywords for clauses
@@ -71,7 +71,7 @@ pub const Value = union(enum) {
     GUID,
     DIRECT,
     INDIRECT,
-    REFERENCES,
+    REFS,
     USES,
     FOR,
 
