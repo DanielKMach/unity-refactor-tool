@@ -107,14 +107,11 @@ pub fn printParseError(out: std.io.AnyWriter, errUnion: ParseError, command: []c
             try printLineHighlightRange(out, command, err.index, err.index);
         },
         .unexpected_token => |err| {
-            try out.print("Unexpected token: Found {s} '{s}'", .{
-                @tagName(err.found.value),
-                err.found.lexeme,
-            });
+            try out.print("Unexpected token: Found {s}", .{@tagName(err.found.value)});
             if (err.expected.len > 0) try out.print(", but expected ", .{});
             for (err.expected, 0..) |expected_type, i| {
                 if (i > 0 and i != err.expected.len - 1) try out.print(", ", .{});
-                if (i == err.expected.len - 1) try out.print(" or ", .{});
+                if (i != 0 and i == err.expected.len - 1) try out.print(" or ", .{});
                 try out.print("{s}", .{@tagName(expected_type)});
             }
             try out.print("\r\n", .{});
@@ -125,7 +122,7 @@ pub fn printParseError(out: std.io.AnyWriter, errUnion: ParseError, command: []c
             if (err.expected.len > 0) try out.print(" Expected ", .{});
             for (err.expected, 0..) |expected_type, i| {
                 if (i > 0 and i != err.expected.len - 1) try out.print(", ", .{});
-                if (i == err.expected.len - 1) try out.print(" or ", .{});
+                if (i != 0 and i == err.expected.len - 1) try out.print(" or ", .{});
                 try out.print("{s}", .{@tagName(expected_type)});
             }
             try out.print("\r\n", .{});
@@ -170,28 +167,20 @@ pub fn printRuntimeError(out: std.io.AnyWriter, errUnion: RuntimeError) !void {
 /// Asserts that `highlight` is a slice of `line`.
 pub fn printLineHighlight(out: std.io.AnyWriter, line: []const u8, highlight: []const u8) !void {
     const zero = @intFromPtr(line.ptr);
-    const start = @intFromPtr(highlight.ptr) - zero;
-    const end = start + highlight.len - 1;
+    const offset = @intFromPtr(highlight.ptr) - zero;
+    const len = if (highlight.len == 0) 1 else highlight.len;
 
-    std.debug.assert(end >= start);
-    std.debug.assert(start < line.len);
-    std.debug.assert(end < line.len);
-
-    try printLineHighlightRange(out, line, start, end);
+    try printLineHighlightRange(out, line, offset, len);
 }
 
-pub fn printLineHighlightRange(out: std.io.AnyWriter, line: []const u8, start: usize, end: usize) !void {
-    std.debug.assert(start <= end);
-    std.debug.assert(start < line.len);
-    std.debug.assert(end < line.len);
-
+pub fn printLineHighlightRange(out: std.io.AnyWriter, line: []const u8, offset: usize, size: usize) !void {
     try out.print("{s}\r\n", .{line});
 
-    for (0..start) |_| {
+    for (0..offset) |_| {
         try out.print(" ", .{});
     }
 
-    for (start..end + 1) |_| {
+    for (0..size) |_| {
         try out.print("~", .{});
     }
 
