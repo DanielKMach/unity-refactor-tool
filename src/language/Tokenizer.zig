@@ -21,9 +21,9 @@ pub fn tokenize(expression: []const u8, allocator: std.mem.Allocator) !results.P
     while (i < expression.len) : (i += 1) {
         if (language.isWhitespace(expression[i])) { // Ignore whitespace
             continue;
-        } else if (language.isAlphabetic(expression[i])) { // identifiers and keywords
+        } else if (language.isAlphabetic(expression[i]) or expression[i] == '_') { // identifiers and keywords
             const si = i;
-            while (i + 1 < expression.len and language.isAlphanumeric(expression[i + 1])) : (i += 1) {}
+            while (i + 1 < expression.len and (language.isAlphanumeric(expression[i + 1]) or expression[i] == '_')) : (i += 1) {}
             const word = expression[si .. i + 1];
             for (Token.keyword_list) |kw| {
                 if (std.ascii.eqlIgnoreCase(word, kw[0])) {
@@ -42,10 +42,9 @@ pub fn tokenize(expression: []const u8, allocator: std.mem.Allocator) !results.P
                 }
             }
             try list.append(Token.new(.{ .string = expression[si + 1 .. i] }, expression[si .. i + 1]));
-        } else if (language.isDigit(expression[i]) or (expression[i] == '.' and i + 1 < expression.len and language.isDigit(expression[i + 1]))) { // numbers
+        } else if (language.isDigit(expression[i]) or (i + 1 < expression.len and expression[i] == '.' and language.isDigit(expression[i + 1]))) { // numbers
             const si = i;
-            var has_dot = false;
-            if (expression[i] == '.') has_dot = true;
+            var has_dot = (expression[i] == '.');
             while (i < expression.len and language.isDigit(expression[i]) or !has_dot and i + 1 < expression.len and expression[i] == '.' and language.isDigit(expression[i + 1])) : (i += 1) {
                 if (expression[i] == '.') has_dot = true;
             }
