@@ -1,5 +1,5 @@
 const std = @import("std");
-const core = @import("root");
+const core = @import("core");
 
 const Token = core.language.Token;
 

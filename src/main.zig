@@ -1,11 +1,6 @@
-pub const language = @import("language.zig");
-pub const results = @import("results.zig");
-pub const stmt = @import("stmt.zig");
-pub const runtime = @import("runtime.zig");
-pub const profiling = @import("profiling.zig");
-
 const std = @import("std");
 const builtin = @import("builtin");
+const urt = @import("urt");
 
 const log = std.log.scoped(.main);
 
@@ -14,10 +9,10 @@ pub const std_options: std.Options = .{
 };
 
 pub fn main() !void {
-    defer profiling.finalize();
+    defer urt.profiling.finalize();
 
-    profiling.begin(main);
-    defer profiling.stop();
+    urt.profiling.begin(main);
+    defer urt.profiling.stop();
 
     const start = std.time.milliTimestamp();
 
@@ -121,18 +116,18 @@ pub fn main() !void {
 }
 
 pub fn execute(query: []const u8, allocator: std.mem.Allocator, cwd: std.fs.Dir, out: std.io.AnyWriter) !void {
-    const script = switch (try language.Parser.parse(query, allocator)) {
+    const script = switch (try urt.language.Parser.parse(query, allocator)) {
         .ok => |s| s,
         .err => |err| {
             std.debug.lockStdErr();
             defer std.debug.unlockStdErr();
-            try results.printParseError(std.io.getStdOut().writer().any(), err, query);
+            try urt.results.printParseError(std.io.getStdOut().writer().any(), err, query);
             return error.ParseError;
         },
     };
     defer script.deinit();
 
-    const config = runtime.Script.RunConfig{
+    const config = urt.runtime.Script.RunConfig{
         .allocator = allocator,
         .out = out,
         .cwd = cwd,
@@ -143,7 +138,7 @@ pub fn execute(query: []const u8, allocator: std.mem.Allocator, cwd: std.fs.Dir,
         .err => |err| {
             std.debug.lockStdErr();
             defer std.debug.unlockStdErr();
-            try results.printRuntimeError(std.io.getStdOut().writer().any(), err);
+            try urt.results.printRuntimeError(std.io.getStdOut().writer().any(), err);
             return error.RuntimeError;
         },
     }

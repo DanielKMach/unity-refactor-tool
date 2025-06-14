@@ -14,7 +14,21 @@ pub fn build(b: *std.Build) void {
     const libyaml = b.dependency("libyaml", .{
         .target = target,
         .optimize = optimize,
+    }).module("libyaml");
+
+    const options = b.addOptions();
+    options.addOption(bool, "profiling", profile);
+    const config = options.createModule();
+
+    const mod = b.addModule("urt", .{
+        .root_source_file = b.path("src/root.zig"),
+        .target = target,
+        .optimize = optimize,
     });
+
+    mod.addImport("core", mod);
+    mod.addImport("libyaml", libyaml);
+    mod.addImport("config", config);
 
     // main executable
     const exe = b.addExecutable(.{
@@ -23,11 +37,9 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
-    exe.root_module.addImport("libyaml", libyaml.module("libyaml"));
-
-    const options = b.addOptions();
-    options.addOption(bool, "profiling", profile);
-    exe.root_module.addImport("config", options.createModule());
+    exe.root_module.addImport("urt", mod);
+    exe.root_module.addImport("libyaml", libyaml);
+    exe.root_module.addImport("config", config);
 
     const install_urt = b.addInstallArtifact(exe, .{});
     install_step.dependOn(&install_urt.step);
@@ -48,14 +60,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    const urt_mod = b.createModule(.{
-        .root_source_file = b.path("src/main.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-
-    urt_mod.addImport("libyaml", libyaml.module("libyaml"));
-    tests.root_module.addImport("urt", urt_mod);
+    tests.root_module.addImport("urt", mod);
 
     const run_tests = b.addRunArtifact(tests);
     run_tests.setCwd(b.path("tests"));

@@ -1,5 +1,5 @@
 const std = @import("std");
-const core = @import("root");
+const core = @import("core");
 
 const ParseResult = core.results.ParseResult;
 const RuntimeResult = core.results.RuntimeResult;

@@ -1,5 +1,5 @@
 const std = @import("std");
-const core = @import("root");
+const core = @import("core");
 const results = core.results;
 const log = std.log.scoped(.evaluate_statement);
 
