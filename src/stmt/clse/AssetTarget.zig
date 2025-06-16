@@ -1,5 +1,5 @@
 const std = @import("std");
-const core = @import("root");
+const core = @import("core");
 const results = core.results;
 
 const This = @This();
@@ -13,92 +13,71 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
     core.profiling.begin(parse);
     defer core.profiling.stop();
 
-    if (tokens.next()) |tkn| {
-        if (!tkn.is(.keyword, "OF")) {
-            return .ERR(.{
-                .unexpected_token = .{
-                    .found = tkn,
-                    .expected_type = .keyword,
-                    .expected_value = "OF",
-                },
-            });
-        }
-    } else {
-        return .ERR(.{
-            .unexpected_eof = .{
-                .expected_type = .keyword,
-                .expected_value = "OF",
-            },
-        });
-    }
+    if (!tokens.match(.OF)) return .ERR(.{
+        .unexpected_token = .{
+            .found = tokens.peek(1),
+            .expected = &.{.OF},
+        },
+    });
 
     var targets = std.BoundedArray(AssetTarget, 10){};
+
     while (true) {
-        if (tokens.next()) |tkn| {
-            if (tkn.is(.keyword, "GUID")) {
-                if (tokens.next()) |tkn_guid| {
-                    if ((tkn_guid.isType(.literal_string) or tkn_guid.isType(.literal)) and GUID.isGUID(tkn_guid.value)) {
-                        try targets.append(.{
-                            .tpe = .guid,
-                            .str = tkn_guid.value,
-                        });
-                    } else {
-                        return .ERR(.{
-                            .unexpected_token = .{
-                                .found = tkn_guid,
-                                .expected_type = .literal_string,
-                            },
-                        });
-                    }
-                } else {
-                    return .ERR(.{
-                        .unexpected_eof = .{
-                            .expected_type = .literal_string,
-                        },
-                    });
-                }
-            } else if (tkn.isType(.literal) or tkn.isType(.literal_string)) {
-                if (isCSharpIdentifier(tkn.value)) {
+        switch (tokens.next().value) {
+            .GUID => switch (tokens.next().value) {
+                .string => |guid_str| if (GUID.isGUID(guid_str)) {
                     try targets.append(.{
-                        .tpe = .name,
-                        .str = tkn.value,
-                    });
-                } else if (tkn.isType(.literal_string)) {
-                    try targets.append(.{
-                        .tpe = .path,
-                        .str = tkn.value,
+                        .tpe = .guid,
+                        .str = guid_str,
                     });
                 } else {
                     return .ERR(.{
-                        .unexpected_token = .{
-                            .found = tkn,
-                            .expected_type = .literal_string,
+                        .invalid_guid = .{
+                            .token = tokens.peek(0),
+                            .guid = guid_str,
                         },
                     });
-                }
+                },
+                else => return .ERR(.{
+                    .unexpected_token = .{
+                        .found = tokens.peek(0),
+                        .expected = &.{.string},
+                    },
+                }),
+            },
+            .literal => |lit| if (isCSharpIdentifier(lit)) {
+                try targets.append(.{
+                    .tpe = .name,
+                    .str = lit,
+                });
             } else {
                 return .ERR(.{
-                    .unexpected_token = .{
-                        .found = tkn,
-                        .expected_type = .literal_string,
+                    .invalid_csharp_identifier = .{
+                        .token = tokens.peek(0),
+                        .identifier = lit,
                     },
                 });
-            }
-        } else {
-            return .ERR(.{
-                .unexpected_eof = .{
-                    .expected_type = .literal_string,
+            },
+            .string => |str| if (isCSharpIdentifier(str)) {
+                try targets.append(.{
+                    .tpe = .name,
+                    .str = str,
+                });
+            } else {
+                try targets.append(.{
+                    .tpe = .path,
+                    .str = str,
+                });
+            },
+            else => return .ERR(.{
+                .unexpected_token = .{
+                    .found = tokens.peek(0),
+                    .expected = &.{ .GUID, .literal, .string },
                 },
-            });
+            }),
         }
 
-        if (tokens.peek(1)) |comma| {
-            if (comma.is(.operator, ",")) {
-                _ = tokens.next();
-                continue;
-            }
-        }
-        break;
+        if (!tokens.match(.comma)) break;
     }
 
     return .OK(.{

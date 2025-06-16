@@ -1,16 +1,16 @@
 const std = @import("std");
-const core = @import("root");
+const core = @import("core");
 const results = core.results;
-const log = std.log.scoped(.show_command);
+const log = std.log.scoped(.show_statement);
 
 const This = @This();
 const Tokenizer = core.language.Tokenizer;
 const Yaml = core.runtime.Yaml;
 const ComponentIterator = core.runtime.ComponentIterator;
 const Scanner = core.runtime.Scanner;
-const RuntimeData = core.runtime.RuntimeData;
-const InTarget = core.cmds.sub.InTarget;
-const AssetTarget = core.cmds.sub.AssetTarget;
+const RuntimeEnv = core.runtime.RuntimeEnv;
+const InTarget = core.stmt.clse.InTarget;
+const AssetTarget = core.stmt.clse.AssetTarget;
 const GUID = core.runtime.GUID;
 
 pub const SearchMode = enum {
@@ -30,98 +30,76 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
     core.profiling.begin(parse);
     defer core.profiling.stop();
 
-    if (tokens.next()) |tkn| {
-        if (!tkn.is(.keyword, "SHOW")) {
-            return .ERR(.{
-                .unexpected_token = .{
-                    .found = tkn,
-                    .expected_type = .keyword,
-                    .expected_value = "SHOW",
-                },
-            });
-        }
-    } else {
-        return .ERR(.{
-            .unexpected_eof = .{
-                .expected_type = .keyword,
-                .expected_value = "SHOW",
-            },
-        });
-    }
+    if (!tokens.match(.SHOW)) return .ERR(.unknown);
 
     var direct: ?bool = null;
     var mode: ?SearchMode = null;
     var of: ?AssetTarget = null;
     var in: ?InTarget = null;
 
-    if (tokens.peek(1)) |tkn| {
-        if (tkn.is(.literal, "direct")) {
+    mode: switch (tokens.next().value) {
+        .DIRECT => {
+            if (direct != null) continue :mode .eos;
             direct = true;
-            _ = tokens.next();
-        } else if (tkn.is(.literal, "indirect")) {
+            continue :mode tokens.next().value;
+        },
+        .INDIRECT => {
+            if (direct != null) continue :mode .eos;
             direct = false;
-            _ = tokens.next();
-        }
-    }
-
-    if (tokens.next()) |tkn| {
-        if (direct == null and tkn.is(.literal, "refs")) {
-            mode = .refs;
-        } else if (tkn.is(.literal, "uses")) {
+            continue :mode tokens.next().value;
+        },
+        .USES => {
             mode = if (direct orelse false) .direct_uses else .indirect_uses;
-        } else {
-            return .ERR(.{
+        },
+        .REFS => {
+            if (direct != null) return .ERR(.{
                 .unexpected_token = .{
-                    .found = tkn,
-                    .expected_type = .literal,
-                    .expected_value = "refs",
+                    .found = tokens.peek(0),
+                    .expected = &.{.USES},
                 },
             });
-        }
-
-        if (direct != null and mode != .direct_uses and mode != .indirect_uses) {
-            return .ERR(.{
-                .unexpected_token = .{
-                    .found = tkn,
-                    .expected_type = .literal,
-                    .expected_value = "uses",
-                },
-            });
-        }
-    } else {
-        return .ERR(.{
-            .unexpected_eof = .{
-                .expected_type = .literal,
+            mode = .refs;
+        },
+        else => return .ERR(.{
+            .unexpected_token = .{
+                .found = tokens.peek(0),
+                .expected = &.{ .REFS, .USES },
             },
-        });
+        }),
     }
 
-    while (tokens.peek(1)) |tkn| {
-        if (of == null and tkn.is(.keyword, "OF")) {
-            const res = try AssetTarget.parse(tokens);
-            if (res.isErr()) |err| return .ERR(err);
-            of = res.ok;
-        } else if (in == null and tkn.is(.keyword, "IN")) {
-            const res = try InTarget.parse(tokens);
-            if (res.isErr()) |err| return .ERR(err);
-            in = res.ok;
-        } else {
-            return .ERR(.{
-                .unexpected_token = .{
-                    .found = tkn,
-                    .expected_type = .keyword,
-                },
-            });
-        }
+    clses: switch (tokens.peek(1).value) {
+        .OF => {
+            if (of != null) continue :clses .SHOW;
+            of = switch (try AssetTarget.parse(tokens)) {
+                .ok => |v| v,
+                .err => |err| return .ERR(err),
+            };
+            continue :clses tokens.peek(1).value;
+        },
+        .IN => {
+            if (in != null) continue :clses .SHOW;
+            in = switch (try InTarget.parse(tokens)) {
+                .ok => |v| v,
+                .err => |err| return .ERR(err),
+            };
+            continue :clses tokens.peek(1).value;
+        },
+        .eos => break :clses,
+        else => return .ERR(.{
+            .unexpected_token = .{
+                .found = tokens.next(),
+                .expected = &.{.eos},
+            },
+        }),
     }
 
-    if (of == null)
-        return .ERR(.{
-            .unexpected_eof = .{
-                .expected_type = .keyword,
-                .expected_value = "OF",
-            },
-        });
+    if (of == null) return .ERR(.{
+        .unexpected_token = .{
+            .found = tokens.next(),
+            .expected = &.{.OF},
+        },
+    });
 
     return .OK(.{
         .mode = mode.?,
@@ -130,7 +108,7 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
     });
 }
 
-pub fn run(self: This, data: RuntimeData) !results.RuntimeResult(void) {
+pub fn run(self: This, data: RuntimeEnv) !results.RuntimeResult(void) {
     var fileCount: usize = 0;
     var loops: usize = 0;
 
@@ -153,13 +131,11 @@ pub fn run(self: This, data: RuntimeData) !results.RuntimeResult(void) {
         try data.out.print("{s}\r\n", .{r});
     }
 
-    if (data.verbose) {
-        std.debug.print("Scanned {d} files {d} times in {d} milliseconds \r\n", .{ fileCount, loops, time });
-    }
+    try data.out.print("Scanned {d} files {d} times in {d} milliseconds \r\n", .{ fileCount, loops, time });
     return .OK(void{});
 }
 
-pub fn search(self: This, data: RuntimeData, count: ?*usize, times: ?*usize) !results.RuntimeResult([][]u8) {
+pub fn search(self: This, data: RuntimeEnv, count: ?*usize, times: ?*usize) !results.RuntimeResult([][]u8) {
     core.profiling.begin(search);
     defer core.profiling.stop();
 
@@ -202,7 +178,7 @@ pub fn search(self: This, data: RuntimeData, count: ?*usize, times: ?*usize) !re
         var scanner = try Scanner(Search).init(dir, data.allocator);
         defer scanner.deinit();
 
-        log.debug("Scanning...", .{});
+        log.info("Scanning...", .{});
 
         try scanner.scan(&searchData);
 

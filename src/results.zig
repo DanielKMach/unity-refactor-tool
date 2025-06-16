@@ -1,7 +1,7 @@
 const std = @import("std");
-const core = @import("root");
+const core = @import("core");
 
-const Tokenizer = core.language.Tokenizer;
+const Token = core.language.Token;
 
 pub const ResultType = enum {
     ok,
@@ -34,26 +34,44 @@ pub fn Result(T: type, E: type) type {
 }
 
 pub const ParseErrorType = enum {
-    unknown_command,
+    unknown,
     never_closed_string,
     unexpected_token,
     unexpected_eof,
+    unexpected_character,
+    invalid_guid,
+    invalid_csharp_identifier,
+    invalid_number,
+    multiple,
 };
 
 pub const ParseError = union(ParseErrorType) {
-    unknown_command: void,
+    unknown: void,
     never_closed_string: struct {
         index: usize,
     },
     unexpected_token: struct {
-        expected_type: Tokenizer.TokenType,
-        expected_value: ?[]const u8 = null,
-        found: Tokenizer.Token,
+        expected: []const Token.Type,
+        found: Token,
     },
     unexpected_eof: struct {
-        expected_type: Tokenizer.TokenType,
-        expected_value: ?[]const u8 = null,
+        expected: []const Token.Type,
     },
+    unexpected_character: struct {
+        character: *const u8,
+    },
+    invalid_guid: struct {
+        token: Token,
+        guid: []const u8,
+    },
+    invalid_csharp_identifier: struct {
+        token: Token,
+        identifier: []const u8,
+    },
+    invalid_number: struct {
+        slice: []const u8,
+    },
+    multiple: []const ParseError,
 };
 
 pub fn ParseResult(T: type) type {
@@ -81,41 +99,54 @@ pub fn RuntimeResult(T: type) type {
 pub fn printParseError(out: std.io.AnyWriter, errUnion: ParseError, command: []const u8) !void {
     try out.print("Compiler error: ", .{});
     switch (errUnion) {
+        .unknown => {
+            try out.print("Unknown statement\r\n", .{});
+        },
         .never_closed_string => |err| {
             try out.print("Never closed string at index {d}\r\n", .{err.index});
             try printLineHighlightRange(out, command, err.index, err.index);
         },
         .unexpected_token => |err| {
-            if (err.expected_value) |expected_value| {
-                try out.print("Unexpected token: Expected {s} '{s}', found {s} '{s}'\r\n", .{
-                    @tagName(err.expected_type),
-                    expected_value,
-                    @tagName(err.found.type),
-                    err.found.value,
-                });
-            } else {
-                try out.print("Unexpected token type: Expected a {s}, found {s} '{s}'\r\n", .{
-                    @tagName(err.expected_type),
-                    @tagName(err.found.type),
-                    err.found.value,
-                });
+            try out.print("Unexpected token: Found {s}", .{@tagName(err.found.value)});
+            if (err.expected.len > 0) try out.print(", but expected ", .{});
+            for (err.expected, 0..) |expected_type, i| {
+                if (i > 0 and i != err.expected.len - 1) try out.print(", ", .{});
+                if (i != 0 and i == err.expected.len - 1) try out.print(" or ", .{});
+                try out.print("{s}", .{@tagName(expected_type)});
             }
-            try printLineHighlight(out, command, err.found.value);
+            try out.print("\r\n", .{});
+            try printLineHighlight(out, command, err.found.lexeme);
         },
         .unexpected_eof => |err| {
-            if (err.expected_value) |expected_value| {
-                try out.print("Unexpected end of file: Expected {s} '{s}'\r\n", .{
-                    @tagName(err.expected_type),
-                    expected_value,
-                });
-            } else {
-                try out.print("Unexpected end of file: Expected a {s}\r\n", .{
-                    @tagName(err.expected_type),
-                });
+            try out.print("Unexpected end of file.", .{});
+            if (err.expected.len > 0) try out.print(" Expected ", .{});
+            for (err.expected, 0..) |expected_type, i| {
+                if (i > 0 and i != err.expected.len - 1) try out.print(", ", .{});
+                if (i != 0 and i == err.expected.len - 1) try out.print(" or ", .{});
+                try out.print("{s}", .{@tagName(expected_type)});
             }
+            try out.print("\r\n", .{});
         },
-        .unknown_command => {
-            try out.print("Unknown command\r\n", .{});
+        .unexpected_character => |err| {
+            try out.print("Unexpected character: '{c}'\r\n", .{err.character.*});
+            try printLineHighlight(out, command, err.character[0..1]);
+        },
+        .invalid_csharp_identifier => |err| {
+            try out.print("Invalid C# identifier: '{s}'\r\n", .{err.identifier});
+            try printLineHighlight(out, command, err.token.lexeme);
+        },
+        .invalid_guid => |err| {
+            try out.print("Invalid GUID: '{s}'\r\n", .{err.guid});
+            try printLineHighlight(out, command, err.token.lexeme);
+        },
+        .invalid_number => |err| {
+            try out.print("Invalid number: '{s}'\r\n", .{err.slice});
+            try printLineHighlight(out, command, err.slice);
+        },
+        .multiple => |errs| {
+            for (errs) |err| {
+                try printParseError(out, err, command);
+            }
         },
     }
 }
@@ -136,28 +167,20 @@ pub fn printRuntimeError(out: std.io.AnyWriter, errUnion: RuntimeError) !void {
 /// Asserts that `highlight` is a slice of `line`.
 pub fn printLineHighlight(out: std.io.AnyWriter, line: []const u8, highlight: []const u8) !void {
     const zero = @intFromPtr(line.ptr);
-    const start = @intFromPtr(highlight.ptr) - zero;
-    const end = start + highlight.len - 1;
+    const offset = @intFromPtr(highlight.ptr) - zero;
+    const len = if (highlight.len == 0) 1 else highlight.len;
 
-    std.debug.assert(end >= start);
-    std.debug.assert(start < line.len);
-    std.debug.assert(end < line.len);
-
-    try printLineHighlightRange(out, line, start, end);
+    try printLineHighlightRange(out, line, offset, len);
 }
 
-pub fn printLineHighlightRange(out: std.io.AnyWriter, line: []const u8, start: usize, end: usize) !void {
-    std.debug.assert(start <= end);
-    std.debug.assert(start < line.len);
-    std.debug.assert(end < line.len);
-
+pub fn printLineHighlightRange(out: std.io.AnyWriter, line: []const u8, offset: usize, size: usize) !void {
     try out.print("{s}\r\n", .{line});
 
-    for (0..start) |_| {
+    for (0..offset) |_| {
         try out.print(" ", .{});
     }
 
-    for (start..end + 1) |_| {
+    for (0..size) |_| {
         try out.print("~", .{});
     }
 

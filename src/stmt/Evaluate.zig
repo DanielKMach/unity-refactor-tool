@@ -1,16 +1,16 @@
 const std = @import("std");
-const core = @import("root");
+const core = @import("core");
 const results = core.results;
-const log = std.log.scoped(.evaluate_command);
+const log = std.log.scoped(.evaluate_statement);
 
 const This = @This();
 const Tokenizer = core.language.Tokenizer;
 const Scanner = core.runtime.Scanner;
-const RuntimeData = core.runtime.RuntimeData;
+const RuntimeEnv = core.runtime.RuntimeEnv;
 const ComponentIterator = core.runtime.ComponentIterator;
 const Yaml = core.runtime.Yaml;
-const InTarget = core.cmds.sub.InTarget;
-const AssetTarget = core.cmds.sub.AssetTarget;
+const InTarget = core.stmt.clse.InTarget;
+const AssetTarget = core.stmt.clse.AssetTarget;
 const GUID = core.runtime.GUID;
 
 const files = &.{ ".prefab", ".unity", ".asset" };
@@ -23,70 +23,59 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
     core.profiling.begin(parse);
     defer core.profiling.stop();
 
-    if (tokens.next()) |tkn| {
-        if (!tkn.is(.keyword, "EVALUATE")) {
-            return .ERR(.{
-                .unexpected_token = .{
-                    .found = tkn,
-                    .expected_type = .keyword,
-                    .expected_value = "EVALUATE",
-                },
-            });
-        }
-    } else {
-        return .ERR(.{
-            .unexpected_eof = .{
-                .expected_type = .keyword,
-                .expected_value = "EVALUATE",
-            },
-        });
-    }
+    if (!tokens.match(.EVAL)) return .ERR(.unknown);
 
     var path: std.BoundedArray([]const u8, 8) = try .init(0);
     var of: ?AssetTarget = null;
     var in: ?InTarget = null;
 
-    var analyzing_key = true;
-    while (tokens.peek(1)) |tkn| {
-        if (analyzing_key) {
-            if (tkn.isType(.literal) or tkn.isType(.literal_string)) {
-                try path.append(tkn.value);
-            } else {
-                return .ERR(.{
-                    .unexpected_token = .{
-                        .found = tkn,
-                        .expected_type = .literal,
-                    },
-                });
-            }
-        } else if (!tkn.is(.operator, ".")) {
-            break;
+    while (true) {
+        switch (tokens.next().value) {
+            .string => |str| try path.append(str),
+            .literal => |lit| try path.append(lit),
+            else => return .ERR(.{
+                .unexpected_token = .{
+                    .found = tokens.peek(0),
+                    .expected = &.{ .literal, .string },
+                },
+            }),
         }
-        _ = tokens.next();
-        analyzing_key = !analyzing_key;
+
+        if (!tokens.match(.dot)) break;
     }
 
-    while (tokens.peek(1)) |tkn| {
-        if (of == null and tkn.is(.keyword, "OF")) {
-            const res = try AssetTarget.parse(tokens);
-            if (res.isErr()) |err| return .ERR(err);
-            of = res.ok;
-        } else if (in == null and tkn.is(.keyword, "IN")) {
-            const res = try InTarget.parse(tokens);
-            if (res.isErr()) |err| return .ERR(err);
-            in = res.ok;
-        } else {
-            break;
-        }
-    }
-
-    if (of == null)
-        return .ERR(.{
-            .unexpected_eof = .{
-                .expected_type = .keyword,
-                .expected_value = "OF",
+    clses: switch (tokens.peek(1).value) {
+        .OF => {
+            if (of != null) continue :clses .EVAL;
+            of = switch (try AssetTarget.parse(tokens)) {
+                .ok => |v| v,
+                .err => |err| return .ERR(err),
+            };
+            continue :clses tokens.peek(1).value;
+        },
+        .IN => {
+            if (in != null) continue :clses .EVAL;
+            in = switch (try InTarget.parse(tokens)) {
+                .ok => |v| v,
+                .err => |err| return .ERR(err),
+            };
+            continue :clses tokens.peek(1).value;
+        },
+        .eos => break :clses,
+        else => return .ERR(.{
+            .unexpected_token = .{
+                .found = tokens.next(),
+                .expected = &.{.eos},
             },
-        });
+        }),
+    }
+
+    if (of == null) return .ERR(.{
+        .unexpected_token = .{
+            .found = tokens.next(),
+            .expected = &.{.OF},
+        },
+    });
 
     return .OK(.{
         .path = path,
@@ -95,7 +84,7 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
     });
 }
 
-pub fn run(self: This, data: RuntimeData) !results.RuntimeResult(void) {
+pub fn run(self: This, data: RuntimeEnv) !results.RuntimeResult(void) {
     core.profiling.begin(run);
     defer core.profiling.stop();
 
@@ -116,13 +105,13 @@ pub fn run(self: This, data: RuntimeData) !results.RuntimeResult(void) {
     defer data.allocator.free(guid);
     defer for (guid) |g| g.deinit(data.allocator);
 
-    const show = core.cmds.Show{
+    const show = core.stmt.Show{
         .mode = .indirect_uses,
         .of = of,
         .in = in,
     };
 
-    log.debug("Searching for references...", .{});
+    log.info("Searching for references...", .{});
 
     const search_result = try show.search(data, null, null);
     if (search_result.isErr()) |err| {
@@ -134,7 +123,7 @@ pub fn run(self: This, data: RuntimeData) !results.RuntimeResult(void) {
         data.allocator.free(asset);
     };
 
-    log.debug("Evaluating found...", .{});
+    log.info("Printing references...", .{});
 
     try self.searchAndPrint(target_assets, guid, data.allocator, data.out);
 
@@ -169,7 +158,7 @@ pub fn scanAndPrint(self: This, file: std.fs.File, file_path: []const u8, guid: 
     while (try iter.next()) |comp| {
         var yaml = Yaml.init(.{ .string = comp.document }, null, allocator);
 
-        if (!(try core.cmds.Show.matchScriptOrPrefabGUID(guid, &yaml))) continue;
+        if (!(try core.stmt.Show.matchScriptOrPrefabGUID(guid, &yaml))) continue;
 
         const path = self.path.slice();
         const new_path = try allocator.alloc([]const u8, path.len + 1);

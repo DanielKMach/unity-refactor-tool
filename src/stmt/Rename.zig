@@ -1,16 +1,16 @@
 const std = @import("std");
-const core = @import("root");
+const core = @import("core");
 const results = core.results;
-const log = std.log.scoped(.rename_command);
+const log = std.log.scoped(.rename_statement);
 
 const This = @This();
 const Tokenizer = core.language.Tokenizer;
 const Scanner = core.runtime.Scanner;
-const RuntimeData = core.runtime.RuntimeData;
+const RuntimeEnv = core.runtime.RuntimeEnv;
 const ComponentIterator = core.runtime.ComponentIterator;
 const Yaml = core.runtime.Yaml;
-const InTarget = core.cmds.sub.InTarget;
-const AssetTarget = core.cmds.sub.AssetTarget;
+const InTarget = core.stmt.clse.InTarget;
+const AssetTarget = core.stmt.clse.AssetTarget;
 const GUID = core.runtime.GUID;
 
 const files = &.{ ".prefab", ".unity", ".asset" };
@@ -24,108 +24,74 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
     core.profiling.begin(parse);
     defer core.profiling.stop();
 
-    if (tokens.next()) |tkn| {
-        if (!tkn.is(.keyword, "RENAME")) {
-            return .ERR(.{
-                .unexpected_token = .{
-                    .found = tkn,
-                    .expected_type = .keyword,
-                    .expected_value = "RENAME",
-                },
-            });
-        }
-    } else {
-        return .ERR(.{
-            .unexpected_eof = .{
-                .expected_type = .keyword,
-                .expected_value = "RENAME",
-            },
-        });
-    }
+    if (!tokens.match(.RENAME)) return .ERR(.unknown);
 
     var old_name: []const u8 = undefined;
     var new_name: []const u8 = undefined;
     var of: ?AssetTarget = null;
     var in: ?InTarget = null;
 
-    if (tokens.next()) |tkn| {
-        if (tkn.isType(.literal) or tkn.isType(.literal_string)) {
-            old_name = tkn.value;
-        } else {
-            return .ERR(.{
-                .unexpected_token = .{
-                    .found = tkn,
-                    .expected_type = .literal_string,
-                },
-            });
-        }
-    } else {
-        return .ERR(.{
-            .unexpected_eof = .{
-                .expected_type = .literal_string,
+    switch (tokens.next().value) {
+        .string => |str| old_name = str,
+        .literal => |lit| old_name = lit,
+        else => return .ERR(.{
+            .unexpected_token = .{
+                .found = tokens.peek(0),
+                .expected = &.{ .literal, .string },
             },
-        });
+        }),
     }
 
-    if (tokens.next()) |tkn| {
-        if (!tkn.is(.keyword, "FOR")) {
-            return .ERR(.{
-                .unexpected_token = .{
-                    .found = tkn,
-                    .expected_type = .keyword,
-                    .expected_value = "FOR",
-                },
-            });
-        }
-    } else {
-        return .ERR(.{
-            .unexpected_eof = .{
-                .expected_type = .keyword,
-                .expected_value = "FOR",
+    if (!tokens.match(.FOR)) return .ERR(.{
+        .unexpected_token = .{
+            .found = tokens.peek(1),
+            .expected = &.{.FOR},
+        },
+    });
+
+    switch (tokens.next().value) {
+        .string => |str| new_name = str,
+        .literal => |lit| new_name = lit,
+        else => return .ERR(.{
+            .unexpected_token = .{
+                .found = tokens.peek(0),
+                .expected = &.{ .literal, .string },
             },
-        });
+        }),
     }
 
-    if (tokens.next()) |tkn| {
-        if (tkn.isType(.literal) or tkn.isType(.literal_string)) {
-            new_name = tkn.value;
-        } else {
-            return .ERR(.{
-                .unexpected_token = .{
-                    .found = tkn,
-                    .expected_type = .literal_string,
-                },
-            });
-        }
-    } else {
-        return .ERR(.{
-            .unexpected_eof = .{
-                .expected_type = .literal_string,
+    clses: switch (tokens.peek(1).value) {
+        .OF => {
+            if (of != null) continue :clses .RENAME;
+            of = switch (try AssetTarget.parse(tokens)) {
+                .ok => |v| v,
+                .err => |err| return .ERR(err),
+            };
+            continue :clses tokens.peek(1).value;
+        },
+        .IN => {
+            if (in != null) continue :clses .RENAME;
+            in = switch (try InTarget.parse(tokens)) {
+                .ok => |v| v,
+                .err => |err| return .ERR(err),
+            };
+            continue :clses tokens.peek(1).value;
+        },
+        .eos => break :clses,
+        else => return .ERR(.{
+            .unexpected_token = .{
+                .found = tokens.next(),
+                .expected = &.{.eos},
             },
-        });
+        }),
     }
 
-    while (tokens.peek(1)) |tkn| {
-        if (of == null and tkn.is(.keyword, "OF")) {
-            const res = try AssetTarget.parse(tokens);
-            if (res.isErr()) |err| return .ERR(err);
-            of = res.ok;
-        } else if (in == null and tkn.is(.keyword, "IN")) {
-            const res = try InTarget.parse(tokens);
-            if (res.isErr()) |err| return .ERR(err);
-            in = res.ok;
-        } else {
-            break;
-        }
-    }
-
-    if (of == null)
-        return .ERR(.{
-            .unexpected_eof = .{
-                .expected_type = .keyword,
-                .expected_value = "OF",
-            },
-        });
+    if (of == null) return .ERR(.{
+        .unexpected_token = .{
+            .found = tokens.next(),
+            .expected = &.{.OF},
+        },
+    });
 
     return .OK(.{
         .old_name = old_name,
@@ -135,7 +101,7 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
     });
 }
 
-pub fn run(self: This, data: RuntimeData) !results.RuntimeResult(void) {
+pub fn run(self: This, data: RuntimeEnv) !results.RuntimeResult(void) {
     core.profiling.begin(run);
     defer core.profiling.stop();
 
@@ -158,7 +124,7 @@ pub fn run(self: This, data: RuntimeData) !results.RuntimeResult(void) {
         data.allocator.free(guid);
     }
 
-    const show = core.cmds.Show{
+    const show = core.stmt.Show{
         .mode = .indirect_uses,
         .of = of,
         .in = in,
@@ -192,7 +158,7 @@ pub fn run(self: This, data: RuntimeData) !results.RuntimeResult(void) {
     return .OK(void{});
 }
 
-pub fn updateAll(self: This, asset_paths: []const []const u8, data: RuntimeData, guid: []const GUID) ![]Mod {
+pub fn updateAll(self: This, asset_paths: []const []const u8, data: RuntimeEnv, guid: []const GUID) ![]Mod {
     core.profiling.begin(updateAll);
     defer core.profiling.stop();
 
@@ -213,7 +179,7 @@ pub fn updateAll(self: This, asset_paths: []const []const u8, data: RuntimeData,
     return try updated.toOwnedSlice();
 }
 
-pub fn scopeAndReplace(self: This, data: RuntimeData, file: std.fs.File, path: []const u8, guid: []const GUID) !?Mod {
+pub fn scopeAndReplace(self: This, data: RuntimeEnv, file: std.fs.File, path: []const u8, guid: []const GUID) !?Mod {
     core.profiling.begin(scopeAndReplace);
     defer core.profiling.stop();
 
@@ -232,7 +198,7 @@ pub fn scopeAndReplace(self: This, data: RuntimeData, file: std.fs.File, path: [
     while (try iterator.next()) |comp| {
         var yaml = Yaml.init(.{ .string = comp.document }, null, data.allocator);
 
-        if (!(core.cmds.Show.matchScriptOrPrefabGUID(guid, &yaml) catch false)) continue;
+        if (!(core.stmt.Show.matchScriptOrPrefabGUID(guid, &yaml) catch false)) continue;
 
         var buf = try data.allocator.alloc(u8, comp.len * 2);
         yaml.out = .{ .string = &buf };
