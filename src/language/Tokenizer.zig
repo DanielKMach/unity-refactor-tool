@@ -23,8 +23,9 @@ pub fn tokenize(expression: []const u8, allocator: std.mem.Allocator) !results.P
             continue;
         } else if (language.isAlphabetic(expression[i]) or expression[i] == '_') { // identifiers and keywords
             const si = i;
-            while (i + 1 < expression.len and (language.isAlphanumeric(expression[i + 1]) or expression[i] == '_')) : (i += 1) {}
-            const word = expression[si .. i + 1];
+            while (i < expression.len and (language.isAlphanumeric(expression[i]) or expression[i] == '_')) : (i += 1) {}
+            const word = expression[si..i];
+            i -= 1;
             for (Token.keyword_list) |kw| {
                 if (std.ascii.eqlIgnoreCase(word, kw[0])) {
                     try list.append(Token.new(kw[1], word));
@@ -53,6 +54,7 @@ pub fn tokenize(expression: []const u8, allocator: std.mem.Allocator) !results.P
                 return .ERR(.{ .invalid_number = .{ .slice = number_literal } });
             };
             try list.append(Token.new(.{ .number = number }, number_literal));
+            i -= 1;
         } else { // operators
             var best_match: ?@typeInfo(@TypeOf(Token.operator_list)).pointer.child = null;
             for (Token.operator_list) |op| {
