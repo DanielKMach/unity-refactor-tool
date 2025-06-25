@@ -3,6 +3,7 @@ const std = @import("std");
 const urt = @import("urt");
 
 const This = @This();
+const log = std.log.scoped(.cli);
 
 pub const ExecutionMode = enum {
     args,
@@ -29,7 +30,7 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
             } else if (std.mem.eql(u8, arg, "--interactive") or std.mem.eql(u8, arg, "-i")) {
                 mode = .interactive;
             } else if (std.mem.eql(u8, arg, "--manual") or std.mem.eql(u8, arg, "-m")) {
-                try printManual(self.out);
+                try openManual();
                 return true;
             } else if (std.mem.eql(u8, arg, "--help") or std.mem.eql(u8, arg, "-h")) {
                 try printHelp(self.out);
@@ -223,9 +224,36 @@ pub fn printHelp(out: std.io.AnyWriter) anyerror!void {
     try out.writeAll(@embedFile("help.txt"));
 }
 
-/// Prints the language manual to the given writer.
-pub fn printManual(out: std.io.AnyWriter) anyerror!void {
-    try out.writeAll(@embedFile("manual.txt"));
+/// Opens the language manual
+pub fn openManual() anyerror!void {
+    const cwd = std.fs.cwd();
+    const manual_file = try cwd.createFile("manual.html", .{});
+    try manual_file.writeAll(@embedFile("manual.html"));
+
+    var buf: [256]u8 = undefined;
+    const path = try cwd.realpath("manual.html", &buf);
+    buf[path.len] = 0;
+
+    openURL(@ptrCast(path));
+}
+
+/// Opens the given URL.
+pub fn openURL(url: [:0]const u8) void {
+    switch (builtin.os.tag) {
+        .windows => {
+            const windows = @cImport(@cInclude("windows.h"));
+            _ = windows.ShellExecuteA(null, "open", url, null, null, windows.SW_SHOWNORMAL);
+        },
+        else => {
+            const stdlib = @cImport(@cInclude("stdlib.h"));
+            var buf: [256]u8 = undefined;
+            @memcpy(buf[0..5], "open ");
+            @memcpy(buf[5 .. url.len + 5], url);
+            buf[url.len + 5] = 0;
+            _ = stdlib.system(&buf);
+            return;
+        },
+    }
 }
 
 pub const ANSI = struct {

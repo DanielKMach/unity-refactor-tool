@@ -1,0 +1,306 @@
+<style>
+    @font-face {
+        font-family: 'Roboto Slab';
+        src: url('https://raw.githubusercontent.com/google/fonts/refs/heads/main/apache/robotoslab/RobotoSlab%5Bwght%5D.ttf');
+    }
+
+    article {
+        width: min(800px, 100%);
+        margin: auto;
+        font-size: 18px;
+        font-family: 'Roboto Slab', Georgia, 'Times New Roman', Times, serif, system;
+    }
+
+    pre,
+    code {
+        font-family: monospace;
+    }
+
+    code {
+        background-color: #eee;
+        padding: 2px 4px;
+        border-radius: 4px;
+        font-size: 0.9em;
+        vertical-align: middle;
+    }
+
+    pre {
+        overflow-x: auto;
+        white-space: pre-wrap;
+        word-break: break-all;
+        padding: 10px 15px;
+        background-color: #272822;
+        color: #ebf8f2;
+        border-radius: 8px;
+        font-size: 16px;
+    }
+
+    pre .comment {
+        color: #88846f;
+    }
+
+    pre .chave {
+        color: #f92672;
+    }
+
+    pre .string {
+        color: #e6db74;
+    }
+
+    pre .number {
+        color: #ae81ff;
+    }
+
+    p {
+        text-align: justify;
+    }
+
+    h2 {
+        text-transform: uppercase;
+        border-bottom: solid 1px #0002;
+        padding-bottom: 3px;
+        margin-top: 3em;
+        counter-increment: h2;
+        counter-reset: h3;
+    }
+
+    h2::before {
+        content: counter(h2) ". ";
+    }
+
+    h3 {
+        counter-increment: h3;
+    }
+
+    h3::before {
+        content: counter(h2) "." counter(h3) " ";
+    }
+
+    .compatibilidade {
+        font-weight: bold;
+        font-family: monospace;
+        vertical-align: middle;
+        font-size: 12px;
+        border-radius: 999em;
+        padding: 2px 6px;
+        margin-left: 10px;
+    }
+
+    .compatibilidade.compativel {
+        color: green;
+        background-color: #5fdd4644;
+    }
+
+    .compatibilidade.experimental {
+        color: rgb(166, 133, 0);
+        background-color: #f0d80044;
+    }
+
+    .compatibilidade.pendente {
+        color: #9f5f00;
+        background-color: #dc753544;
+    }
+</style>
+
+<article>
+    <h1>USRL</h1>
+
+    <h2>Cláusulas</h2>
+
+    <h3>Cláusula <code>OF</code> <span class="compatibilidade compativel">Compatível</span> </h3>
+
+    <p>
+        Com a cláusula <code>OF</code>, é possível especificar um ou mais <em>assets</em> como alvo da consulta.
+        Em muitos <em>statements</em>, esta cláusula é obrigatória, apesar de não haver a necessidade de ser a primeira.
+    </p>
+
+    <p>
+        A cláusula <code>OF</code> pode ser utilizada com qualquer <em>asset</em> do projeto, como imagens, clipes de
+        áudio, componente, prefabs, etc.
+        Esta cláusula necessita do caminho ao <em>asset</em> relativo ao diretório atual de trabalho. Se o
+        <em>asset</em> alvo for um componente, não há necessidade de especificar o caminho, apenas o nome do componente
+        como um literal é o suficiente.
+    </p>
+
+    <pre>
+<span class="chave">OF</span> <span class="string">"Imagens/Logo.png"</span> 
+<span class="chave">OF</span> <span class="string">'Audio/Musica.mp3'</span> 
+
+<span class="comment"># Os exemplos abaixo são equivalentes</span>
+<span class="chave">OF</span> PlayerController
+<span class="chave">OF</span> <span class="string">'Scripts/PlayerController.cs'</span></pre>
+
+    <p>
+        Também é possível utilizar o operador <code>,</code> (vírgula) para especificar mais de um <em>asset</em>.
+    </p>
+
+    <pre>
+<span class="chave">OF</span> <span class="string">'Scripts/Player.png'</span>, <span class="string">'Scripts/Enemy.png'</span> 
+
+<span class="comment"># Os exemplos abaixo são equivalentes</span>
+<span class="chave">OF</span> PlayerController, EnemyController
+<span class="chave">OF</span> PlayerController, <span class="string">'Scripts/EnemyController.cs'</span> 
+<span class="chave">OF</span> <span class="string">'Scripts/PlayerController.cs'</span>, <span class="string">'Scripts/EnemyController.cs'</span></pre>
+
+    <p>
+        Se houver alguma situação que não seja possível obter o nome ou caminho ao <em>asset</em>, é possível utilizar
+        seu GUID como substituto. Para especificar o GUID de um <em>asset</em>, deve-se utilizar a palavra-chave
+        <code>GUID</code> seguida do
+        GUID como uma string.
+    </p>
+
+    <pre>
+<span class="chave">OF</span> <span class="chave">GUID</span> <span class="string">'e1f42f24601a32ac81a9776a50927ee6'</span>
+<span class="chave">OF</span> <span class="chave">GUID</span> <span class="string">'e1f42f24601a32ac81a9776a50927ee6'</span>, <span class="chave">GUID</span> <span class="string">'9ce307d03d67b8de97dbaa43ce7ec8fe'</span>
+<span class="chave">OF</span> PlayerController, <span class="chave">GUID</span> <span class="string">'9ce307d03d67b8de97dbaa43ce7ec8fe'</span></pre>
+
+    <h3>Cláusula <code>IN</code> <span class="compatibilidade compativel">Compatível</span></h3>
+
+    <p>
+        A cláusula <code>IN</code> serve para especificar o diretório alvo da operação, relativo ao diretório de
+        trabalho atual. Se o diretório especificado for filho direto do diretório de trabalho atual, é possível
+        especificá-lo como um literal.
+    </p>
+
+    <pre>
+<span class="chave">IN</span> <span class="string">'./Scenes/Levels'</span>
+<span class="chave">IN</span> <span class="string">'./Resources/Textures/Player'</span>
+
+<span class="comment"># Os exemplos abaixo são equivalentes</span>
+<span class="chave">IN</span> Prefabs
+<span class="chave">IN</span> <span class="string">'Prefabs'</span>
+<span class="chave">IN</span> <span class="string">'./Prefabs'</span>
+<span class="chave">IN</span> <span class="string">'Prefabs/'</span></pre>
+
+    <h3>Cláusula <code>WHERE</code> <span class="compatibilidade pendente">Pendente</span></h3>
+
+    <p>
+        A cláusula <code>WHERE</code> é utilizada para filtrar os resultados de uma operação, permitindo que apenas
+        os assets que atendem a uma determinada condição sejam incluídos. Para utilizá-la, basta especificar a expressão
+        desejada após a palavra-chave <code>WHERE</code>.
+    </p>
+
+    <pre>
+<span class="chave">WHERE</span> _speed &gt; <span class="number">10</span>
+<span class="chave">WHERE</span> _health &lt; <span class="number">100</span>
+<span class="chave">WHERE</span> _speed == _health
+</pre>
+
+
+
+    <h2><em>Statements</em></h2>
+
+    <h3><em>Statement</em> <code>SHOW</code> <span class="compatibilidade compativel">Compatível</span></h3>
+
+    <p>
+        O statement <code>SHOW</code> é utilizado para buscar referências de assets específicos em cenas ou prefabs.
+        Este statement tem dois modos de busca: <strong>referências</strong> e <strong>usos</strong>.
+    </p>
+
+    <p>
+        O modo de <strong>busca por referência</strong> é simples: Este modo realiza uma busca por qualquer utilização
+        do asset especificado, incluindo referências através de campos, através de todas as cenas, prefabs e assets do
+        projeto.
+    </p>
+
+    <p>
+        O modo de <strong>busca por uso</strong> é um pouco diferente. É importante deixar claro que este modo apenas
+        funciona se o asset especificado for um componente ou prefab. Este modo pesquisa pelas utilizações do
+        componente/prefab especificado, inclusive a utilização dos prefabs que utilizam o asset especificado, de forma
+        recursiva. Por exemplo, se o asset especificado para a busca for o componente <code>Player.cs</code> e um prefab
+        chamado <code>Player.prefab</code> utilizar este componente, o prefab será incluído na busca, juntamente com o
+        componente originalmente especificado.
+    </p>
+
+    <p>
+        É possível modificar o modo de busca utilizando a palavra-chave <code>REFS</code> para modo de busca por
+        referência, ou <code>USES</code> para o modo de busca por uso
+    </p>
+
+
+    <pre>
+<span class="chave">SHOW</span> <span class="chave">USES</span> <span class="chave">OF</span> PlayerController <span class="chave">IN</span> Assets;
+<span class="chave">SHOW</span> <span class="chave">USES</span> <span class="chave">OF</span> <span class="string">'Assets/Prefabs/Player.prefab'</span> <span class="chave">IN</span> Assets;
+<span class="chave">SHOW</span> <span class="chave">REFS</span> <span class="chave">OF</span> <span class="string">"Assets/Textures/Player.png"</span>
+</pre>
+
+    <p>
+        A recursão do modo de <strong>busca por uso</strong> pode ser explicitamente determinada utilizando as
+        palavras-chave <code>DIRECT</code> ou <code>INDIRECT</code>. Sendo <code>INDIRECT</code> o modo padrão, que
+        realiza a busca recursivamente.
+    </p>
+
+    <pre>
+<span class="chave">SHOW</span> <span class="chave">DIRECT</span> <span class="chave">USES</span> <span class="chave">OF</span> PlayerController;
+<span class="chave">SHOW</span> <span class="chave">INDIRECT</span> <span class="chave">USES</span> <span class="chave">OF</span> PlayerController
+</pre>
+
+    <h3><em>Statement</em> <code>RENAME</code> <span class="compatibilidade compativel">Compatível</span></h3>
+
+    <p>
+        O statement <code>RENAME</code> é utilizado para renomear os campos dos componentes especificados.
+        Este statement foi criado para facilitar a renomeação de campos de componentes, evitando a necessidade de
+        renomear manualmente cada campo de cada componente de cada prefab de cada cena, o que pode ser um processo
+        tedioso e propenso a erros.
+    </p>
+
+    <p>
+        Para utilizar o statement <code>RENAME</code>, é necessário especificar o nome do campo a ser renomeado, o novo
+        nome do campo e, entre eles, a palavra-chave <code>FOR</code>. Também é necessário especificar o componente
+        alvo, utilizando a cláusula <code>OF</code>.
+    </p>
+
+    <pre>
+<span class="chave">RENAME</span> _spd <span class="chave">FOR</span> _speed <span class="chave">OF</span> PlayerController;
+<span class="chave">RENAME</span> _life <span class="chave">FOR</span> _health <span class="chave">OF</span> PlayerController
+</pre>
+
+    <p>
+        Em caso de classes com hierarquia, é possível especificar mais de um componente, utilizando a cláusula
+        <code>OF</code> com mais de um componente, separados por vírgula. O statement <code>RENAME</code> irá renomear o
+        campo especificado em todos os componentes especificados.
+    </p>
+
+    <pre>
+<span class="chave">RENAME</span> _spd <span class="chave">FOR</span> _speed <span class="chave">OF</span> PlayerController, EntityController;
+<span class="chave">RENAME</span> _life <span class="chave">FOR</span> _health <span class="chave">OF</span> PlayerController, EntityController
+</pre>
+
+    <p>
+        <strong>ATENÇÃO:</strong> Se utilizado no momento incorreto, o statement <code>RENAME</code> pode causar a perda
+        dos valores dos campos renomeados. Este statement deve ser utilizado <strong>após</strong> o renomeamento dos
+        campos da classe do componente, ou seja, após a modificação do código fonte do componente, e
+        <strong>antes</strong> de focar na janela do editor. Somente assim é possível garantir que a integridade dos
+        dados seja mantida e que os valores dos campos renomeados não sejam perdidos.
+    </p>
+
+    <h3><em>Statement</em> <code>EVAL</code> <span class="compatibilidade experimental">Experimental</span></h3>
+
+    <p>
+        O statement <code>EVAL</code> é utilizado para avaliar expressões matemáticas, lógicas e de comparação com base
+        nos valores dos campos dos componentes especificados.
+    </p>
+
+    <pre>
+<span class="chave">EVAL</span> _speed <span class="chave">OF</span> PlayerController;
+<span class="chave">EVAL</span> _speed / <span class="number">3.6</span> <span class="chave">OF</span> PlayerController
+</pre>
+
+    <p>
+        Este statement também permite a reatribuição de valores aos campos.
+    </p>
+
+    <pre>
+<span class="chave">EVAL</span> _speed = _speed * <span class="number">3.6</span> <span class="chave">OF</span> PlayerController;
+<span class="chave">EVAL</span> _speed = <span class="number">100</span> / _health <span class="chave">OF</span> PlayerController
+</pre>
+
+    <p>
+        Este statement pode ser combinado com a cláusula <code>WHERE</code> para limitar o escopo das mudanças.
+    </p>
+
+    <pre>
+<span class="chave">EVAL</span> _speed = <span class="number">10</span> <span class="chave">OF</span> PlayerController <span class="chave">WHERE</span> _speed &gt; <span class="number">10</span>
+</pre>
+
+</article>
