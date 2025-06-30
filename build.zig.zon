@@ -1,6 +1,6 @@
 .{
-    .name = .urt,
-    .fingerprint = 0xe71addf842e5b6e3,
+    .name = .usrl,
+    .fingerprint = 0x721f6fbc8c086a5a,
     .version = "0.0.0",
     .dependencies = .{
         .libyaml = .{

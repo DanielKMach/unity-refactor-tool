@@ -1,4 +1,4 @@
-Usage: urt [option] <args...>
+Usage: usrl [option] <args...>
 
 Options:
     -f, --file         Specify one or more files to execute
