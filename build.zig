@@ -32,7 +32,7 @@ pub fn build(b: *std.Build) void {
 
     // main executable
     const exe = b.addExecutable(.{
-        .name = "urt",
+        .name = "usrl",
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
