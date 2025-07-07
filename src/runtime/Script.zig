@@ -17,9 +17,7 @@ pub fn run(this: This, options: RunConfig) !core.results.RuntimeResult(void) {
 
     var transaction = core.runtime.Transaction.init(arena.allocator());
     defer transaction.deinit();
-    errdefer transaction.rollback() catch {
-        log.info("Unable to rollback changes.", .{});
-    };
+    errdefer transaction.rollback();
 
     const env = core.runtime.RuntimeEnv{
         .allocator = arena.allocator(),
@@ -34,7 +32,7 @@ pub fn run(this: This, options: RunConfig) !core.results.RuntimeResult(void) {
         switch (result) {
             .ok => {},
             .err => |err| {
-                try transaction.rollback();
+                transaction.rollback();
                 return .ERR(err);
             },
         }

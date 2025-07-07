@@ -7,6 +7,10 @@ const config = @import("config");
 const This = @This();
 const log = std.log.scoped(.transaction);
 
+pub const IncludeError = std.fs.File.OpenError || std.fs.File.WriteFileError || MakePathError || std.mem.Allocator.Error;
+pub const GetTempError = std.fs.File.OpenError || MakePathError || std.mem.Allocator.Error;
+const MakePathError = std.fs.Dir.RealPathAllocError || std.mem.Allocator.Error;
+
 allocator: std.mem.Allocator,
 backups: std.StringHashMap([]const u8),
 temps: std.AutoHashMap(std.fs.File, []const u8),
@@ -24,12 +28,13 @@ pub fn init(allocator: std.mem.Allocator) This {
     };
 }
 
-pub fn include(self: *This, target: []const u8) !void {
+pub fn include(self: *This, target: []const u8) IncludeError!void {
     if (self.backups.contains(target)) {
         return;
     }
 
     const target_path = try self.allocator.dupe(u8, target);
+    errdefer self.allocator.free(target_path);
     const target_file = std.fs.openFileAbsolute(target_path, .{ .mode = .read_only }) catch |err| {
         log.err("Failed ({s}) to open target file: {s}", .{ @errorName(err), target_path });
         return err;
@@ -37,10 +42,12 @@ pub fn include(self: *This, target: []const u8) !void {
     defer target_file.close();
 
     const backup_path = try self.makePath("{x}.usrlbackup", self.allocator);
+    errdefer self.allocator.free(backup_path);
     const backup_file = std.fs.createFileAbsolute(backup_path, .{ .lock = .exclusive }) catch |err| {
         log.err("Failed ({s}) to create backup file: {s}", .{ @errorName(err), backup_path });
         return err;
     };
+    errdefer std.fs.deleteFileAbsolute(backup_path) catch {};
     defer backup_file.close();
 
     backup_file.writeFileAll(target_file, .{}) catch |err| {
@@ -57,7 +64,7 @@ pub fn commit(self: *This) void {
     self.eraseAndClearBackups();
 }
 
-pub fn rollback(self: *This) !void {
+pub fn rollback(self: *This) void {
     log.info("Rolling back changes...", .{});
     var iterator = self.backups.iterator();
     while (iterator.next()) |backup| {
@@ -83,13 +90,16 @@ pub fn rollback(self: *This) !void {
     self.eraseAndClearBackups();
 }
 
-pub fn getTemp(self: *This) !std.fs.File {
+pub fn getTemp(self: *This) GetTempError!std.fs.File {
     const temp_path = try self.makePath("{x}.usrltemp", self.allocator);
+    errdefer self.allocator.free(temp_path);
 
     const file = std.fs.createFileAbsolute(temp_path, .{ .lock = .exclusive, .read = true }) catch |err| {
         log.err("Failed ({s}) to create temporary file: {s}", .{ @errorName(err), temp_path });
         return err;
     };
+    errdefer std.fs.deleteFileAbsolute(temp_path) catch {};
+    errdefer file.close();
 
     try self.temps.put(file, temp_path);
     return file;
@@ -151,13 +161,13 @@ fn eraseAndClearTemps(self: *This) void {
     self.temps.clearAndFree();
 }
 
-fn makePath(self: *This, comptime filename_format: []const u8, allocator: std.mem.Allocator) ![]const u8 {
+fn makePath(self: *This, comptime filename_format: []const u8, allocator: std.mem.Allocator) MakePathError![]const u8 {
     const file_name = try std.fmt.allocPrint(allocator, filename_format, .{self.rand.next()});
     defer allocator.free(file_name);
     return try makeAbsPath(file_name, allocator);
 }
 
-fn makeAbsPath(file_name: []const u8, allocator: std.mem.Allocator) ![]const u8 {
+fn makeAbsPath(file_name: []const u8, allocator: std.mem.Allocator) MakePathError![]const u8 {
     const dir_path = try std.fs.cwd().realpathAlloc(allocator, ".");
     defer allocator.free(dir_path);
     return try std.fs.path.join(allocator, &.{ dir_path, file_name });
