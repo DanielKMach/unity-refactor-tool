@@ -2,6 +2,7 @@
 
 const std = @import("std");
 const builtin = @import("builtin");
+const config = @import("config");
 
 const This = @This();
 const log = std.log.scoped(.transaction);
@@ -51,9 +52,9 @@ pub fn include(self: *This, target: []const u8) !void {
     log.info("Included '{s}' to the transaction. ({s})", .{ target_path, std.fs.path.basename(backup_path) });
 }
 
-pub fn commit(self: *This) !void {
+pub fn commit(self: *This) void {
     log.info("Committing changes...", .{});
-    try self.eraseBackups();
+    self.eraseAndClearBackups();
 }
 
 pub fn rollback(self: *This) !void {
@@ -79,7 +80,7 @@ pub fn rollback(self: *This) !void {
             log.err("Failed ({s}) to restore backup file: {s} to original file: {s}", .{ @errorName(err), backup_path, original_path });
         };
     }
-    try self.eraseBackups();
+    self.eraseAndClearBackups();
 }
 
 pub fn getTemp(self: *This) !std.fs.File {
@@ -101,7 +102,7 @@ pub fn delTemp(self: *This, file: std.fs.File) void {
     };
 
     file.close();
-    std.fs.deleteFileAbsolute(temp_path) catch |err| {
+    if (!config.keep_temp) std.fs.deleteFileAbsolute(temp_path) catch |err| {
         log.err("Failed ({s}) to delete temporary file: {s}", .{ @errorName(err), temp_path });
     };
     _ = self.temps.remove(file);
@@ -111,37 +112,43 @@ pub fn delTemp(self: *This, file: std.fs.File) void {
 pub fn deinit(self: *This) void {
     if (self.temps.count() > 0) {
         log.warn("Transaction deinit called with uncleaned temporary files. Cleaning up...", .{});
-        var iterator = self.temps.iterator();
-        while (iterator.next()) |entry| {
-            entry.key_ptr.close();
-            std.fs.deleteFileAbsolute(entry.value_ptr.*) catch |err| {
-                log.err("Failed ({s}) to delete temporary file: {s}", .{ @errorName(err), entry.value_ptr.* });
-            };
-            self.allocator.free(entry.value_ptr.*);
-        }
-        self.temps.clearAndFree();
+        self.eraseAndClearTemps();
     }
 
     std.debug.assert(self.backups.count() == 0);
     self.backups.deinit();
 }
 
-fn eraseBackups(self: *This) !void {
-    var iterator = self.backups.valueIterator();
-    while (iterator.next()) |backup| {
-        log.debug("Erasing '{s}'", .{backup.*});
-        try std.fs.deleteFileAbsolute(backup.*);
-    }
-    self.clearBackups();
-}
-
-fn clearBackups(self: *This) void {
+fn eraseAndClearBackups(self: *This) void {
     var iterator = self.backups.iterator();
-    while (iterator.next()) |backup| {
-        self.allocator.free(backup.key_ptr.*);
-        self.allocator.free(backup.value_ptr.*);
+    while (iterator.next()) |entry| {
+        const backup_path = entry.value_ptr.*;
+        const original_path = entry.key_ptr.*;
+        if (!config.keep_temp) {
+            log.debug("Erasing '{s}'", .{backup_path});
+            std.fs.deleteFileAbsolute(backup_path) catch |err| {
+                log.warn("Failed ({s}) to delete transaction file: {s}", .{ @errorName(err), backup_path });
+            };
+        }
+        self.allocator.free(backup_path);
+        self.allocator.free(original_path);
     }
     self.backups.clearAndFree();
+}
+
+fn eraseAndClearTemps(self: *This) void {
+    var iterator = self.temps.iterator();
+    while (iterator.next()) |entry| {
+        const file = entry.key_ptr.*;
+        const path = entry.value_ptr.*;
+
+        file.close();
+        if (!config.keep_temp) std.fs.deleteFileAbsolute(path) catch |err| {
+            log.warn("Failed ({s}) to delete temporary file: {s}", .{ @errorName(err), path });
+        };
+        self.allocator.free(path);
+    }
+    self.temps.clearAndFree();
 }
 
 fn makePath(self: *This, comptime filename_format: []const u8, allocator: std.mem.Allocator) ![]const u8 {

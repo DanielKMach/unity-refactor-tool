@@ -5,6 +5,7 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
 
     const profile = b.option(bool, "profile", "Enable profiling") orelse false;
+    const keep_temp = b.option(bool, "keep-temp", "Keep transaction and temp files.") orelse false;
 
     const install_step = b.getInstallStep();
     const run_step = b.step("run", "Run the CLI");
@@ -18,6 +19,7 @@ pub fn build(b: *std.Build) void {
 
     const options = b.addOptions();
     options.addOption(bool, "profiling", profile);
+    options.addOption(bool, "keep_temp", keep_temp);
     const config = options.createModule();
 
     const mod = b.addModule("urt", .{

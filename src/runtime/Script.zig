@@ -39,7 +39,7 @@ pub fn run(this: This, options: RunConfig) !core.results.RuntimeResult(void) {
             },
         }
     }
-    try transaction.commit();
+    transaction.commit();
     return .OK(void{});
 }
 
