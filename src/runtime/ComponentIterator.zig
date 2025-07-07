@@ -111,7 +111,7 @@ fn findNextComponent(reader: std.fs.File.Reader, seekable: std.fs.File.SeekableS
     }
 }
 
-pub fn patch(self: This, out: std.fs.File, components: []Component) PatchError!void {
+pub fn patch(self: This, out: std.fs.File, components: []const Component) PatchError!void {
     var bufwtr = std.io.bufferedWriter(out.writer());
 
     const writer = bufwtr.writer();

@@ -130,11 +130,11 @@ pub fn run(self: This, data: RuntimeEnv) !results.RuntimeResult(void) {
         .in = in,
     };
 
-    const search_result = try show.search(data, null, null);
-    if (search_result.isErr()) |err| {
-        return .ERR(err);
-    }
-    const target_assets = search_result.ok;
+    const target_assets = switch (try show.search(data, null, null)) {
+        .ok => |r| r,
+        .err => |err| return .ERR(err),
+    };
+
     defer {
         for (target_assets) |asset| {
             data.allocator.free(asset);
@@ -142,58 +142,49 @@ pub fn run(self: This, data: RuntimeEnv) !results.RuntimeResult(void) {
         data.allocator.free(target_assets);
     }
 
-    // Parsing files and storing the changes
-    const updated = try self.updateAll(target_assets, data, guid);
-    defer {
-        for (updated) |mod| {
-            mod.modifications.close();
-            data.cwd.deleteFile(&mod.cache_path) catch {};
-        }
-        data.allocator.free(updated);
-    }
-
-    // Apply changes
-    try applyAll(updated, data.cwd);
-
+    try self.updateAll(target_assets, data, guid);
     return .OK(void{});
 }
 
-pub fn updateAll(self: This, asset_paths: []const []const u8, data: RuntimeEnv, guid: []const GUID) ![]Mod {
+pub fn updateAll(self: This, asset_paths: []const []const u8, data: RuntimeEnv, guid: []const GUID) !void {
     core.profiling.begin(updateAll);
     defer core.profiling.stop();
 
-    var updated = std.ArrayList(Mod).init(data.allocator);
-    defer updated.deinit();
-
     for (asset_paths) |path| {
-        const file = data.cwd.openFile(path, .{ .mode = .read_only }) catch |err| {
+        try data.transaction.include(path);
+
+        try data.out.print("Updating '{s}'...", .{std.fs.path.basename(path)});
+
+        const file = data.cwd.openFile(path, .{ .mode = .read_write }) catch |err| {
             log.warn("Error ({s}) opening file: '{s}'", .{ @errorName(err), path });
             continue;
         };
         defer file.close();
 
-        const mod = try self.scopeAndReplace(data, file, path, guid) orelse continue;
-        try updated.append(mod);
-    }
+        const changes = try self.findAndReplace(file, guid, data);
+        defer data.allocator.free(changes);
+        defer for (changes) |c| data.allocator.free(c.document);
 
-    return try updated.toOwnedSlice();
+        if (changes.len != 0) {
+            try applyChanges(file, changes, data);
+        }
+
+        if (changes.len == 0) {
+            try data.out.print(" UNCHANGED.\r\n", .{});
+        } else {
+            try data.out.print(" DONE.\r\n", .{});
+        }
+    }
 }
 
-pub fn scopeAndReplace(self: This, data: RuntimeEnv, file: std.fs.File, path: []const u8, guid: []const GUID) !?Mod {
-    core.profiling.begin(scopeAndReplace);
+pub fn findAndReplace(self: This, file: std.fs.File, guid: []const GUID, data: RuntimeEnv) ![]ComponentIterator.Component {
+    core.profiling.begin(findAndReplace);
     defer core.profiling.stop();
 
     var iterator = ComponentIterator.init(file, data.allocator);
     defer iterator.deinit();
     var modified = std.ArrayList(ComponentIterator.Component).init(data.allocator);
-    defer {
-        for (modified.items) |comp| {
-            data.allocator.free(comp.document);
-        }
-        modified.deinit();
-    }
-
-    try data.out.print("Updating '{s}'...", .{std.fs.path.basename(path)});
+    defer modified.deinit();
 
     while (try iterator.next()) |comp| {
         var yaml = Yaml.init(.{ .string = comp.document }, null, data.allocator);
@@ -211,53 +202,19 @@ pub fn scopeAndReplace(self: This, data: RuntimeEnv, file: std.fs.File, path: []
         });
     }
 
-    if (modified.items.len == 0) {
-        try data.out.print(" UNCHANGED.\r\n", .{});
-        return null;
-    } else {
-        try data.out.print(" DONE.\r\n", .{});
-    }
-
-    const mod = try Mod.new(path, data.cwd);
-    try iterator.patch(mod.modifications, modified.items);
-
-    return mod;
+    return try modified.toOwnedSlice();
 }
 
-pub fn applyAll(mods: []Mod, cwd: std.fs.Dir) !void {
-    core.profiling.begin(applyAll);
-    defer core.profiling.stop();
+pub fn applyChanges(file: std.fs.File, changes: []const ComponentIterator.Component, env: RuntimeEnv) !void {
+    var iterator = ComponentIterator.init(file, env.allocator);
+    defer iterator.deinit();
 
-    for (mods) |mod| {
-        const path = mod.path;
-        const cache = mod.modifications;
+    const temp = try env.transaction.getTemp();
+    defer env.transaction.delTemp(temp);
 
-        const file = try cwd.createFile(path, .{ .lock = .exclusive, .truncate = true });
-        defer file.close();
+    try iterator.patch(temp, changes);
 
-        try file.writeFileAll(cache, .{});
-    }
+    try file.seekTo(0);
+    try temp.seekTo(0);
+    try file.writeFileAll(temp, .{});
 }
-
-const Mod = struct {
-    path: []const u8,
-    cache_path: [8]u8,
-    modifications: std.fs.File,
-
-    pub fn new(path: []const u8, cwd: std.fs.Dir) !Mod {
-        var name: [8]u8 = undefined;
-        const hash = std.hash.Adler32.hash(path);
-        _ = try std.fmt.bufPrint(&name, "{x:0>8}", .{hash});
-        const cache_file = try cwd.createFile(&name, .{ .lock = .exclusive, .truncate = true, .read = true });
-
-        return Mod{
-            .path = path,
-            .cache_path = name,
-            .modifications = cache_file,
-        };
-    }
-
-    pub fn close(self: *Mod) void {
-        self.modifications.close();
-    }
-};
