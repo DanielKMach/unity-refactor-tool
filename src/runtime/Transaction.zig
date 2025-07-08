@@ -9,7 +9,7 @@ const log = std.log.scoped(.transaction);
 
 pub const IncludeError = std.fs.File.OpenError || std.fs.File.WriteFileError || MakePathError || std.mem.Allocator.Error;
 pub const GetTempError = std.fs.File.OpenError || MakePathError || std.mem.Allocator.Error;
-const MakePathError = std.fs.Dir.RealPathAllocError || std.mem.Allocator.Error;
+pub const MakePathError = std.fs.Dir.RealPathError || std.mem.Allocator.Error;
 
 allocator: std.mem.Allocator,
 backups: std.StringHashMap([]const u8),
@@ -68,8 +68,8 @@ pub fn rollback(self: *This) void {
     log.info("Rolling back changes...", .{});
     var iterator = self.backups.iterator();
     while (iterator.next()) |backup| {
-        const backup_path = backup.key_ptr.*;
-        const original_path = backup.value_ptr.*;
+        const original_path = backup.key_ptr.*;
+        const backup_path = backup.value_ptr.*;
 
         const backup_file = std.fs.openFileAbsolute(backup_path, .{ .mode = .read_only }) catch |err| {
             log.err("Failed ({s}) to open backup file: {s}", .{ @errorName(err), backup_path });
@@ -135,7 +135,6 @@ fn eraseAndClearBackups(self: *This) void {
         const backup_path = entry.value_ptr.*;
         const original_path = entry.key_ptr.*;
         if (!config.keep_temp) {
-            log.debug("Erasing '{s}'", .{backup_path});
             std.fs.deleteFileAbsolute(backup_path) catch |err| {
                 log.warn("Failed ({s}) to delete transaction file: {s}", .{ @errorName(err), backup_path });
             };
@@ -162,13 +161,13 @@ fn eraseAndClearTemps(self: *This) void {
 }
 
 fn makePath(self: *This, comptime filename_format: []const u8, allocator: std.mem.Allocator) MakePathError![]const u8 {
-    const file_name = try std.fmt.allocPrint(allocator, filename_format, .{self.rand.next()});
-    defer allocator.free(file_name);
+    var buf: [filename_format.len - 3 + 16]u8 = undefined; // -3 to remove the {x} tag, +16 because thats how many chars a u64 can have in hexdecimal.
+    const file_name = std.fmt.bufPrint(&buf, filename_format, .{self.rand.next()}) catch unreachable; // We just counted the precise amount.
     return try makeAbsPath(file_name, allocator);
 }
 
 fn makeAbsPath(file_name: []const u8, allocator: std.mem.Allocator) MakePathError![]const u8 {
-    const dir_path = try std.fs.cwd().realpathAlloc(allocator, ".");
-    defer allocator.free(dir_path);
+    var buf: [std.fs.max_path_bytes]u8 = undefined;
+    const dir_path = try std.fs.cwd().realpath(".", &buf);
     return try std.fs.path.join(allocator, &.{ dir_path, file_name });
 }
