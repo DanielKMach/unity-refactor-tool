@@ -15,7 +15,7 @@ pub fn run(this: This, options: RunConfig) !core.results.RuntimeResult(void) {
     var arena = std.heap.ArenaAllocator.init(options.allocator);
     defer arena.deinit();
 
-    var transaction = core.runtime.Transaction.init(arena.allocator());
+    var transaction = core.runtime.Transaction.init(options.allocator);
     defer transaction.deinit();
     errdefer transaction.rollback();
 
@@ -29,12 +29,9 @@ pub fn run(this: This, options: RunConfig) !core.results.RuntimeResult(void) {
     for (this.statements) |stmt| {
         defer _ = arena.reset(.retain_capacity);
         const result = try stmt.run(env);
-        switch (result) {
-            .ok => {},
-            .err => |err| {
-                transaction.rollback();
-                return .ERR(err);
-            },
+        if (result.isErr()) |err| {
+            transaction.rollback();
+            return .ERR(err);
         }
     }
     transaction.commit();
