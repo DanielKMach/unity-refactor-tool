@@ -101,27 +101,27 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
     });
 }
 
-pub fn run(self: This, data: RuntimeEnv) !results.RuntimeResult(void) {
+pub fn run(self: This, env: RuntimeEnv) !results.RuntimeResult(void) {
     core.profiling.begin(run);
     defer core.profiling.stop();
 
     const in = self.in;
     const of = self.of;
 
-    var dir = in.openDir(data, .{ .iterate = true, .access_sub_paths = true }) catch {
+    var dir = in.openDir(env, .{ .iterate = true, .access_sub_paths = true }) catch {
         return .ERR(.{
             .invalid_path = .{ .path = in.dir },
         });
     };
     defer dir.close();
 
-    const guid = switch (try of.getGUID(data.cwd, data.allocator)) {
+    const guids = switch (try of.getGUID(env.cwd, env.allocator)) {
         .ok => |v| v,
         .err => |err| return .ERR(err),
     };
     defer {
-        for (guid) |g| g.deinit(data.allocator);
-        data.allocator.free(guid);
+        for (guids) |g| g.deinit(env.allocator);
+        env.allocator.free(guids);
     }
 
     const show = core.stmt.Show{
@@ -130,68 +130,82 @@ pub fn run(self: This, data: RuntimeEnv) !results.RuntimeResult(void) {
         .in = in,
     };
 
-    const target_assets = switch (try show.search(data, null, null)) {
+    const target_assets = switch (try show.search(env, null, null)) {
         .ok => |r| r,
         .err => |err| return .ERR(err),
     };
 
     defer {
         for (target_assets) |asset| {
-            data.allocator.free(asset);
+            env.allocator.free(asset);
         }
-        data.allocator.free(target_assets);
+        env.allocator.free(target_assets);
     }
 
-    try self.updateAll(target_assets, data, guid);
+    try self.updateAll(target_assets, guids, env);
     return .OK(void{});
 }
 
-pub fn updateAll(self: This, asset_paths: []const []const u8, data: RuntimeEnv, guid: []const GUID) !void {
+pub fn updateAll(self: This, asset_paths: []const []const u8, guids: []const GUID, env: RuntimeEnv) !void {
     core.profiling.begin(updateAll);
     defer core.profiling.stop();
 
     for (asset_paths) |path| {
-        try data.transaction.include(path);
+        try env.transaction.include(path);
 
-        try data.out.print("Updating '{s}'...", .{std.fs.path.basename(path)});
+        try env.out.print("Updating '{s}'...", .{std.fs.path.basename(path)});
 
-        const file = data.cwd.openFile(path, .{ .mode = .read_write }) catch |err| {
-            log.warn("Error ({s}) opening file: '{s}'", .{ @errorName(err), path });
-            continue;
-        };
+        var file = try std.fs.openFileAbsolute(path, .{ .mode = .read_write });
         defer file.close();
 
-        const changes = try self.findAndReplace(file, guid, data);
-        defer data.allocator.free(changes);
-        defer for (changes) |c| data.allocator.free(c.document);
+        const temp = try env.transaction.getTemp();
+        defer env.transaction.delTemp(temp);
 
-        if (changes.len != 0) {
-            try applyChanges(file, changes, data);
+        if (!try self.findAndReplace(file, temp, guids, env.allocator)) {
+            try env.out.print(" UNCHANGED.\r\n", .{});
+            continue;
         }
+        file.close();
 
-        if (changes.len == 0) {
-            try data.out.print(" UNCHANGED.\r\n", .{});
-        } else {
-            try data.out.print(" DONE.\r\n", .{});
-        }
+        file = try std.fs.createFileAbsolute(path, .{ .truncate = true });
+        try file.writeFileAll(temp, .{});
+
+        try env.out.print(" DONE.\r\n", .{});
     }
 }
 
-pub fn findAndReplace(self: This, file: std.fs.File, guid: []const GUID, data: RuntimeEnv) ![]ComponentIterator.Component {
+pub fn findAndReplace(self: This, asset: std.fs.File, out: std.fs.File, guids: []const GUID, allocator: std.mem.Allocator) !bool {
     core.profiling.begin(findAndReplace);
     defer core.profiling.stop();
 
-    var iterator = ComponentIterator.init(file, data.allocator);
+    var iterator = ComponentIterator.init(asset, allocator);
     defer iterator.deinit();
-    var modified = std.ArrayList(ComponentIterator.Component).init(data.allocator);
+
+    const changes = try self.computeChanges(&iterator, guids, allocator);
+    defer allocator.free(changes);
+    defer for (changes) |c| allocator.free(c.document);
+
+    if (changes.len != 0) {
+        try iterator.patch(out, changes);
+    }
+
+    return changes.len != 0;
+}
+
+pub fn computeChanges(self: This, iterator: *ComponentIterator, guid: []const GUID, allocator: std.mem.Allocator) ![]ComponentIterator.Component {
+    core.profiling.begin(computeChanges);
+    defer core.profiling.stop();
+
+    var modified = std.ArrayList(ComponentIterator.Component).init(allocator);
     defer modified.deinit();
 
     while (try iterator.next()) |comp| {
-        var yaml = Yaml.init(.{ .string = comp.document }, null, data.allocator);
+        var yaml = Yaml.init(.{ .string = comp.document }, null, allocator);
 
         if (!(core.stmt.Show.matchScriptOrPrefabGUID(guid, &yaml) catch false)) continue;
 
-        var buf = try data.allocator.alloc(u8, comp.len * 2);
+        var buf = try allocator.alloc(u8, comp.len * 2);
+        errdefer allocator.free(buf);
         yaml.out = .{ .string = &buf };
         try yaml.rename(self.old_name, self.new_name);
 
@@ -203,18 +217,4 @@ pub fn findAndReplace(self: This, file: std.fs.File, guid: []const GUID, data: R
     }
 
     return try modified.toOwnedSlice();
-}
-
-pub fn applyChanges(file: std.fs.File, changes: []const ComponentIterator.Component, env: RuntimeEnv) !void {
-    var iterator = ComponentIterator.init(file, env.allocator);
-    defer iterator.deinit();
-
-    const temp = try env.transaction.getTemp();
-    defer env.transaction.delTemp(temp);
-
-    try iterator.patch(temp, changes);
-
-    try file.seekTo(0);
-    try temp.seekTo(0);
-    try file.writeFileAll(temp, .{});
 }
