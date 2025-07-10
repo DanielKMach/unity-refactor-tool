@@ -111,14 +111,12 @@ fn findNextComponent(reader: std.fs.File.Reader, seekable: std.fs.File.SeekableS
     }
 }
 
-pub fn patch(self: This, out: std.fs.File, components: []Component) PatchError!void {
-    var bufwtr = std.io.bufferedWriter(out.writer());
+pub fn patch(self: This, out: std.fs.File, components: []const Component) PatchError!void {
+    try self.file.seekTo(0);
+    try out.seekTo(0);
 
-    const writer = bufwtr.writer();
+    const writer = out.writer();
     const reader = self.file.reader();
-    const seekable = self.file.seekableStream();
-
-    try seekable.seekTo(0);
     var buf: [4096]u8 = undefined;
 
     var i: usize = 0;
@@ -134,7 +132,7 @@ pub fn patch(self: This, out: std.fs.File, components: []Component) PatchError!v
             i += count;
         }
         _ = try writer.write(comp.document);
-        try seekable.seekTo(comp.index + comp.len);
+        try self.file.seekTo(comp.index + comp.len);
     }
 
     while (true) {
@@ -142,6 +140,4 @@ pub fn patch(self: This, out: std.fs.File, components: []Component) PatchError!v
         if (count == 0) break;
         _ = try writer.write(buf[0..count]);
     }
-
-    try bufwtr.flush();
 }

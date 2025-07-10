@@ -2,6 +2,7 @@ const std = @import("std");
 const core = @import("core");
 
 const This = @This();
+const log = std.log.scoped(.script);
 
 allocator: std.mem.Allocator,
 statements: []core.stmt.Statement,
@@ -14,19 +15,26 @@ pub fn run(this: This, options: RunConfig) !core.results.RuntimeResult(void) {
     var arena = std.heap.ArenaAllocator.init(options.allocator);
     defer arena.deinit();
 
+    var transaction = core.runtime.Transaction.init(options.allocator);
+    defer transaction.deinit();
+    errdefer transaction.rollback();
+
+    const env = core.runtime.RuntimeEnv{
+        .allocator = arena.allocator(),
+        .transaction = &transaction,
+        .out = options.out,
+        .cwd = options.cwd,
+    };
+
     for (this.statements) |stmt| {
         defer _ = arena.reset(.retain_capacity);
-        const data = core.runtime.RuntimeEnv{
-            .allocator = arena.allocator(),
-            .out = options.out,
-            .cwd = options.cwd,
-        };
-        const result = try stmt.run(data);
-        switch (result) {
-            .ok => {},
-            .err => |err| return .ERR(err),
+        const result = try stmt.run(env);
+        if (result.isErr()) |err| {
+            transaction.rollback();
+            return .ERR(err);
         }
     }
+    transaction.commit();
     return .OK(void{});
 }
 
