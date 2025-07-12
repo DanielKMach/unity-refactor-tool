@@ -210,36 +210,12 @@ pub const TokenIterator = struct {
     }
 
     /// Returns the amount of tokens left to iterate.
-    pub fn len(self: TokenIterator) usize {
+    pub fn remaining(self: TokenIterator) usize {
         return self.tokens.len - @as(usize, @intCast(self.index + 1));
     }
 
     /// Resets the iterator to the beginning as if it was just created.
     pub fn reset(self: *TokenIterator) void {
         self.index = -1;
-    }
-
-    /// Splits the given slice of tokens by the given delimiter token.
-    ///
-    /// The delimiter token is included at the end of each resulting iterator.
-    ///
-    /// Useful for separating statements or expressions in a script.
-    ///
-    /// The returned slice is owned by the caller.
-    pub fn split(tokens: []const Token, delimiter: Token.Type, allocator: std.mem.Allocator) std.mem.Allocator.Error![]TokenIterator {
-        var list = std.ArrayList(TokenIterator).init(allocator);
-        defer list.deinit();
-        var start: usize = 0;
-
-        for (tokens, 0..) |tkn, i| {
-            if (tkn.is(delimiter)) {
-                try list.append(.init(tokens[start .. i + 1]));
-                start = i + 1;
-                continue;
-            }
-        }
-        try list.append(.init(tokens[start..]));
-
-        return list.toOwnedSlice();
     }
 };
