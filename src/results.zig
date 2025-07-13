@@ -36,16 +36,21 @@ pub fn Result(T: type, E: type) type {
 pub const ParseErrorType = @typeInfo(ParseError).@"union".tag_type orelse unreachable;
 
 pub const ParseError = union(enum) {
-    unknown: void,
+    // Syntax related errors
     never_closed_string: struct {
         index: usize,
     },
+    unexpected_character: struct {
+        character: *const u8,
+    },
+    invalid_number: struct {
+        slice: []const u8,
+    },
+
+    // Token related errors
     unexpected_token: struct {
         expected: []const Token.Type,
         found: Token,
-    },
-    unexpected_character: struct {
-        character: *const u8,
     },
     invalid_guid: struct {
         token: Token,
@@ -55,10 +60,21 @@ pub const ParseError = union(enum) {
         token: Token,
         identifier: []const u8,
     },
-    invalid_number: struct {
-        slice: []const u8,
+
+    // Clause related errors
+    duplicate_clause: struct {
+        clause: []const u8,
+        first: Token,
+        second: Token,
     },
+    missing_clause: struct {
+        clause: []const u8,
+        placement: Token,
+    },
+
+    // Generic errors
     multiple: []const ParseError,
+    unknown: void,
 };
 
 pub fn ParseResult(T: type) type {

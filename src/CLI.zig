@@ -121,14 +121,14 @@ pub fn printParseError(out: std.fs.File.Writer, errUnion: urt.results.ParseError
             {
                 ansi.begin("r");
                 defer ansi.end("r");
-            try out.print("Unexpected token '{s}'", .{@tagName(err.found.value)});
-            if (err.expected.len > 0) try out.print(", expected ", .{});
-            for (err.expected, 0..) |expected_type, i| {
-                if (i > 0 and i != err.expected.len - 1) try out.print(", ", .{});
-                if (i != 0 and i == err.expected.len - 1) try out.print(" or ", .{});
-                try out.print("{s}", .{@tagName(expected_type)});
-            }
-            try out.print("\r\n", .{});
+                try out.print("Unexpected token '{s}'", .{@tagName(err.found.value)});
+                if (err.expected.len > 0) try out.print(", expected ", .{});
+                for (err.expected, 0..) |expected_type, i| {
+                    if (i > 0 and i != err.expected.len - 1) try out.print(", ", .{});
+                    if (i != 0 and i == err.expected.len - 1) try out.print(" or ", .{});
+                    try out.print("{s}", .{@tagName(expected_type)});
+                }
+                try out.print("\r\n", .{});
             }
             try printLineHighlight(out, command, err.found.lexeme);
         },
@@ -147,6 +147,16 @@ pub fn printParseError(out: std.fs.File.Writer, errUnion: urt.results.ParseError
         .invalid_number => |err| {
             try ansi.print("r", "Invalid number '{s}'\r\n", .{err.slice});
             try printLineHighlight(out, command, err.slice);
+        },
+        .duplicate_clause => |err| {
+            try ansi.print("r", "Duplicate clause '{s}' appeared at:\r\n", .{err.clause});
+            try printLineHighlight(out, command, err.first.lexeme);
+            try ansi.print("r", "But also at:\r\n", .{});
+            try printLineHighlight(out, command, err.second.lexeme);
+        },
+        .missing_clause => |err| {
+            try ansi.print("r", "Missing clause '{s}'\r\n", .{err.clause});
+            try printLineHighlight(out, command, command);
         },
         .multiple => |errs| {
             for (errs) |err| {
@@ -277,14 +287,14 @@ pub const ANSI = struct {
                 'r', 'g', 'b', 'y', 'c', 'm' => "\x1B[39m",
                 else => continue,
             }) catch continue;
-    }
+        }
     }
 
     pub fn print(self: ANSI, tags: []const u8, comptime format: []const u8, args: anytype) !void {
         if (!self.enabled) {
             try self.out.print(format, args);
             return;
-    }
+        }
 
         self.begin(tags);
         defer self.end(tags);
