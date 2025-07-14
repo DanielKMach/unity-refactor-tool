@@ -17,6 +17,22 @@ pub const Statement = union(enum) {
 
     const fields = @typeInfo(Statement).@"union".fields;
 
+    comptime {
+        for (fields) |f| {
+            const Stmt = f.type;
+            const info = @typeInfo(Stmt);
+            if (info != .@"struct") {
+                @compileError("Invalid type for field '" ++ f.name ++ "', expected a struct, got " ++ @tagName(info));
+            }
+            if (!@hasDecl(Stmt, "parse") or @TypeOf(Stmt.parse) != fn (*core.language.Tokenizer.TokenIterator) anyerror!ParseResult(Stmt)) {
+                @compileError("Invalid parse function for field '" ++ f.name ++ "', expected signature: fn (*language.Tokenizer.TokenIterator) anyerror!results.ParseResult(" ++ @typeName(Stmt) ++ ")");
+            }
+            if (!@hasDecl(Stmt, "run") or @TypeOf(Stmt.run) != fn (Stmt, core.runtime.RuntimeEnv) anyerror!RuntimeResult(void)) {
+                @compileError("Invalid run function for field '" ++ f.name ++ "', expected signature: fn (" ++ @typeName(Stmt) ++ ", runtime.RuntimeEnv) anyerror!results.RuntimeResult(void)");
+            }
+        }
+    }
+
     pub fn init(stmt: anytype) !Statement {
         inline for (fields) |fld| {
             if (fld.type == @TypeOf(stmt)) {
