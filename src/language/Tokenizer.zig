@@ -157,8 +157,8 @@ pub const TokenIterator = struct {
     /// It is not recommended to modify this slice while the iterator is in use.
     tokens: []const Token,
 
-    /// The current index in the slice.
-    index: isize = -1,
+    /// The index of the next token to yield.
+    index: usize = 0,
 
     /// Initializes a new TokenIterator with the given slice of tokens.
     ///
@@ -168,7 +168,7 @@ pub const TokenIterator = struct {
     pub fn init(tokens: []const Token) TokenIterator {
         return TokenIterator{
             .tokens = tokens,
-            .index = -1,
+            .index = 0,
         };
     }
 
@@ -176,11 +176,11 @@ pub const TokenIterator = struct {
     ///
     /// If out of bounds, returns the last token (usually end-of-statement)
     pub fn next(self: *TokenIterator) Token {
-        if (self.index + 1 >= self.tokens.len) {
+        if (self.index >= self.tokens.len) {
             return self.tokens[self.tokens.len - 1];
         }
-        self.index += 1;
-        return self.tokens[@intCast(self.index)];
+        defer self.index += 1;
+        return self.tokens[self.index];
     }
 
     /// Returns the token `steps` steps ahead of the current index.
@@ -190,13 +190,13 @@ pub const TokenIterator = struct {
     ///
     /// If out of bounds, returns the last token (usually end-of-statement)
     pub fn peek(self: TokenIterator, steps: usize) Token {
-        const i = self.index + @as(isize, @intCast(steps));
+        if (self.index == 0 and steps == 0) @panic("Cannot peek at 0 before the start of the iterator");
+        const i: usize = self.index + steps - 1;
         if (i >= self.tokens.len) {
             return self.tokens[self.tokens.len - 1];
         }
-        if (i < 0) @panic("Cannot peek before the start of the iterator");
 
-        return self.tokens[@intCast(i)];
+        return self.tokens[i];
     }
 
     /// Checks if the next token matches the given type.
@@ -211,11 +211,11 @@ pub const TokenIterator = struct {
 
     /// Returns the amount of tokens left to iterate.
     pub fn remaining(self: TokenIterator) usize {
-        return self.tokens.len - @as(usize, @intCast(self.index + 1));
+        return self.tokens.len - self.index;
     }
 
     /// Resets the iterator to the beginning as if it was just created.
     pub fn reset(self: *TokenIterator) void {
-        self.index = -1;
+        self.index = 0;
     }
 };
