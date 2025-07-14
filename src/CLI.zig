@@ -156,7 +156,7 @@ pub fn printParseError(out: std.fs.File.Writer, errUnion: urt.results.ParseError
         },
         .missing_clause => |err| {
             try ansi.print("r", "Missing clause '{s}'\r\n", .{err.clause});
-            try printLineHighlight(out, command, command);
+            try printLineHighlight(out, command, err.placement.lexeme);
         },
         .multiple => |errs| {
             for (errs) |err| {
