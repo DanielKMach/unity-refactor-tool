@@ -35,7 +35,6 @@ pub const Statement = union(enum) {
                     else => |errr| return .ERR(errr),
                 },
             }
-            tokens.reset();
         }
         return .ERR(.{ .unknown = void{} });
     }
