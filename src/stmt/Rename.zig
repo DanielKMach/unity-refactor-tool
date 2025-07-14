@@ -20,7 +20,7 @@ new_name: []const u8,
 of: AssetTarget,
 in: InTarget,
 
-pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
+pub fn parse(tokens: *Tokenizer.TokenIterator) anyerror!results.ParseResult(This) {
     core.profiling.begin(parse);
     defer core.profiling.stop();
 
@@ -28,8 +28,6 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
 
     var old_name: []const u8 = undefined;
     var new_name: []const u8 = undefined;
-    var of: ?AssetTarget = null;
-    var in: ?InTarget = null;
 
     switch (tokens.next().value) {
         .string => |str| old_name = str,
@@ -60,48 +58,24 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
         }),
     }
 
-    clses: switch (tokens.peek(1).value) {
-        .OF => {
-            if (of != null) continue :clses .RENAME;
-            of = switch (try AssetTarget.parse(tokens)) {
-                .ok => |v| v,
-                .err => |err| return .ERR(err),
-            };
-            continue :clses tokens.peek(1).value;
-        },
-        .IN => {
-            if (in != null) continue :clses .RENAME;
-            in = switch (try InTarget.parse(tokens)) {
-                .ok => |v| v,
-                .err => |err| return .ERR(err),
-            };
-            continue :clses tokens.peek(1).value;
-        },
-        .eos => break :clses,
-        else => return .ERR(.{
-            .unexpected_token = .{
-                .found = tokens.next(),
-                .expected = &.{.eos},
-            },
-        }),
-    }
-
-    if (of == null) return .ERR(.{
-        .unexpected_token = .{
-            .found = tokens.next(),
-            .expected = &.{.OF},
-        },
-    });
+    const Clauses = struct {
+        OF: AssetTarget,
+        IN: InTarget = InTarget.default,
+    };
+    const clauses = switch (try core.stmt.clse.parse(Clauses, tokens)) {
+        .ok => |clses| clses,
+        .err => |err| return .ERR(err),
+    };
 
     return .OK(.{
         .old_name = old_name,
         .new_name = new_name,
-        .of = of.?,
-        .in = in orelse InTarget.default,
+        .of = clauses.OF,
+        .in = clauses.IN,
     });
 }
 
-pub fn run(self: This, env: RuntimeEnv) !results.RuntimeResult(void) {
+pub fn run(self: This, env: RuntimeEnv) anyerror!results.RuntimeResult(void) {
     core.profiling.begin(run);
     defer core.profiling.stop();
 

@@ -9,16 +9,11 @@ const GUID = core.runtime.GUID;
 
 targets: std.BoundedArray(AssetTarget, 10),
 
-pub fn parse(tokens: *Tokenizer.TokenIterator) !results.ParseResult(This) {
+pub fn parse(tokens: *Tokenizer.TokenIterator) anyerror!results.ParseResult(This) {
     core.profiling.begin(parse);
     defer core.profiling.stop();
 
-    if (!tokens.match(.OF)) return .ERR(.{
-        .unexpected_token = .{
-            .found = tokens.peek(1),
-            .expected = &.{.OF},
-        },
-    });
+    if (!tokens.match(.OF)) return .ERR(.unknown);
 
     var targets = std.BoundedArray(AssetTarget, 10){};
 
