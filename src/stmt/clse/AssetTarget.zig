@@ -29,7 +29,6 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) anyerror!results.ParseResult(This
                     return .ERR(.{
                         .invalid_guid = .{
                             .token = tokens.peek(0),
-                            .guid = guid_str,
                         },
                     });
                 },
@@ -49,7 +48,6 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) anyerror!results.ParseResult(This
                 return .ERR(.{
                     .invalid_csharp_identifier = .{
                         .token = tokens.peek(0),
-                        .identifier = lit,
                     },
                 });
             },
