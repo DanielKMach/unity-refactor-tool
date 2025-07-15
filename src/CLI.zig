@@ -114,8 +114,8 @@ pub fn printParseError(out: std.fs.File.Writer, errUnion: urt.results.ParseError
             try ansi.print("r", "Unknown statement\r\n", .{});
         },
         .never_closed_string => |err| {
-            try ansi.print("r", "Never closed string at index {d}\r\n", .{err.index});
-            try printLineHighlightRange(out, command, err.index, err.index);
+            try ansi.print("r", "Never closed string at index {d}\r\n", .{err.location.index});
+            try printLineHighlight(out, command, err.location);
         },
         .unexpected_token => |err| {
             {
@@ -130,33 +130,33 @@ pub fn printParseError(out: std.fs.File.Writer, errUnion: urt.results.ParseError
                 }
                 try out.print("\r\n", .{});
             }
-            try printLineHighlight(out, command, err.found.lexeme);
+            try printLineHighlight(out, command, err.found.loc);
         },
         .unexpected_character => |err| {
-            try ansi.print("r", "Unexpected character '{c}'\r\n", .{err.character.*});
-            try printLineHighlight(out, command, err.character[0..1]);
+            try ansi.print("r", "Unexpected character '{s}'\r\n", .{err.location.lexeme(command)});
+            try printLineHighlight(out, command, err.location);
         },
         .invalid_csharp_identifier => |err| {
-            try ansi.print("r", "Invalid C# identifier '{s}'\r\n", .{err.identifier});
-            try printLineHighlight(out, command, err.token.lexeme);
+            try ansi.print("r", "Invalid C# identifier '{s}'\r\n", .{err.token.loc.lexeme(command)});
+            try printLineHighlight(out, command, err.token.loc);
         },
         .invalid_guid => |err| {
-            try ansi.print("r", "Invalid GUID '{s}'\r\n", .{err.guid});
-            try printLineHighlight(out, command, err.token.lexeme);
+            try ansi.print("r", "Invalid GUID '{s}'\r\n", .{err.token.loc.lexeme(command)});
+            try printLineHighlight(out, command, err.token.loc);
         },
         .invalid_number => |err| {
-            try ansi.print("r", "Invalid number '{s}'\r\n", .{err.slice});
-            try printLineHighlight(out, command, err.slice);
+            try ansi.print("r", "Invalid number '{s}'\r\n", .{err.location.lexeme(command)});
+            try printLineHighlight(out, command, err.location);
         },
         .duplicate_clause => |err| {
             try ansi.print("r", "Duplicate clause '{s}' appeared at:\r\n", .{err.clause});
-            try printLineHighlight(out, command, err.first.lexeme);
+            try printLineHighlight(out, command, err.first.loc);
             try ansi.print("r", "But also at:\r\n", .{});
-            try printLineHighlight(out, command, err.second.lexeme);
+            try printLineHighlight(out, command, err.second.loc);
         },
         .missing_clause => |err| {
             try ansi.print("r", "Missing clause '{s}'\r\n", .{err.clause});
-            try printLineHighlight(out, command, err.placement.lexeme);
+            try printLineHighlight(out, command, err.placement.loc);
         },
         .multiple => |errs| {
             for (errs) |err| {
@@ -180,22 +180,12 @@ pub fn printRuntimeError(out: std.fs.File.Writer, errUnion: urt.results.RuntimeE
     }
 }
 
-/// Shows a line with a highlight.
-/// Asserts that `highlight` is a slice of `source`.
-pub fn printLineHighlight(out: std.fs.File.Writer, source: []const u8, highlight: []const u8) !void {
-    const zero = @intFromPtr(source.ptr);
-    const offset = @intFromPtr(highlight.ptr) - zero;
-    const len = if (highlight.len == 0) 1 else highlight.len;
+pub fn printLineHighlight(out: std.fs.File.Writer, source: []const u8, loc: urt.language.Token.Location) !void {
+    const line_start = std.mem.lastIndexOf(u8, source[0..loc.index], "\n") orelse 0;
+    const line_end = (std.mem.indexOf(u8, source[loc.index..], "\n") orelse source[loc.index..].len) + loc.index;
+    const highlight_offset = loc.index - line_start;
 
-    try printLineHighlightRange(out, source, offset, len);
-}
-
-pub fn printLineHighlightRange(out: std.fs.File.Writer, source: []const u8, offset: usize, size: usize) !void {
-    const line_start = std.mem.lastIndexOf(u8, source[0..offset], "\n") orelse 0;
-    const line_end = (std.mem.indexOf(u8, source[offset..], "\n") orelse source[offset..].len) + offset;
-    const highlight_offset = offset - line_start;
-
-    const line_number = std.mem.count(u8, source[0..offset], "\n") + 1;
+    const line_number = std.mem.count(u8, source[0..loc.index], "\n") + 1;
     const line = source[line_start..line_end];
 
     const ansi = ANSI.init(out);
@@ -207,7 +197,7 @@ pub fn printLineHighlightRange(out: std.fs.File.Writer, source: []const u8, offs
 
     try out.writeByteNTimes(' ', highlight_offset);
     try out.writeByte('^');
-    if (size > 1) try out.writeByteNTimes('~', size - 1);
+    if (loc.len > 1) try out.writeByteNTimes('~', loc.len - 1);
 
     try out.print("\r\n", .{});
 }

@@ -89,26 +89,27 @@ pub fn token(self: *This) results.ParseResult(?Token) {
         const word = self.slice(start, 0);
         for (Token.keyword_list) |kw| {
             if (std.ascii.eqlIgnoreCase(word, kw[0])) {
-                return .OK(Token.new(kw[1], word));
+                return .OK(.new(kw[1], .fromSlice(self.source, word)));
             }
         } else {
-            return .OK(Token.new(.{ .literal = word }, word));
+            return .OK(.new(.{ .literal = word }, .fromSlice(self.source, word)));
         }
     } else if (self.match("\"'")) { // strings
         while (self.next()) |c| {
             if (c == self.at(start)) {
-                return .OK(Token.new(.{ .string = self.slice(start + 1, -1) }, self.slice(start, 0)));
+                const str = self.slice(start + 1, -1);
+                return .OK(.new(.{ .string = str }, .init(start, str.len + 2)));
             }
         } else {
-            return .ERR(.{ .never_closed_string = .{ .index = start } });
+            return .ERR(.{ .never_closed_string = .{ .location = .init(start, 1) } });
         }
     } else if (self.match(digit)) {
         while (self.match(digit ++ ".")) {}
         const number_literal = self.slice(start, 0);
         const number = std.fmt.parseFloat(f32, number_literal) catch {
-            return .ERR(.{ .invalid_number = .{ .slice = number_literal } });
+            return .ERR(.{ .invalid_number = .{ .location = .fromSlice(self.source, number_literal) } });
         };
-        return .OK(Token.new(.{ .number = number }, number_literal));
+        return .OK(.new(.{ .number = number }, .fromSlice(self.source, number_literal)));
     } else { // operators
         var best_match: ?@typeInfo(@TypeOf(Token.operator_list)).pointer.child = null;
         for (Token.operator_list) |op| {
@@ -119,9 +120,9 @@ pub fn token(self: *This) results.ParseResult(?Token) {
         }
         if (best_match) |operator| {
             defer self.index += operator[0].len;
-            return .OK(Token.new(operator[1], self.sliceForward(0, operator[0].len)));
+            return .OK(.new(operator[1], .init(self.index, operator[0].len)));
         } else {
-            return .ERR(.{ .unexpected_character = .{ .character = &self.sliceForward(0, 1)[0] } });
+            return .ERR(.{ .unexpected_character = .{ .location = .init(self.index, 1) } });
         }
     }
 }
@@ -145,11 +146,11 @@ pub fn tokenize(expression: []const u8, allocator: std.mem.Allocator) !results.P
     }
 
     if (!list.items[list.items.len - 1].is(.eos)) {
-        try list.append(Token.new(.eos, expression[expression.len..expression.len]));
+        try list.append(Token.new(.eos, .init(expression.len, 0)));
     }
 
     for (list.items) |tkn| {
-        log.info("Token({s}, <{s}>)", .{ @tagName(tkn.value), tkn.lexeme });
+        log.info("Token({s}, <{s}>)", .{ @tagName(tkn.value), tkn.loc.lexeme(expression) });
     }
 
     return .OK(try list.toOwnedSlice());

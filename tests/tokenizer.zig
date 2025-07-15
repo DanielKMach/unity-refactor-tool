@@ -135,7 +135,7 @@ test "never closed string" {
     const parse_result = tokenizer.token();
     try testing.expectEqual(ParseError{
         .never_closed_string = .{
-            .index = 14,
+            .location = .init(14, 1),
         },
     }, parse_result.isErr());
 }
@@ -152,7 +152,7 @@ test "invalid character" {
     const result = tokenizer.token();
     try testing.expectEqual(ParseError{
         .unexpected_character = .{
-            .character = &source[14],
+            .location = .init(14, 1),
         },
     }, result.isErr());
 }

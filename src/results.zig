@@ -38,13 +38,13 @@ pub const ParseErrorType = @typeInfo(ParseError).@"union".tag_type orelse unreac
 pub const ParseError = union(enum) {
     // Syntax related errors
     never_closed_string: struct {
-        index: usize,
+        location: core.language.Token.Location,
     },
     unexpected_character: struct {
-        character: *const u8,
+        location: core.language.Token.Location,
     },
     invalid_number: struct {
-        slice: []const u8,
+        location: core.language.Token.Location,
     },
 
     // Token related errors
@@ -54,11 +54,9 @@ pub const ParseError = union(enum) {
     },
     invalid_guid: struct {
         token: Token,
-        guid: []const u8,
     },
     invalid_csharp_identifier: struct {
         token: Token,
-        identifier: []const u8,
     },
 
     // Clause related errors
