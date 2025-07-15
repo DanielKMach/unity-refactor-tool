@@ -72,7 +72,13 @@ fn sliceForward(self: This, start_offset: isize, len: usize) []const u8 {
 }
 
 pub fn token(self: *This) results.ParseResult(?Token) {
-    while (self.match(whitespace)) {}
+    while (self.match(whitespace ++ "#")) {
+        if (self.at(self.index - 1) == '#') {
+            while (self.next()) |n| {
+                if (n == '\n') break;
+            }
+        }
+    }
     if (self.peek() == null) {
         return .OK(null);
     }

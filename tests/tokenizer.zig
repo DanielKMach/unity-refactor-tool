@@ -45,7 +45,6 @@ test "expression" {
         .{ .number = 1 },
         .slash,
         .{ .number = 0.5 },
-        .eos,
     }, &tokenizer);
 }
 
@@ -61,7 +60,6 @@ test "tight expression" {
         .{ .number = 1 },
         .slash,
         .{ .number = 0.5 },
-        .eos,
     }, &tokenizer);
 }
 
@@ -80,7 +78,6 @@ test "tight string literals" {
     try expectEqualTokenizerValues(&.{
         .{ .string = "hello world" },
         .{ .string = "hello world" },
-        .eos,
     }, &tokenizer);
 }
 
@@ -93,7 +90,6 @@ test "show statement" {
         .{ .literal = "PlayerScript" },
         .IN,
         .{ .string = "./Assets" },
-        .eos,
     }, &tokenizer);
 }
 
@@ -108,7 +104,6 @@ test "rename statement" {
         .{ .literal = "PlayerScript" },
         .IN,
         .{ .string = "./Assets" },
-        .eos,
     }, &tokenizer);
 }
 
@@ -125,7 +120,6 @@ test "eval statement" {
         .{ .literal = "PlayerScript" },
         .IN,
         .{ .string = "./Assets" },
-        .eos,
     }, &tokenizer);
 }
 
@@ -161,4 +155,51 @@ test "invalid character" {
             .character = &source[14],
         },
     }, result.isErr());
+}
+
+test "comment" {
+    const source = "# this is a comment";
+    var tokenizer = Tokenizer.init(source);
+    try testing.expectEqual(ParseResult(?Token).OK(null), tokenizer.token());
+}
+
+test "comment trailing newline" {
+    const source = "# this is a comment\n";
+    var tokenizer = Tokenizer.init(source);
+    try testing.expectEqual(ParseResult(?Token).OK(null), tokenizer.token());
+}
+
+test "comments" {
+    const source = "# this is a comment\nSHOW uses OF Player # this is an inline comment\n# this is a comment\n";
+    var tokenizer = Tokenizer.init(source);
+    try expectEqualTokenizerValues(&.{
+        .SHOW,
+        .USES,
+        .OF,
+        .{ .literal = "Player" },
+    }, &tokenizer);
+}
+
+test "comments with carriage return" {
+    const source = "# this is a comment\r\nSHOW uses OF Player # this is an inline comment\r\n# this is a comment\r\n";
+    var tokenizer = Tokenizer.init(source);
+    try expectEqualTokenizerValues(&.{
+        .SHOW,
+        .USES,
+        .OF,
+        .{ .literal = "Player" },
+    }, &tokenizer);
+}
+
+test "comments between statement" {
+    const source = "SHOW uses # this is an comment\nOF Player # this is another comment\nIN Assets # this is yet another comment\n";
+    var tokenizer = Tokenizer.init(source);
+    try expectEqualTokenizerValues(&.{
+        .SHOW,
+        .USES,
+        .OF,
+        .{ .literal = "Player" },
+        .IN,
+        .{ .literal = "Assets" },
+    }, &tokenizer);
 }
