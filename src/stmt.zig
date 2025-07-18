@@ -10,12 +10,16 @@ pub const Show = @import("stmt/Show.zig");
 pub const Rename = @import("stmt/Rename.zig");
 pub const Evaluate = @import("stmt/Evaluate.zig");
 
-fn ParseFunc(comptime T: type) type {
+fn ParseFn(comptime T: type) type {
     return fn (*core.parsing.Tokenizer.TokenIterator, core.parsing.ParsetimeEnv) anyerror!ParseResult(T);
 }
 
-fn RunFunc(comptime T: type) type {
+fn RunFn(comptime T: type) type {
     return fn (T, core.runtime.RuntimeEnv) anyerror!RuntimeResult(void);
+}
+
+fn DeinitFn(comptime T: type) type {
+    return fn (T, std.mem.Allocator) void;
 }
 
 pub const Statement = union(enum) {
@@ -32,11 +36,14 @@ pub const Statement = union(enum) {
             if (info != .@"struct") {
                 @compileError("Invalid type for field '" ++ f.name ++ "', expected a struct, got " ++ @tagName(info));
             }
-            if (!@hasDecl(Stmt, "parse") or @TypeOf(Stmt.parse) != fn (*core.parsing.Tokenizer.TokenIterator, core.parsing.ParsetimeEnv) anyerror!ParseResult(Stmt)) {
+            if (!core.util.hasFn(Stmt, "parse", ParseFn(Stmt))) {
                 @compileError("Invalid parse function for field '" ++ f.name ++ "', expected signature: fn (*language.Tokenizer.TokenIterator) anyerror!results.ParseResult(" ++ @typeName(Stmt) ++ ")");
             }
-            if (!@hasDecl(Stmt, "run") or @TypeOf(Stmt.run) != fn (Stmt, core.runtime.RuntimeEnv) anyerror!RuntimeResult(void)) {
+            if (!core.util.hasFn(Stmt, "run", RunFn(Stmt))) {
                 @compileError("Invalid run function for field '" ++ f.name ++ "', expected signature: fn (" ++ @typeName(Stmt) ++ ", runtime.RuntimeEnv) anyerror!results.RuntimeResult(void)");
+            }
+            if (!core.util.hasFn(Stmt, "deinit", DeinitFn(Stmt))) {
+                @compileError("Invalid deinit function for field '" ++ f.name ++ "', expected signature: fn (" ++ @typeName(Stmt) ++ ", std.mem.Allocator) void");
             }
         }
     }

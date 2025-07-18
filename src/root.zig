@@ -5,6 +5,7 @@ pub const results = @import("results.zig");
 pub const stmt = @import("stmt.zig");
 pub const runtime = @import("runtime.zig");
 pub const profiling = @import("profiling.zig");
+pub const util = @import("util.zig");
 
 pub const Source = @import("Source.zig");
 pub const Token = @import("Token.zig");
