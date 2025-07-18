@@ -192,7 +192,7 @@ test "comments with carriage return" {
 }
 
 test "comments between statement" {
-    const source = "SHOW uses # this is an comment\nOF Player # this is another comment\nIN Assets # this is yet another comment\n";
+    const source = "SHOW uses # this is a comment\nOF Player # this is another comment\nIN Assets # this is yet another comment\n";
     var tokenizer = Tokenizer.init(source);
     try expectEqualTokenizerValues(&.{
         .SHOW,
