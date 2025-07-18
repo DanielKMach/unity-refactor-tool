@@ -4,6 +4,10 @@ const core = @import("core");
 pub const AssetTarget = @import("clse/AssetTarget.zig");
 pub const InTarget = @import("clse/InTarget.zig");
 
+fn ParseFn(comptime T: type) type {
+    return fn (*core.parsing.Tokenizer.TokenIterator, core.parsing.ParsetimeEnv) anyerror!core.results.ParseResult(T);
+}
+
 pub fn parse(comptime T: type, tokens: *core.parsing.Tokenizer.TokenIterator, env: core.parsing.ParsetimeEnv) !core.results.ParseResult(T) {
     const info = @typeInfo(T);
     if (info != .@"struct") @compileError("expected a struct type, got " ++ @tagName(info));
@@ -26,14 +30,14 @@ pub fn parse(comptime T: type, tokens: *core.parsing.Tokenizer.TokenIterator, en
                 else => @compileError("expected field '" ++ field.name ++ "' to be of type struct or optional struct, got " ++ @tagName(finfo)),
             };
 
-            if (@TypeOf(Clause.parse) != fn (*core.parsing.Tokenizer.TokenIterator, core.parsing.ParsetimeEnv) anyerror!core.results.ParseResult(Clause)) {
+            if (!core.util.hasFn(Clause, "parse", ParseFn(Clause))) {
                 @compileError("Invalid parse function for clause " ++ @typeName(Clause));
             }
 
             const next_token = tokens.peek(1);
             switch (try Clause.parse(tokens, env)) {
                 .ok => |value| {
-                    if (@TypeOf(value) != Clause) @compileError("parse function returns " ++ @typeName(@TypeOf(value)) ++ ", expected " ++ @typeName(Clause));
+                    comptime std.debug.assert(@TypeOf(value) == Clause);
                     if (clause_tokens[i] == null) {
                         @field(holder, field.name) = value;
                         clause_tokens[i] = next_token;
