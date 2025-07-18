@@ -6,7 +6,6 @@ const log = std.log.scoped(.script);
 
 allocator: std.mem.Allocator,
 statements: []core.stmt.Statement,
-source: []const u8,
 
 pub fn run(this: This, options: RunConfig) !core.results.RuntimeResult(void) {
     core.profiling.begin(run);

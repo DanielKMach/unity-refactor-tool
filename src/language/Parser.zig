@@ -1,24 +1,28 @@
 const std = @import("std");
 const core = @import("core");
 
+const Parser = @This();
+
 const Tokenizer = core.language.Tokenizer;
+
+allocator: std.mem.Allocator,
 
 /// Parses the given query source code into a script.
 ///
 /// `source` must only be freed after the returned script is deinitialized.
-pub fn parse(source: []const u8, allocator: std.mem.Allocator) !core.results.ParseResult(core.runtime.Script) {
+pub fn parse(self: Parser, source: core.Source) !core.results.ParseResult(core.runtime.Script) {
     core.profiling.begin(parse);
     defer core.profiling.stop();
 
-    const tokens = switch (try Tokenizer.tokenize(source, allocator)) {
+    const tokens = switch (try Tokenizer.tokenize(source.source, self.allocator)) {
         .ok => |it| it,
         .err => |err| return .ERR(err),
     };
-    defer allocator.free(tokens);
+    defer self.allocator.free(tokens);
 
     var iterator = Tokenizer.TokenIterator.init(tokens);
 
-    var statements = std.ArrayList(core.stmt.Statement).init(allocator);
+    var statements = std.ArrayList(core.stmt.Statement).init(self.allocator);
     defer statements.deinit();
 
     while (iterator.remaining() > 0) {
@@ -38,8 +42,7 @@ pub fn parse(source: []const u8, allocator: std.mem.Allocator) !core.results.Par
     }
 
     return .OK(core.runtime.Script{
-        .allocator = allocator,
-        .source = source,
+        .allocator = self.allocator,
         .statements = try statements.toOwnedSlice(),
     });
 }

@@ -39,7 +39,9 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
                 return false;
             }
         } else {
-            if (!try self.run(arg)) return false;
+            const source = try urt.Source.anonymous(arg, self.allocator);
+            defer source.deinit();
+            if (!try self.run(source)) return false;
         }
     } else {
         try printHelp(self.out);
@@ -48,25 +50,35 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
 
     switch (mode) {
         .file => {
-            while (args.next()) |path| {
-                const file = try self.cwd.openFile(path, .{ .mode = .read_only });
-                defer file.close();
+            while (args.next()) |p| {
+                var allocated = false;
+                var path: []const u8 = undefined;
+                defer if (allocated) self.allocator.free(path);
 
-                const query = try file.readToEndAlloc(self.allocator, std.math.maxInt(u16));
-                defer self.allocator.free(query);
+                if (std.fs.path.isAbsolute(p)) {
+                    path = p;
+                } else {
+                    path = try self.cwd.realpathAlloc(self.allocator, p);
+                    allocated = true;
+                }
 
-                if (!try self.run(query)) return false;
+                const source = try urt.Source.fromAbsPath(path, self.allocator);
+                defer source.deinit();
+
+                if (!try self.run(source)) return false;
             }
         },
         .stdin => {
-            const query = try std.io.getStdIn().readToEndAlloc(self.allocator, std.math.maxInt(u16));
-            defer self.allocator.free(query);
+            const source = try urt.Source.fromStdin(self.allocator);
+            defer source.deinit();
 
-            if (!try self.run(query)) return false;
+            if (!try self.run(source)) return false;
         },
         .args => {
             while (args.next()) |query| {
-                if (!try self.run(query)) return false;
+                const source = try urt.Source.anonymous(query, self.allocator);
+                defer source.deinit();
+                if (!try self.run(source)) return false;
             }
         },
         .interactive => {
@@ -82,8 +94,10 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
                 if (query.len == 0) {
                     continue; // skip empty lines
                 }
+                const source = try urt.Source.anonymous(query, self.allocator);
+                defer source.deinit();
 
-                if (!try self.run(query)) return false;
+                if (!try self.run(source)) return false;
             }
             try self.out.writeAll("\r\n");
         },
@@ -91,31 +105,31 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
     return true;
 }
 
-pub fn run(self: This, query: []const u8) !bool {
-    const result = try urt.eval(query, self.allocator, self.cwd, self.out.any());
+pub fn run(self: This, source: urt.Source) !bool {
+    const result = try urt.eval(source, self.allocator, self.cwd, self.out.any());
     switch (result) {
         .ok => return true,
         .err => |err| {
             switch (err) {
-                .parsing => |parse_err| try printParseError(self.out, parse_err, query),
-                .runtime => |runtime_err| try printRuntimeError(self.out, runtime_err),
+                .parsing => |parse_err| try printParseError(parse_err, source, self.out),
+                .runtime => |runtime_err| try printRuntimeError(runtime_err, self.out),
             }
             return false;
         },
     }
 }
 
-pub fn printParseError(out: std.fs.File.Writer, errUnion: urt.results.ParseError, command: []const u8) !void {
+pub fn printParseError(parse_error: urt.results.ParseError, source: urt.Source, out: std.fs.File.Writer) !void {
     const ansi = ANSI.init(out);
     try ansi.print("*r", "PARSING ERROR: ", .{});
 
-    switch (errUnion) {
+    switch (parse_error) {
         .unknown => {
             try ansi.print("r", "Unknown statement\r\n", .{});
         },
         .never_closed_string => |err| {
             try ansi.print("r", "Never closed string at index {d}\r\n", .{err.location.index});
-            try printLineHighlight(out, command, err.location);
+            try printLineHighlight(err.location, source, out);
         },
         .unexpected_token => |err| {
             {
@@ -130,72 +144,69 @@ pub fn printParseError(out: std.fs.File.Writer, errUnion: urt.results.ParseError
                 }
                 try out.print("\r\n", .{});
             }
-            try printLineHighlight(out, command, err.found.loc);
+            try printLineHighlight(err.found.loc, source, out);
         },
         .unexpected_character => |err| {
-            try ansi.print("r", "Unexpected character '{s}'\r\n", .{err.location.lexeme(command)});
-            try printLineHighlight(out, command, err.location);
+            try ansi.print("r", "Unexpected character '{s}'\r\n", .{err.location.lexeme(source.source)});
+            try printLineHighlight(err.location, source, out);
         },
         .invalid_csharp_identifier => |err| {
-            try ansi.print("r", "Invalid C# identifier '{s}'\r\n", .{err.token.loc.lexeme(command)});
-            try printLineHighlight(out, command, err.token.loc);
+            try ansi.print("r", "Invalid C# identifier '{s}'\r\n", .{err.token.loc.lexeme(source.source)});
+            try printLineHighlight(err.token.loc, source, out);
         },
         .invalid_guid => |err| {
-            try ansi.print("r", "Invalid GUID '{s}'\r\n", .{err.token.loc.lexeme(command)});
-            try printLineHighlight(out, command, err.token.loc);
+            try ansi.print("r", "Invalid GUID '{s}'\r\n", .{err.token.loc.lexeme(source.source)});
+            try printLineHighlight(err.token.loc, source, out);
         },
         .invalid_number => |err| {
-            try ansi.print("r", "Invalid number '{s}'\r\n", .{err.location.lexeme(command)});
-            try printLineHighlight(out, command, err.location);
+            try ansi.print("r", "Invalid number '{s}'\r\n", .{err.location.lexeme(source.source)});
+            try printLineHighlight(err.location, source, out);
         },
         .duplicate_clause => |err| {
             try ansi.print("r", "Duplicate clause '{s}' appeared at:\r\n", .{err.clause});
-            try printLineHighlight(out, command, err.first.loc);
+            try printLineHighlight(err.first.loc, source, out);
             try ansi.print("r", "But also at:\r\n", .{});
-            try printLineHighlight(out, command, err.second.loc);
+            try printLineHighlight(err.second.loc, source, out);
         },
         .missing_clause => |err| {
             try ansi.print("r", "Missing clause '{s}'\r\n", .{err.clause});
-            try printLineHighlight(out, command, err.placement.loc);
+            try printLineHighlight(err.placement.loc, source, out);
         },
         .multiple => |errs| {
             for (errs) |err| {
-                try printParseError(out, err, command);
+                try printParseError(err, source, out);
             }
         },
     }
 }
 
-pub fn printRuntimeError(out: std.fs.File.Writer, errUnion: urt.results.RuntimeError) !void {
+pub fn printRuntimeError(runtime_error: urt.results.RuntimeError, out: std.fs.File.Writer) !void {
     const ansi = ANSI.init(out);
     try ansi.print("*r", "RUNTIME ERROR: ", .{});
 
-    switch (errUnion) {
-        .invalid_asset => |err| {
-            try ansi.print("r", "Invalid asset path '{s}'\r\n", .{err.path});
+    switch (runtime_error) {
+        .invalid_asset => |_| {
+            try ansi.print("r", "Invalid asset path\r\n", .{});
         },
-        .invalid_path => |err| {
-            try ansi.print("r", "Invalid path '{s}'\r\n", .{err.path});
+        .invalid_path => |_| {
+            try ansi.print("r", "Invalid path\r\n", .{});
         },
     }
 }
 
-pub fn printLineHighlight(out: std.fs.File.Writer, source: []const u8, loc: urt.language.Token.Location) !void {
-    const line_start = std.mem.lastIndexOf(u8, source[0..loc.index], "\n") orelse 0;
-    const line_end = (std.mem.indexOf(u8, source[loc.index..], "\n") orelse source[loc.index..].len) + loc.index;
-    const highlight_offset = loc.index - line_start;
-
-    const line_number = std.mem.count(u8, source[0..loc.index], "\n") + 1;
-    const line = source[line_start..line_end];
+pub fn printLineHighlight(loc: urt.language.Token.Location, source: urt.Source, out: std.fs.File.Writer) !void {
+    const line_number = source.lineNumber(loc.index) orelse return error.InvalidLocation;
+    if (line_number != source.lineNumber(loc.index + @max(loc.len, 1) - 1)) return error.InvalidLocation;
+    const line = source.line(line_number - 1) orelse return error.InvalidLocation;
 
     const ansi = ANSI.init(out);
-    try ansi.print("*", "On line {d}: \r\n", .{line_number});
+    try ansi.print("*", "{s}:{d}: \r\n", .{ source.name, line_number });
     try out.print("{s}\r\n", .{line});
 
     ansi.begin("g");
     defer ansi.end("g");
 
-    try out.writeByteNTimes(' ', highlight_offset);
+    try out.writeByteNTimes(' ', loc.index);
     try out.writeByte('^');
     if (loc.len > 1) try out.writeByteNTimes('~', loc.len - 1);
 
