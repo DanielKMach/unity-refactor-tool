@@ -38,6 +38,9 @@ pub fn run(this: This, options: RunConfig) !core.results.RuntimeResult(void) {
 }
 
 pub fn deinit(this: This) void {
+    for (this.statements) |stmt| {
+        stmt.deinit(this.allocator);
+    }
     this.allocator.free(this.statements);
 }
 
