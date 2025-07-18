@@ -21,12 +21,15 @@ pub fn parse(self: Parser, source: core.Source) !core.results.ParseResult(core.r
     defer self.allocator.free(tokens);
 
     var iterator = Tokenizer.TokenIterator.init(tokens);
+    const env = core.parsing.ParsetimeEnv{
+        .allocator = self.allocator,
+    };
 
     var statements = std.ArrayList(core.stmt.Statement).init(self.allocator);
     defer statements.deinit();
 
     while (iterator.remaining() > 0) {
-        const stmt = switch (try core.stmt.Statement.parse(&iterator)) {
+        const stmt = switch (try core.stmt.Statement.parse(&iterator, env)) {
             .ok => |stmt| stmt,
             .err => |err| return .ERR(err),
         };

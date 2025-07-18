@@ -10,7 +10,7 @@ dir: []const u8,
 
 pub const default: This = .{ .dir = "." };
 
-pub fn parse(tokens: *Tokenizer.TokenIterator) anyerror!results.ParseResult(This) {
+pub fn parse(tokens: *Tokenizer.TokenIterator, env: core.parsing.ParsetimeEnv) anyerror!results.ParseResult(This) {
     core.profiling.begin(parse);
     defer core.profiling.stop();
 
@@ -18,8 +18,8 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) anyerror!results.ParseResult(This
 
     var dir: []const u8 = undefined;
     switch (tokens.next().value) {
-        .string => |str| dir = str,
-        .literal => |lit| dir = lit,
+        .string => |str| dir = try env.allocator.dupe(u8, str),
+        .literal => |lit| dir = try env.allocator.dupe(u8, lit),
         else => return .ERR(.{
             .unexpected_token = .{
                 .found = tokens.peek(0),
@@ -29,6 +29,10 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) anyerror!results.ParseResult(This
     }
 
     return .OK(.{ .dir = dir });
+}
+
+pub fn deinit(self: This, allocator: std.mem.Allocator) void {
+    allocator.free(self.dir);
 }
 
 pub fn openDir(self: This, data: RuntimeEnv, options: std.fs.Dir.OpenDirOptions) !std.fs.Dir {
