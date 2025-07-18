@@ -4,7 +4,7 @@ const results = core.results;
 
 const This = @This();
 const RuntimeEnv = core.runtime.RuntimeEnv;
-const Tokenizer = core.language.Tokenizer;
+const Tokenizer = core.parsing.Tokenizer;
 
 dir: []const u8,
 

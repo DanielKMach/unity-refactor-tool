@@ -4,7 +4,7 @@ const results = core.results;
 const log = std.log.scoped(.show_statement);
 
 const This = @This();
-const Tokenizer = core.language.Tokenizer;
+const Tokenizer = core.parsing.Tokenizer;
 const Yaml = core.runtime.Yaml;
 const ComponentIterator = core.runtime.ComponentIterator;
 const Scanner = core.runtime.Scanner;

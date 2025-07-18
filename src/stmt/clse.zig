@@ -4,12 +4,12 @@ const core = @import("core");
 pub const AssetTarget = @import("clse/AssetTarget.zig");
 pub const InTarget = @import("clse/InTarget.zig");
 
-pub fn parse(comptime T: type, tokens: *core.language.Tokenizer.TokenIterator) !core.results.ParseResult(T) {
+pub fn parse(comptime T: type, tokens: *core.parsing.Tokenizer.TokenIterator) !core.results.ParseResult(T) {
     const info = @typeInfo(T);
     if (info != .@"struct") @compileError("expected a struct type, got " ++ @tagName(info));
 
     const fields = info.@"struct".fields;
-    var clause_tokens: [fields.len]?core.language.Token = @splat(null);
+    var clause_tokens: [fields.len]?core.Token = @splat(null);
     var holder: T = std.mem.zeroInit(T, .{});
 
     while (true) {
@@ -26,7 +26,7 @@ pub fn parse(comptime T: type, tokens: *core.language.Tokenizer.TokenIterator) !
                 else => @compileError("expected field '" ++ field.name ++ "' to be of type struct or optional struct, got " ++ @tagName(finfo)),
             };
 
-            if (@TypeOf(Clause.parse) != fn (*core.language.Tokenizer.TokenIterator) anyerror!core.results.ParseResult(Clause)) {
+            if (@TypeOf(Clause.parse) != fn (*core.parsing.Tokenizer.TokenIterator) anyerror!core.results.ParseResult(Clause)) {
                 @compileError("Invalid parse function for clause " ++ @typeName(Clause));
             }
 

@@ -3,7 +3,7 @@ const core = @import("core");
 const results = core.results;
 
 const This = @This();
-const Tokenizer = core.language.Tokenizer;
+const Tokenizer = core.parsing.Tokenizer;
 const Yaml = core.runtime.Yaml;
 const GUID = core.runtime.GUID;
 

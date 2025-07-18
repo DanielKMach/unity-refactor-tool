@@ -1,7 +1,7 @@
 const std = @import("std");
 const core = @import("core");
 
-const Token = core.language.Token;
+const Token = core.Token;
 
 pub const ResultType = enum {
     ok,
@@ -38,13 +38,13 @@ pub const ParseErrorType = @typeInfo(ParseError).@"union".tag_type orelse unreac
 pub const ParseError = union(enum) {
     // Syntax related errors
     never_closed_string: struct {
-        location: core.language.Token.Location,
+        location: core.Token.Location,
     },
     unexpected_character: struct {
-        location: core.language.Token.Location,
+        location: core.Token.Location,
     },
     invalid_number: struct {
-        location: core.language.Token.Location,
+        location: core.Token.Location,
     },
 
     // Token related errors
