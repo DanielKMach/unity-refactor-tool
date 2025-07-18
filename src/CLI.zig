@@ -194,7 +194,7 @@ pub fn printRuntimeError(runtime_error: urt.results.RuntimeError, out: std.fs.Fi
     }
 }
 
-pub fn printLineHighlight(loc: urt.language.Token.Location, source: urt.Source, out: std.fs.File.Writer) !void {
+pub fn printLineHighlight(loc: urt.Token.Location, source: urt.Source, out: std.fs.File.Writer) !void {
     const line_number = source.lineNumber(loc.index) orelse return error.InvalidLocation;
     if (line_number != source.lineNumber(loc.index + @max(loc.len, 1) - 1)) return error.InvalidLocation;
     const line = source.line(line_number - 1) orelse return error.InvalidLocation;

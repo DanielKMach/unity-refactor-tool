@@ -2,8 +2,8 @@ const std = @import("std");
 const testing = std.testing;
 const urt = @import("urt");
 
-const Token = urt.language.Token;
-const Tokenizer = urt.language.Tokenizer;
+const Token = urt.Token;
+const Tokenizer = urt.parsing.Tokenizer;
 const ParseResult = urt.results.ParseResult;
 const ParseError = urt.results.ParseError;
 

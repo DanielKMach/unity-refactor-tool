@@ -1,11 +1,11 @@
 const std = @import("std");
 const core = @import("core");
-const language = core.language;
+const parsing = core.parsing;
 const results = core.results;
 const log = std.log.scoped(.usql_tokenizer);
 
 const This = @This();
-const Token = language.Token;
+const Token = core.Token;
 
 const whitespace = " \t\r\n";
 const alphabetic = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";

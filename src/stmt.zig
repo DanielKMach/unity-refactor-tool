@@ -24,7 +24,7 @@ pub const Statement = union(enum) {
             if (info != .@"struct") {
                 @compileError("Invalid type for field '" ++ f.name ++ "', expected a struct, got " ++ @tagName(info));
             }
-            if (!@hasDecl(Stmt, "parse") or @TypeOf(Stmt.parse) != fn (*core.language.Tokenizer.TokenIterator) anyerror!ParseResult(Stmt)) {
+            if (!@hasDecl(Stmt, "parse") or @TypeOf(Stmt.parse) != fn (*core.parsing.Tokenizer.TokenIterator) anyerror!ParseResult(Stmt)) {
                 @compileError("Invalid parse function for field '" ++ f.name ++ "', expected signature: fn (*language.Tokenizer.TokenIterator) anyerror!results.ParseResult(" ++ @typeName(Stmt) ++ ")");
             }
             if (!@hasDecl(Stmt, "run") or @TypeOf(Stmt.run) != fn (Stmt, core.runtime.RuntimeEnv) anyerror!RuntimeResult(void)) {
@@ -42,7 +42,7 @@ pub const Statement = union(enum) {
         @compileError("Invalid type for Statement, received: " ++ @typeName(@TypeOf(stmt)));
     }
 
-    pub fn parse(tokens: *core.language.Tokenizer.TokenIterator) !ParseResult(Statement) {
+    pub fn parse(tokens: *core.parsing.Tokenizer.TokenIterator) !ParseResult(Statement) {
         inline for (fields) |fld| {
             switch (try fld.type.parse(tokens)) {
                 .ok => |ok| return .OK(try Statement.init(ok)),
