@@ -16,19 +16,25 @@ pub fn parse(source: []const u8, allocator: std.mem.Allocator) !core.results.Par
     };
     defer allocator.free(tokens);
 
-    const iterators = try Tokenizer.TokenIterator.split(tokens, .eos, allocator);
-    defer allocator.free(iterators);
+    var iterator = Tokenizer.TokenIterator.init(tokens);
 
     var statements = std.ArrayList(core.stmt.Statement).init(allocator);
     defer statements.deinit();
 
-    for (iterators) |*it| {
-        if (it.len() == 0) continue; // Skip empty iterators
-        const stmt = switch (try core.stmt.Statement.parse(it)) {
+    while (iterator.remaining() > 0) {
+        const stmt = switch (try core.stmt.Statement.parse(&iterator)) {
             .ok => |stmt| stmt,
             .err => |err| return .ERR(err),
         };
         try statements.append(stmt);
+        if (!iterator.match(.eos)) {
+            return .ERR(.{
+                .unexpected_token = .{
+                    .found = iterator.next(),
+                    .expected = &.{.eos},
+                },
+            });
+        }
     }
 
     return .OK(core.runtime.Script{

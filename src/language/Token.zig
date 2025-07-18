@@ -33,13 +33,14 @@ pub const operator_list: []const struct { []const u8, Value } = &.{
 
 /// The type of the token.
 value: Value,
-
-/// The lexeme of the token, which is the actual text that was matched.
-lexeme: []const u8,
+loc: Location,
 
 /// Creates a new token with the given type and value.
-pub fn new(t: Value, lexeme: []const u8) Token {
-    return Token{ .value = t, .lexeme = lexeme };
+pub fn new(value: Value, loc: Location) Token {
+    return Token{
+        .value = value,
+        .loc = loc,
+    };
 }
 
 /// Checks if the token is of the given type.
@@ -92,4 +93,28 @@ pub const Value = union(enum) {
 
     /// Any alphanumeric literal, such as identifiers, component names, etc.
     literal: []const u8,
+};
+
+pub const Location = struct {
+    index: usize,
+    len: usize,
+
+    pub fn init(index: usize, len: usize) Location {
+        return Location{
+            .index = index,
+            .len = len,
+        };
+    }
+
+    pub fn fromSlice(string: []const u8, slice: []const u8) Location {
+        const zero = @intFromPtr(string.ptr);
+        return Location{
+            .index = @intFromPtr(slice.ptr) - zero,
+            .len = slice.len,
+        };
+    }
+
+    pub fn lexeme(self: Location, string: []const u8) []const u8 {
+        return string[self.index .. self.index + self.len];
+    }
 };

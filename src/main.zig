@@ -34,7 +34,7 @@ pub fn main() !void {
     defer cwd.close();
 
     const cli = CLI{
-        .out = out.any(),
+        .out = out,
         .allocator = allocator,
         .cwd = cwd,
     };
