@@ -18,7 +18,7 @@ fn RunFn(comptime T: type) type {
     return fn (T, core.runtime.RuntimeEnv) anyerror!RuntimeResult(void);
 }
 
-fn DeinitFn(comptime T: type) type {
+fn CleanupFn(comptime T: type) type {
     return fn (T, std.mem.Allocator) void;
 }
 
@@ -42,8 +42,8 @@ pub const Statement = union(enum) {
             if (!core.util.hasFn(Stmt, "run", RunFn(Stmt))) {
                 @compileError("Invalid run function for field '" ++ f.name ++ "', expected signature: fn (" ++ @typeName(Stmt) ++ ", runtime.RuntimeEnv) anyerror!results.RuntimeResult(void)");
             }
-            if (!core.util.hasFn(Stmt, "deinit", DeinitFn(Stmt))) {
-                @compileError("Invalid deinit function for field '" ++ f.name ++ "', expected signature: fn (" ++ @typeName(Stmt) ++ ", std.mem.Allocator) void");
+            if (!core.util.hasFn(Stmt, "cleanup", CleanupFn(Stmt))) {
+                @compileError("Invalid cleanup function for field '" ++ f.name ++ "', expected signature: fn (" ++ @typeName(Stmt) ++ ", std.mem.Allocator) void");
             }
         }
     }
@@ -87,7 +87,7 @@ pub const Statement = union(enum) {
     pub fn deinit(this: Statement, allocator: std.mem.Allocator) void {
         inline for (fields) |fld| {
             if (std.mem.eql(u8, fld.name, @tagName(this))) {
-                fld.type.deinit(@field(this, fld.name), allocator);
+                fld.type.cleanup(@field(this, fld.name), allocator);
                 return;
             }
         }

@@ -75,7 +75,7 @@ pub fn parse(tokens: *Tokenizer.TokenIterator, env: core.parsing.ParsetimeEnv) a
     });
 }
 
-pub fn deinit(self: This, allocator: std.mem.Allocator) void {
+pub fn cleanup(self: This, allocator: std.mem.Allocator) void {
     for (self.targets) |target| {
         switch (target) {
             .guid => |guid| allocator.free(guid),

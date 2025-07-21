@@ -60,9 +60,9 @@ pub fn parse(tokens: *Tokenizer.TokenIterator, env: core.parsing.ParsetimeEnv) a
     });
 }
 
-pub fn deinit(self: This, allocator: std.mem.Allocator) void {
-    self.of.deinit(allocator);
-    if (self.in) |in| in.deinit(allocator);
+pub fn cleanup(self: This, allocator: std.mem.Allocator) void {
+    self.of.cleanup(allocator);
+    if (self.in) |in| in.cleanup(allocator);
     for (self.path) |p| allocator.free(p);
 }
 
