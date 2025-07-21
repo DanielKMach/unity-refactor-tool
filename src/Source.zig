@@ -55,24 +55,21 @@ pub fn deinit(self: Source) void {
 }
 
 pub fn line(self: Source, line_index: usize) ?[]const u8 {
-    var i: usize = 0;
+    var start: usize = 0;
     for (0..line_index) |_| {
-        while (i < self.source.len) {
-            if (self.source[i] == '\n') break;
-            i += 1;
-        } else {
-            return null;
-        }
+        start = std.mem.indexOfScalarPos(u8, self.source, start, '\n') orelse {
+            if (start == self.source.len) return null;
+            start = self.source.len;
+            continue;
+        };
+        start += 1; // move past the newline character
     }
-    var j = i + 1;
-    while (j < self.source.len and self.source[j] != '\n') {
-        j += 1;
-    }
-    return std.mem.trim(u8, self.source[i..j], "\r\n");
+    const end = std.mem.indexOfScalarPos(u8, self.source, start, '\n') orelse self.source.len;
+    return std.mem.trim(u8, self.source[start..end], "\r\n");
 }
 
-pub fn lineNumber(self: Source, index: usize) ?usize {
+pub fn lineIndex(self: Source, index: usize) ?usize {
     if (index > self.source.len) return null;
     const line_index = std.mem.count(u8, self.source[0..@min(index, self.source.len)], "\n");
-    return line_index + 1;
+    return line_index;
 }
