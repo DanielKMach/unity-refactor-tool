@@ -1,10 +1,21 @@
-Usage: usrl [option] <args...>
+Usage:
+    usrl help          Print this message
+    usrl manual        Open the language manual
+    usrl interactive   Start interactive mode
+    usrl <args...>     Execute queries (see list below)
 
 Options:
-    -f, --file         Specify one or more files to execute
-    -h, --help         Prints this help message and quits
-    -i, --interactive  Opens interactive mode
-    -m, --manual       Prints the language manual and quits
-    --                 Executes query through the stdin
+    --file <files...>  Specify one or more files to execute
+    --output <file>    Specify the file to output to
+    --                 Executes script through the stdin
+    <queries...>       Run the specified queries
 
-If no option is provided, each inserted argument will be executed as a query.
+Examples:
+    usrl "SHOW uses OF Player"
+    usrl "RENAME _spd FOR _speed OF Player" "EVAL _speed OF Player"
+    usrl --file ./script.usrl ./script2.usrl
+    usrl "SHOW uses OF Player" -f ./script.usrl
+    usrl "SHOW uses OF Player" --output ./log.txt
+    usrl help
+    usrl manual
+    usrl interactive
