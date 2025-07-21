@@ -3,11 +3,26 @@ const core = @import("core");
 
 const Source = @This();
 
+pub const SourceError = std.mem.Allocator.Error;
+pub const FromFileError = SourceError || std.fs.File.ReadError || error{FileTooBig};
+pub const FromPathError = FromFileError || std.fs.File.OpenError;
+
 allocator: std.mem.Allocator,
 source: []const u8,
 name: []const u8,
 
-pub fn fromAbsPath(path: []const u8, allocator: std.mem.Allocator) !Source {
+pub fn fromPath(dir: std.fs.Dir, path: []const u8, allocator: std.mem.Allocator) FromPathError!Source {
+    const file_source = try dir.openFile(path, .{});
+    defer file_source.close();
+
+    return Source{
+        .allocator = allocator,
+        .name = try allocator.dupe(u8, std.fs.path.basename(path)),
+        .source = try file_source.readToEndAlloc(allocator, std.math.maxInt(usize)),
+    };
+}
+
+pub fn fromPathAbsolute(path: []const u8, allocator: std.mem.Allocator) FromPathError!Source {
     const file_source = try std.fs.openFileAbsolute(path, .{});
     defer file_source.close();
 
@@ -18,7 +33,7 @@ pub fn fromAbsPath(path: []const u8, allocator: std.mem.Allocator) !Source {
     };
 }
 
-pub fn fromStdin(allocator: std.mem.Allocator) !Source {
+pub fn fromStdin(allocator: std.mem.Allocator) FromFileError!Source {
     return Source{
         .allocator = allocator,
         .name = try allocator.dupe(u8, "stdin"),
@@ -26,7 +41,7 @@ pub fn fromStdin(allocator: std.mem.Allocator) !Source {
     };
 }
 
-pub fn anonymous(source: []const u8, allocator: std.mem.Allocator) !Source {
+pub fn anonymous(source: []const u8, allocator: std.mem.Allocator) SourceError!Source {
     return Source{
         .allocator = allocator,
         .name = try allocator.dupe(u8, "anonymous"),
