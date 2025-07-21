@@ -160,12 +160,14 @@ test "invalid character" {
 test "comment" {
     const source = "# this is a comment";
     var tokenizer = Tokenizer.init(source);
+    try testing.expectEqual(Token{ .value = .eos, .loc = .init(0, 0) }, tokenizer.token().isOk());
     try testing.expectEqual(ParseResult(?Token).OK(null), tokenizer.token());
 }
 
 test "comment trailing newline" {
     const source = "# this is a comment\n";
     var tokenizer = Tokenizer.init(source);
+    try testing.expectEqual(Token{ .value = .eos, .loc = .init(0, 0) }, tokenizer.token().isOk());
     try testing.expectEqual(ParseResult(?Token).OK(null), tokenizer.token());
 }
 
