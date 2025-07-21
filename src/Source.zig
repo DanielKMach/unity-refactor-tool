@@ -9,7 +9,7 @@ pub const FromPathError = FromFileError || std.fs.File.OpenError;
 
 allocator: std.mem.Allocator,
 source: []const u8,
-name: []const u8,
+name: ?[]const u8,
 
 pub fn fromPath(dir: std.fs.Dir, path: []const u8, allocator: std.mem.Allocator) FromPathError!Source {
     const file_source = try dir.openFile(path, .{});
@@ -44,14 +44,14 @@ pub fn fromStdin(allocator: std.mem.Allocator) FromFileError!Source {
 pub fn anonymous(source: []const u8, allocator: std.mem.Allocator) SourceError!Source {
     return Source{
         .allocator = allocator,
-        .name = try allocator.dupe(u8, "anonymous"),
+        .name = null,
         .source = try allocator.dupe(u8, source),
     };
 }
 
 pub fn deinit(self: Source) void {
     self.allocator.free(self.source);
-    self.allocator.free(self.name);
+    if (self.name) |name| self.allocator.free(name);
 }
 
 pub fn line(self: Source, line_index: usize) ?[]const u8 {
