@@ -72,7 +72,7 @@ pub fn line(self: Source, line_index: usize) ?[]const u8 {
 }
 
 pub fn lineNumber(self: Source, index: usize) ?usize {
-    if (index >= self.source.len) return null;
-    const line_index = std.mem.count(u8, self.source[0..index], "\n");
+    if (index > self.source.len) return null;
+    const line_index = std.mem.count(u8, self.source[0..@min(index, self.source.len)], "\n");
     return line_index + 1;
 }
