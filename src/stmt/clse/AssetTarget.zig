@@ -3,27 +3,27 @@ const core = @import("core");
 const results = core.results;
 
 const This = @This();
-const Tokenizer = core.language.Tokenizer;
+const Tokenizer = core.parsing.Tokenizer;
 const Yaml = core.runtime.Yaml;
 const GUID = core.runtime.GUID;
 
-targets: std.BoundedArray(AssetTarget, 10),
+targets: []AssetTarget,
 
-pub fn parse(tokens: *Tokenizer.TokenIterator) anyerror!results.ParseResult(This) {
+pub fn parse(tokens: *Tokenizer.TokenIterator, env: core.parsing.ParsetimeEnv) anyerror!results.ParseResult(This) {
     core.profiling.begin(parse);
     defer core.profiling.stop();
 
     if (!tokens.match(.OF)) return .ERR(.unknown);
 
-    var targets = std.BoundedArray(AssetTarget, 10){};
+    var targets = std.ArrayList(AssetTarget).init(env.allocator);
+    defer targets.deinit();
 
     while (true) {
         switch (tokens.next().value) {
             .GUID => switch (tokens.next().value) {
                 .string => |guid_str| if (GUID.isGUID(guid_str)) {
                     try targets.append(.{
-                        .tpe = .guid,
-                        .str = guid_str,
+                        .guid = try env.allocator.dupe(u8, guid_str),
                     });
                 } else {
                     return .ERR(.{
@@ -41,8 +41,7 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) anyerror!results.ParseResult(This
             },
             .literal => |lit| if (isCSharpIdentifier(lit)) {
                 try targets.append(.{
-                    .tpe = .name,
-                    .str = lit,
+                    .name = try env.allocator.dupe(u8, lit),
                 });
             } else {
                 return .ERR(.{
@@ -53,13 +52,11 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) anyerror!results.ParseResult(This
             },
             .string => |str| if (isCSharpIdentifier(str)) {
                 try targets.append(.{
-                    .tpe = .name,
-                    .str = str,
+                    .name = try env.allocator.dupe(u8, str),
                 });
             } else {
                 try targets.append(.{
-                    .tpe = .path,
-                    .str = str,
+                    .path = try env.allocator.dupe(u8, str),
                 });
             },
             else => return .ERR(.{
@@ -74,8 +71,19 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) anyerror!results.ParseResult(This
     }
 
     return .OK(.{
-        .targets = targets,
+        .targets = try targets.toOwnedSlice(),
     });
+}
+
+pub fn cleanup(self: This, allocator: std.mem.Allocator) void {
+    for (self.targets) |target| {
+        switch (target) {
+            .guid => |guid| allocator.free(guid),
+            .name => |name| allocator.free(name),
+            .path => |path| allocator.free(path),
+        }
+    }
+    allocator.free(self.targets);
 }
 
 pub fn getGUID(self: This, dir: std.fs.Dir, allocator: std.mem.Allocator) !results.RuntimeResult([]GUID) {
@@ -88,26 +96,25 @@ pub fn getGUID(self: This, dir: std.fs.Dir, allocator: std.mem.Allocator) !resul
         guids.deinit();
     }
 
-    for (self.targets.slice()) |target| {
-        const value = target.str;
-        try guids.append(switch (target.tpe) {
-            .guid => try GUID.init(value, null, allocator),
-            .name => blk: {
-                const path = try searchComponent(value, dir, allocator) orelse {
-                    return .ERR(.{ .invalid_asset = .{ .path = value } });
+    for (self.targets) |target| {
+        try guids.append(switch (target) {
+            .guid => |guid| try GUID.init(guid, null, allocator),
+            .name => |comp| blk: {
+                const path = try searchComponent(comp, dir, allocator) orelse {
+                    return .ERR(.{ .invalid_asset = .{ .path = comp } });
                 };
                 defer allocator.free(path);
 
                 break :blk GUID.fromFile(path, allocator) catch {
-                    return .ERR(.{ .invalid_asset = .{ .path = value } });
+                    return .ERR(.{ .invalid_asset = .{ .path = comp } });
                 };
             },
-            .path => blk: {
-                const abs_path = try dir.realpathAlloc(allocator, value);
+            .path => |path| blk: {
+                const abs_path = try dir.realpathAlloc(allocator, path);
                 defer allocator.free(abs_path);
 
                 break :blk GUID.fromFile(abs_path, allocator) catch {
-                    return .ERR(.{ .invalid_asset = .{ .path = value } });
+                    return .ERR(.{ .invalid_asset = .{ .path = path } });
                 };
             },
         });
@@ -145,9 +152,8 @@ fn searchComponent(name: []const u8, dir: std.fs.Dir, allocator: std.mem.Allocat
     return null;
 }
 
-const AssetTarget = struct {
-    tpe: Type,
-    str: []const u8,
+const AssetTarget = union(enum) {
+    path: []const u8,
+    name: []const u8,
+    guid: []const u8,
 };
-
-const Type = enum { path, guid, name };

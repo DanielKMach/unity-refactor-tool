@@ -1,11 +1,11 @@
 const std = @import("std");
 const core = @import("core");
-const language = core.language;
+const parsing = core.parsing;
 const results = core.results;
 const log = std.log.scoped(.usql_tokenizer);
 
 const This = @This();
-const Token = language.Token;
+const Token = core.Token;
 
 const whitespace = " \t\r\n";
 const alphabetic = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -72,6 +72,7 @@ fn sliceForward(self: This, start_offset: isize, len: usize) []const u8 {
 }
 
 pub fn token(self: *This) results.ParseResult(?Token) {
+    var start = self.index;
     while (self.match(whitespace ++ "#")) {
         if (self.at(self.index - 1) == '#') {
             while (self.next()) |n| {
@@ -80,10 +81,13 @@ pub fn token(self: *This) results.ParseResult(?Token) {
         }
     }
     if (self.peek() == null) {
+        if (start < self.source.len) {
+            return .OK(.new(.eos, .init(start, 0)));
+        }
         return .OK(null);
     }
 
-    const start = self.index;
+    start = self.index;
     if (self.match(alphabetic ++ "_")) { // identifiers and keywords
         while (self.match(alphanumeric ++ "_")) {}
         const word = self.slice(start, 0);

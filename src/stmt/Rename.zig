@@ -4,7 +4,7 @@ const results = core.results;
 const log = std.log.scoped(.rename_statement);
 
 const This = @This();
-const Tokenizer = core.language.Tokenizer;
+const Tokenizer = core.parsing.Tokenizer;
 const Scanner = core.runtime.Scanner;
 const RuntimeEnv = core.runtime.RuntimeEnv;
 const ComponentIterator = core.runtime.ComponentIterator;
@@ -18,9 +18,9 @@ const files = &.{ ".prefab", ".unity", ".asset" };
 old_name: []const u8,
 new_name: []const u8,
 of: AssetTarget,
-in: InTarget,
+in: ?InTarget,
 
-pub fn parse(tokens: *Tokenizer.TokenIterator) anyerror!results.ParseResult(This) {
+pub fn parse(tokens: *Tokenizer.TokenIterator, env: core.parsing.ParsetimeEnv) anyerror!results.ParseResult(This) {
     core.profiling.begin(parse);
     defer core.profiling.stop();
 
@@ -30,8 +30,8 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) anyerror!results.ParseResult(This
     var new_name: []const u8 = undefined;
 
     switch (tokens.next().value) {
-        .string => |str| old_name = str,
-        .literal => |lit| old_name = lit,
+        .string => |str| old_name = try env.allocator.dupe(u8, str),
+        .literal => |lit| old_name = try env.allocator.dupe(u8, lit),
         else => return .ERR(.{
             .unexpected_token = .{
                 .found = tokens.peek(0),
@@ -39,6 +39,7 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) anyerror!results.ParseResult(This
             },
         }),
     }
+    errdefer env.allocator.free(old_name);
 
     if (!tokens.match(.FOR)) return .ERR(.{
         .unexpected_token = .{
@@ -48,8 +49,8 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) anyerror!results.ParseResult(This
     });
 
     switch (tokens.next().value) {
-        .string => |str| new_name = str,
-        .literal => |lit| new_name = lit,
+        .string => |str| new_name = try env.allocator.dupe(u8, str),
+        .literal => |lit| new_name = try env.allocator.dupe(u8, lit),
         else => return .ERR(.{
             .unexpected_token = .{
                 .found = tokens.peek(0),
@@ -57,12 +58,13 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) anyerror!results.ParseResult(This
             },
         }),
     }
+    errdefer env.allocator.free(new_name);
 
     const Clauses = struct {
         OF: AssetTarget,
-        IN: InTarget = InTarget.default,
+        IN: ?InTarget = null,
     };
-    const clauses = switch (try core.stmt.clse.parse(Clauses, tokens)) {
+    const clauses = switch (try core.stmt.clse.parse(Clauses, tokens, env)) {
         .ok => |clses| clses,
         .err => |err| return .ERR(err),
     };
@@ -75,11 +77,18 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) anyerror!results.ParseResult(This
     });
 }
 
+pub fn cleanup(self: This, allocator: std.mem.Allocator) void {
+    self.of.cleanup(allocator);
+    if (self.in) |in| in.cleanup(allocator);
+    allocator.free(self.old_name);
+    allocator.free(self.new_name);
+}
+
 pub fn run(self: This, env: RuntimeEnv) anyerror!results.RuntimeResult(void) {
     core.profiling.begin(run);
     defer core.profiling.stop();
 
-    const in = self.in;
+    const in = self.in orelse InTarget.default;
     const of = self.of;
 
     var dir = in.openDir(env, .{ .iterate = true, .access_sub_paths = true }) catch {

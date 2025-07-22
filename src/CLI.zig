@@ -5,11 +5,12 @@ const urt = @import("urt");
 const This = @This();
 const log = std.log.scoped(.cli);
 
+const e = "R";
+const eh = "r";
+
 pub const ExecutionMode = enum {
     args,
     file,
-    stdin,
-    interactive,
 };
 
 allocator: std.mem.Allocator,
@@ -18,109 +19,195 @@ cwd: std.fs.Dir,
 
 pub fn process(self: This, args: *std.process.ArgIterator) !bool {
     var mode: ExecutionMode = .args;
+    var output: ?std.fs.File = null;
+    defer if (output) |o| o.close();
+    const ansi = ANSI.init(self.out);
 
-    if (args.next()) |arg| {
+    var parser = urt.parsing.Parser{
+        .allocator = self.allocator,
+    };
+    var scripts = std.ArrayList(LocalizedScript).init(self.allocator);
+    defer scripts.deinit();
+    defer for (scripts.items) |*s| s.cleanup();
+
+    var i: usize = 0;
+    while (args.next()) |arg| {
+        defer i += 1;
+        if (i == 0) {
+            if (std.mem.eql(u8, arg, "i") or std.mem.eql(u8, arg, "it") or std.mem.eql(u8, arg, "interactive")) {
+                return try self.startInteractiveMode(std.io.getStdIn().reader());
+            } else if (std.mem.eql(u8, arg, "m") or std.mem.eql(u8, arg, "manual")) {
+                try openManual();
+                return true;
+            } else if (std.mem.eql(u8, arg, "h") or std.mem.eql(u8, arg, "help") or std.mem.eql(u8, arg, "usage") or std.mem.eql(u8, arg, "?")) {
+                try printHelp(self.out);
+                return true;
+            } else if (std.mem.eql(u8, arg, "--")) {
+                const source = try urt.Source.fromStdin(self.allocator);
+                defer source.deinit();
+                if (try self.parse(source, &parser)) |script| {
+                    return try self.run(script, .{
+                        .cwd = self.cwd,
+                        .out = self.out.any(),
+                        .allocator = self.allocator,
+                    });
+                }
+                return false;
+            }
+        }
         if (std.mem.startsWith(u8, arg, "-")) {
             if (std.mem.eql(u8, arg, "--file") or std.mem.eql(u8, arg, "-f")) {
                 mode = .file;
-            } else if (std.mem.eql(u8, arg, "--")) {
-                mode = .stdin;
-            } else if (std.mem.eql(u8, arg, "--interactive") or std.mem.eql(u8, arg, "-i")) {
-                mode = .interactive;
-            } else if (std.mem.eql(u8, arg, "--manual") or std.mem.eql(u8, arg, "-m")) {
-                try openManual();
-                return true;
-            } else if (std.mem.eql(u8, arg, "--help") or std.mem.eql(u8, arg, "-h")) {
-                try printHelp(self.out);
-                return true;
+            } else if (std.mem.eql(u8, arg, "--output") or std.mem.eql(u8, arg, "-o")) {
+                if (output != null) {
+                    try ansi.print(e, "Output file already specified\r\n", .{});
+                    try printHelp(self.out);
+                    return false;
+                }
+                if (args.next()) |output_arg| {
+                    if (std.fs.path.isAbsolute(output_arg)) {
+                        output = try std.fs.createFileAbsolute(output_arg, .{});
+                    } else {
+                        output = try self.cwd.createFile(output_arg, .{});
+                    }
+                } else {
+                    try ansi.print(e, "Missing output file argument\r\n", .{});
+                    try printHelp(self.out);
+                    return false;
+                }
             } else {
-                try self.out.print("\x1b[31mUnknown option: {s}\x1b[0m\r\n", .{arg});
+                try ansi.print(e, "Unknown option: {s}\r\n", .{arg});
                 try printHelp(self.out);
                 return false;
             }
-        } else {
-            if (!try self.run(arg)) return false;
+            continue;
         }
-    } else {
-        try printHelp(self.out);
-        return true;
-    }
+        switch (mode) {
+            .args => {
+                const source = try urt.Source.anonymous(arg, self.allocator);
+                defer source.deinit();
+                if (try self.parse(source, &parser)) |script| {
+                    try scripts.append(.{
+                        .script = script,
+                    });
+                    continue;
+                }
+                return false;
+            },
+            .file => {
+                var dir: std.fs.Dir = undefined;
+                var source: urt.Source = undefined;
 
-    switch (mode) {
-        .file => {
-            while (args.next()) |path| {
-                const file = try self.cwd.openFile(path, .{ .mode = .read_only });
-                defer file.close();
-
-                const query = try file.readToEndAlloc(self.allocator, std.math.maxInt(u16));
-                defer self.allocator.free(query);
-
-                if (!try self.run(query)) return false;
-            }
-        },
-        .stdin => {
-            const query = try std.io.getStdIn().readToEndAlloc(self.allocator, std.math.maxInt(u16));
-            defer self.allocator.free(query);
-
-            if (!try self.run(query)) return false;
-        },
-        .args => {
-            while (args.next()) |query| {
-                if (!try self.run(query)) return false;
-            }
-        },
-        .interactive => {
-            const in = std.io.getStdIn().reader();
-
-            while (true) {
-                try self.out.writeAll(">> ");
-                const line = try in.readUntilDelimiterOrEofAlloc(self.allocator, '\n', std.math.maxInt(u16)) orelse break;
-                defer self.allocator.free(line);
-
-                const query = std.mem.trim(u8, line, " \n\t\r");
-
-                if (query.len == 0) {
-                    continue; // skip empty lines
+                if (std.fs.path.isAbsolute(arg)) {
+                    source = try urt.Source.fromPathAbsolute(arg, self.allocator);
+                    dir = try std.fs.openDirAbsolute(std.fs.path.dirname(arg).?, .{ .iterate = true });
+                } else {
+                    source = try urt.Source.fromPath(self.cwd, arg, self.allocator);
+                    const abs_path = try self.cwd.realpathAlloc(self.allocator, arg);
+                    defer self.allocator.free(abs_path);
+                    dir = try std.fs.openDirAbsolute(std.fs.path.dirname(abs_path).?, .{ .iterate = true });
                 }
 
-                if (!try self.run(query)) return false;
-            }
-            try self.out.writeAll("\r\n");
-        },
+                if (try self.parse(source, &parser)) |script| {
+                    try scripts.append(.{
+                        .script = script,
+                        .dir = dir,
+                    });
+                    continue;
+                }
+                return false;
+            },
+        }
+    }
+    for (scripts.items) |script| {
+        const output_file = output orelse self.out.context;
+        const writer = output_file.writer();
+        if (!try self.run(script.script, .{
+            .cwd = script.dir orelse self.cwd,
+            .out = writer.any(),
+            .allocator = self.allocator,
+        })) {
+            return false;
+        }
     }
     return true;
 }
 
-pub fn run(self: This, query: []const u8) !bool {
-    const result = try urt.eval(query, self.allocator, self.cwd, self.out.any());
-    switch (result) {
-        .ok => return true,
-        .err => |err| {
-            switch (err) {
-                .parsing => |parse_err| try printParseError(self.out, parse_err, query),
-                .runtime => |runtime_err| try printRuntimeError(self.out, runtime_err),
-            }
-            return false;
-        },
+pub fn startInteractiveMode(self: This, in: std.fs.File.Reader) !bool {
+    const ansi = ANSI.init(self.out);
+    var parser = urt.parsing.Parser{
+        .allocator = self.allocator,
+    };
+
+    it: while (true) {
+        try ansi.print("D", ">> ", .{});
+        const line = blk: {
+            const l = try in.readUntilDelimiterOrEofAlloc(self.allocator, '\n', std.math.maxInt(u16));
+            break :blk l orelse break :it;
+        };
+        defer self.allocator.free(line);
+
+        const query = std.mem.trim(u8, line, " \n\t\r");
+        if (query.len == 0) {
+            continue; // skip empty lines
+        }
+
+        const source = try urt.Source.anonymous(query, self.allocator);
+        defer source.deinit();
+
+        _ = try self.parseAndRun(source, &parser, .{
+            .allocator = self.allocator,
+            .cwd = self.cwd,
+            .out = self.out.any(),
+        });
     }
+    try self.out.writeAll("\r\n");
+    return true;
 }
 
-pub fn printParseError(out: std.fs.File.Writer, errUnion: urt.results.ParseError, command: []const u8) !void {
-    const ansi = ANSI.init(out);
-    try ansi.print("*r", "PARSING ERROR: ", .{});
+pub fn parse(self: This, source: urt.Source, parser: *urt.parsing.Parser) !?urt.runtime.Script {
+    const result = try parser.parse(source);
+    if (result.isErr()) |err| {
+        try printParseError(err, source, self.out);
+        return null;
+    }
+    return result.ok;
+}
 
-    switch (errUnion) {
+pub fn run(self: This, script: urt.runtime.Script, config: urt.runtime.Script.RunConfig) !bool {
+    const result = try script.run(config);
+    if (result.isErr()) |err| {
+        try printRuntimeError(err, self.out);
+        return false;
+    }
+    return true;
+}
+
+pub fn parseAndRun(self: This, source: urt.Source, parser: *urt.parsing.Parser, config: urt.runtime.Script.RunConfig) !bool {
+    const script = try self.parse(source, parser);
+    if (script) |s| {
+        defer s.deinit();
+        return try self.run(s, config);
+    }
+    return false;
+}
+
+pub fn printParseError(parse_error: urt.results.ParseError, source: urt.Source, out: std.fs.File.Writer) !void {
+    const ansi = ANSI.init(out);
+    try ansi.print(eh, "PARSING ERROR: ", .{});
+
+    switch (parse_error) {
         .unknown => {
-            try ansi.print("r", "Unknown statement\r\n", .{});
+            try ansi.print(e, "Unknown statement\r\n", .{});
         },
         .never_closed_string => |err| {
-            try ansi.print("r", "Never closed string at index {d}\r\n", .{err.location.index});
-            try printLineHighlight(out, command, err.location);
+            try ansi.print(e, "Never closed string at index {d}\r\n", .{err.location.index});
+            try printLineHighlight(err.location, source, out);
         },
         .unexpected_token => |err| {
             {
-                ansi.begin("r");
-                defer ansi.end("r");
+                ansi.begin(e);
+                defer ansi.end(e);
                 try out.print("Unexpected token '{s}'", .{@tagName(err.found.value)});
                 if (err.expected.len > 0) try out.print(", expected ", .{});
                 for (err.expected, 0..) |expected_type, i| {
@@ -130,76 +217,92 @@ pub fn printParseError(out: std.fs.File.Writer, errUnion: urt.results.ParseError
                 }
                 try out.print("\r\n", .{});
             }
-            try printLineHighlight(out, command, err.found.loc);
+            try printLineHighlight(err.found.loc, source, out);
         },
         .unexpected_character => |err| {
-            try ansi.print("r", "Unexpected character '{s}'\r\n", .{err.location.lexeme(command)});
-            try printLineHighlight(out, command, err.location);
+            try ansi.print(e, "Unexpected character '{s}'\r\n", .{err.location.lexeme(source.source)});
+            try printLineHighlight(err.location, source, out);
         },
         .invalid_csharp_identifier => |err| {
-            try ansi.print("r", "Invalid C# identifier '{s}'\r\n", .{err.token.loc.lexeme(command)});
-            try printLineHighlight(out, command, err.token.loc);
+            try ansi.print(e, "Invalid C# identifier '{s}'\r\n", .{err.token.loc.lexeme(source.source)});
+            try printLineHighlight(err.token.loc, source, out);
         },
         .invalid_guid => |err| {
-            try ansi.print("r", "Invalid GUID '{s}'\r\n", .{err.token.loc.lexeme(command)});
-            try printLineHighlight(out, command, err.token.loc);
+            try ansi.print(e, "Invalid GUID '{s}'\r\n", .{err.token.loc.lexeme(source.source)});
+            try printLineHighlight(err.token.loc, source, out);
         },
         .invalid_number => |err| {
-            try ansi.print("r", "Invalid number '{s}'\r\n", .{err.location.lexeme(command)});
-            try printLineHighlight(out, command, err.location);
+            try ansi.print(e, "Invalid number '{s}'\r\n", .{err.location.lexeme(source.source)});
+            try printLineHighlight(err.location, source, out);
         },
         .duplicate_clause => |err| {
-            try ansi.print("r", "Duplicate clause '{s}' appeared at:\r\n", .{err.clause});
-            try printLineHighlight(out, command, err.first.loc);
-            try ansi.print("r", "But also at:\r\n", .{});
-            try printLineHighlight(out, command, err.second.loc);
+            try ansi.print(e, "Duplicate clause '{s}' appeared at:\r\n", .{err.clause});
+            try printLineHighlight(err.first.loc, source, out);
+            try ansi.print(e, "But also at:\r\n", .{});
+            try printLineHighlight(err.second.loc, source, out);
         },
         .missing_clause => |err| {
-            try ansi.print("r", "Missing clause '{s}'\r\n", .{err.clause});
-            try printLineHighlight(out, command, err.placement.loc);
+            try ansi.print(e, "Missing clause '{s}'\r\n", .{err.clause});
+            try printLineHighlight(err.placement.loc, source, out);
         },
         .multiple => |errs| {
             for (errs) |err| {
-                try printParseError(out, err, command);
+                try printParseError(err, source, out);
             }
         },
     }
 }
 
-pub fn printRuntimeError(out: std.fs.File.Writer, errUnion: urt.results.RuntimeError) !void {
+pub fn printRuntimeError(runtime_error: urt.results.RuntimeError, out: std.fs.File.Writer) !void {
     const ansi = ANSI.init(out);
-    try ansi.print("*r", "RUNTIME ERROR: ", .{});
+    try ansi.print(eh, "RUNTIME ERROR: ", .{});
 
-    switch (errUnion) {
-        .invalid_asset => |err| {
-            try ansi.print("r", "Invalid asset path '{s}'\r\n", .{err.path});
+    switch (runtime_error) {
+        .invalid_asset => |_| {
+            try ansi.print(e, "Invalid asset path\r\n", .{});
         },
-        .invalid_path => |err| {
-            try ansi.print("r", "Invalid path '{s}'\r\n", .{err.path});
+        .invalid_path => |_| {
+            try ansi.print(e, "Invalid path\r\n", .{});
         },
     }
 }
 
-pub fn printLineHighlight(out: std.fs.File.Writer, source: []const u8, loc: urt.language.Token.Location) !void {
-    const line_start = std.mem.lastIndexOf(u8, source[0..loc.index], "\n") orelse 0;
-    const line_end = (std.mem.indexOf(u8, source[loc.index..], "\n") orelse source[loc.index..].len) + loc.index;
-    const highlight_offset = loc.index - line_start;
-
-    const line_number = std.mem.count(u8, source[0..loc.index], "\n") + 1;
-    const line = source[line_start..line_end];
+pub fn printLineHighlight(loc: urt.Token.Location, source: urt.Source, out: std.fs.File.Writer) !void {
+    const line_number = source.lineIndex(loc.index) orelse return error.InvalidLocation;
+    if (line_number != source.lineIndex(loc.index + @max(loc.len, 1) - 1)) return error.InvalidLocation;
+    const line = source.line(line_number) orelse return error.InvalidLocation;
 
     const ansi = ANSI.init(out);
-    try ansi.print("*", "On line {d}: \r\n", .{line_number});
+    if (source.name) |name| {
+        try ansi.print("*", "{s}:{d} \r\n", .{ name, line_number + 1 });
+    }
     try out.print("{s}\r\n", .{line});
 
     ansi.begin("g");
     defer ansi.end("g");
 
-    try out.writeByteNTimes(' ', highlight_offset);
+    const start = offset(loc.index, line);
+    const len = offset(loc.index + @max(loc.len, 1) - 1, line) + 1 - start;
+
+    try out.writeByteNTimes(' ', start);
     try out.writeByte('^');
-    if (loc.len > 1) try out.writeByteNTimes('~', loc.len - 1);
+    if (len > 1) try out.writeByteNTimes('~', len - 1);
 
     try out.print("\r\n", .{});
+}
+
+/// Calculates the offset of the given index in the line, considering tabs.
+pub fn offset(index: usize, line: []const u8) usize {
+    var off: usize = 0;
+    const tab_size = 8; // TODO: get tab size from os or something
+    for (line[0..index]) |c| {
+        if (c == '\t') {
+            off += tab_size - (off % tab_size);
+        } else {
+            off += 1;
+        }
+    }
+    return off;
 }
 
 /// Prints the standard help message to the given writer.
@@ -239,6 +342,16 @@ pub fn openURL(url: [:0]const u8) void {
     }
 }
 
+pub const LocalizedScript = struct {
+    script: urt.runtime.Script,
+    dir: ?std.fs.Dir = null,
+
+    pub fn cleanup(self: *LocalizedScript) void {
+        self.script.deinit();
+        if (self.dir) |*d| d.close();
+    }
+};
+
 pub const ANSI = struct {
     enabled: bool = false,
     out: std.fs.File.Writer,
@@ -254,14 +367,28 @@ pub const ANSI = struct {
 
         for (tags) |tag| {
             self.out.writeAll(switch (tag) {
-                '*' => "\x1B[1m",
-                '_' => "\x1B[4m",
-                'r' => "\x1B[31m",
-                'g' => "\x1B[32m",
-                'b' => "\x1B[34m",
-                'y' => "\x1B[33m",
-                'c' => "\x1B[36m",
-                'm' => "\x1B[35m",
+                '*' => "\x1B[1m", // bold
+                '.' => "\x1B[2m", // dim/faint
+                '/' => "\x1B[3m", // italic
+                '_' => "\x1B[4m", // underline
+                '|' => "\x1B[5m", // blink
+                '-' => "\x1B[9m", // strikethrough
+                'd' => "\x1B[30m", // black (dark)
+                'r' => "\x1B[31m", // red
+                'g' => "\x1B[32m", // green
+                'y' => "\x1B[33m", // yellow
+                'b' => "\x1B[34m", // blue
+                'm' => "\x1B[35m", // magenta
+                'c' => "\x1B[36m", // cyan
+                'w' => "\x1B[37m", // white
+                'D' => "\x1B[90m", // bright black (dark gray)
+                'R' => "\x1B[91m", // bright red
+                'G' => "\x1B[92m", // bright green
+                'Y' => "\x1B[93m", // bright yellow
+                'B' => "\x1B[94m", // bright blue
+                'M' => "\x1B[95m", // bright magenta
+                'C' => "\x1B[96m", // bright cyan
+                'W' => "\x1B[97m", // bright white
                 else => continue,
             }) catch continue;
         }
@@ -272,9 +399,13 @@ pub const ANSI = struct {
 
         for (tags) |tag| {
             self.out.writeAll(switch (tag) {
-                '*' => "\x1B[22m",
+                '*', '.' => "\x1B[22m",
+                '/' => "\x1B[23m",
                 '_' => "\x1B[24m",
-                'r', 'g', 'b', 'y', 'c', 'm' => "\x1B[39m",
+                '|' => "\x1B[25m",
+                '-' => "\x1B[29m",
+                'd', 'r', 'g', 'b', 'y', 'c', 'm', 'w' => "\x1B[39m",
+                'D', 'R', 'G', 'B', 'Y', 'C', 'M', 'W' => "\x1B[39m",
                 else => continue,
             }) catch continue;
         }

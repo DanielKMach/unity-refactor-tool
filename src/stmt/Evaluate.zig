@@ -4,7 +4,7 @@ const results = core.results;
 const log = std.log.scoped(.evaluate_statement);
 
 const This = @This();
-const Tokenizer = core.language.Tokenizer;
+const Tokenizer = core.parsing.Tokenizer;
 const Scanner = core.runtime.Scanner;
 const RuntimeEnv = core.runtime.RuntimeEnv;
 const ComponentIterator = core.runtime.ComponentIterator;
@@ -15,22 +15,24 @@ const GUID = core.runtime.GUID;
 
 const files = &.{ ".prefab", ".unity", ".asset" };
 
-path: std.BoundedArray([]const u8, 8),
+path: [][]const u8,
 of: AssetTarget,
-in: InTarget,
+in: ?InTarget,
 
-pub fn parse(tokens: *Tokenizer.TokenIterator) anyerror!results.ParseResult(This) {
+pub fn parse(tokens: *Tokenizer.TokenIterator, env: core.parsing.ParsetimeEnv) anyerror!results.ParseResult(This) {
     core.profiling.begin(parse);
     defer core.profiling.stop();
 
     if (!tokens.match(.EVAL)) return .ERR(.unknown);
 
-    var path: std.BoundedArray([]const u8, 8) = try .init(0);
+    var path = std.ArrayList([]const u8).init(env.allocator);
+    defer path.deinit();
+    errdefer for (path.items) |p| env.allocator.free(p);
 
     while (true) {
         switch (tokens.next().value) {
-            .string => |str| try path.append(str),
-            .literal => |lit| try path.append(lit),
+            .string => |str| try path.append(try env.allocator.dupe(u8, str)),
+            .literal => |lit| try path.append(try env.allocator.dupe(u8, lit)),
             else => return .ERR(.{
                 .unexpected_token = .{
                     .found = tokens.peek(0),
@@ -44,25 +46,31 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) anyerror!results.ParseResult(This
 
     const Clauses = struct {
         OF: AssetTarget,
-        IN: InTarget = InTarget.default,
+        IN: ?InTarget = null,
     };
-    const clauses = switch (try core.stmt.clse.parse(Clauses, tokens)) {
+    const clauses = switch (try core.stmt.clse.parse(Clauses, tokens, env)) {
         .ok => |clses| clses,
         .err => |err| return .ERR(err),
     };
 
     return .OK(.{
-        .path = path,
+        .path = try path.toOwnedSlice(),
         .of = clauses.OF,
         .in = clauses.IN,
     });
+}
+
+pub fn cleanup(self: This, allocator: std.mem.Allocator) void {
+    self.of.cleanup(allocator);
+    if (self.in) |in| in.cleanup(allocator);
+    for (self.path) |p| allocator.free(p);
 }
 
 pub fn run(self: This, data: RuntimeEnv) anyerror!results.RuntimeResult(void) {
     core.profiling.begin(run);
     defer core.profiling.stop();
 
-    const in = self.in;
+    const in = self.in orelse InTarget.default;
     const of = self.of;
 
     var dir = in.openDir(data, .{ .iterate = true, .access_sub_paths = true }) catch {
@@ -134,7 +142,7 @@ pub fn scanAndPrint(self: This, file: std.fs.File, file_path: []const u8, guid: 
 
         if (!(try core.stmt.Show.matchScriptOrPrefabGUID(guid, &yaml))) continue;
 
-        const path = self.path.slice();
+        const path = self.path;
         const new_path = try allocator.alloc([]const u8, path.len + 1);
         defer allocator.free(new_path);
         @memcpy(new_path[1..], path);

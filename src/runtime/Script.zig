@@ -6,7 +6,6 @@ const log = std.log.scoped(.script);
 
 allocator: std.mem.Allocator,
 statements: []core.stmt.Statement,
-source: []const u8,
 
 pub fn run(this: This, options: RunConfig) !core.results.RuntimeResult(void) {
     core.profiling.begin(run);
@@ -39,6 +38,9 @@ pub fn run(this: This, options: RunConfig) !core.results.RuntimeResult(void) {
 }
 
 pub fn deinit(this: This) void {
+    for (this.statements) |stmt| {
+        stmt.deinit(this.allocator);
+    }
     this.allocator.free(this.statements);
 }
 

@@ -4,7 +4,7 @@ const results = core.results;
 const log = std.log.scoped(.show_statement);
 
 const This = @This();
-const Tokenizer = core.language.Tokenizer;
+const Tokenizer = core.parsing.Tokenizer;
 const Yaml = core.runtime.Yaml;
 const ComponentIterator = core.runtime.ComponentIterator;
 const Scanner = core.runtime.Scanner;
@@ -24,9 +24,9 @@ const refs_files = &.{ ".prefab", ".unity", ".asset", ".mat" };
 
 mode: SearchMode,
 of: AssetTarget,
-in: InTarget,
+in: ?InTarget,
 
-pub fn parse(tokens: *Tokenizer.TokenIterator) anyerror!results.ParseResult(This) {
+pub fn parse(tokens: *Tokenizer.TokenIterator, env: core.parsing.ParsetimeEnv) anyerror!results.ParseResult(This) {
     core.profiling.begin(parse);
     defer core.profiling.stop();
 
@@ -68,9 +68,9 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) anyerror!results.ParseResult(This
 
     const Clauses = struct {
         OF: AssetTarget,
-        IN: InTarget = InTarget.default,
+        IN: ?InTarget = null,
     };
-    const clauses = switch (try core.stmt.clse.parse(Clauses, tokens)) {
+    const clauses = switch (try core.stmt.clse.parse(Clauses, tokens, env)) {
         .ok => |clses| clses,
         .err => |err| return .ERR(err),
     };
@@ -80,6 +80,11 @@ pub fn parse(tokens: *Tokenizer.TokenIterator) anyerror!results.ParseResult(This
         .of = clauses.OF,
         .in = clauses.IN,
     });
+}
+
+pub fn cleanup(self: This, allocator: std.mem.Allocator) void {
+    self.of.cleanup(allocator);
+    if (self.in) |in| in.cleanup(allocator);
 }
 
 pub fn run(self: This, data: RuntimeEnv) anyerror!results.RuntimeResult(void) {
@@ -113,6 +118,9 @@ pub fn search(self: This, data: RuntimeEnv, count: ?*usize, times: ?*usize) !res
     core.profiling.begin(search);
     defer core.profiling.stop();
 
+    const in = self.in orelse InTarget.default;
+    const of = self.of;
+
     var guids = std.ArrayList(GUID).init(data.allocator);
     defer guids.deinit();
     defer for (guids.items) |g| g.deinit(data.allocator);
@@ -122,15 +130,15 @@ pub fn search(self: This, data: RuntimeEnv, count: ?*usize, times: ?*usize) !res
     defer references.deinit();
     var scanned: usize = 0;
 
-    var dir = self.in.openDir(data, .{ .iterate = true, .access_sub_paths = true }) catch {
+    var dir = in.openDir(data, .{ .iterate = true, .access_sub_paths = true }) catch {
         return .ERR(.{
-            .invalid_path = .{ .path = self.in.dir },
+            .invalid_path = .{ .path = in.dir },
         });
     };
     defer dir.close();
 
     {
-        const starting_targets: []GUID = switch (try self.of.getGUID(data.cwd, data.allocator)) {
+        const starting_targets: []GUID = switch (try of.getGUID(data.cwd, data.allocator)) {
             .ok => |v| v,
             .err => |err| return .ERR(err),
         };
