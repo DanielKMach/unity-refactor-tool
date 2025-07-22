@@ -156,6 +156,4 @@ const AssetTarget = union(enum) {
     path: []const u8,
     name: []const u8,
     guid: []const u8,
-
-    const Type = @typeInfo(AssetTarget).@"union".tag_type orelse unreachable;
 };
