@@ -281,11 +281,28 @@ pub fn printLineHighlight(loc: urt.Token.Location, source: urt.Source, out: std.
     ansi.begin("g");
     defer ansi.end("g");
 
-    try out.writeByteNTimes(' ', loc.index);
+    const start = offset(loc.index, line);
+    const len = offset(loc.index + @max(loc.len, 1) - 1, line) + 1 - start;
+
+    try out.writeByteNTimes(' ', start);
     try out.writeByte('^');
-    if (loc.len > 1) try out.writeByteNTimes('~', loc.len - 1);
+    if (len > 1) try out.writeByteNTimes('~', len - 1);
 
     try out.print("\r\n", .{});
+}
+
+/// Calculates the offset of the given index in the line, considering tabs.
+pub fn offset(index: usize, line: []const u8) usize {
+    var off: usize = 0;
+    const tab_size = 8; // TODO: get tab size from os or something
+    for (line[0..index]) |c| {
+        if (c == '\t') {
+            off += tab_size - (off % tab_size);
+        } else {
+            off += 1;
+        }
+    }
+    return off;
 }
 
 /// Prints the standard help message to the given writer.
