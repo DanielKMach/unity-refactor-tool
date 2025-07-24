@@ -55,6 +55,18 @@ pub fn deinit(self: Source) void {
 }
 
 pub fn line(self: Source, line_index: usize) ?[]const u8 {
+    const start: usize = self.lineStart(line_index) orelse return null;
+    const end = std.mem.indexOfScalarPos(u8, self.source, start, '\n') orelse self.source.len;
+    return std.mem.trim(u8, self.source[start..end], "\r\n");
+}
+
+pub fn lineIndex(self: Source, index: usize) ?usize {
+    if (index > self.source.len) return null;
+    const line_index = std.mem.count(u8, self.source[0..@min(index, self.source.len)], "\n");
+    return line_index;
+}
+
+pub fn lineStart(self: Source, line_index: usize) ?usize {
     var start: usize = 0;
     for (0..line_index) |_| {
         start = std.mem.indexOfScalarPos(u8, self.source, start, '\n') orelse {
@@ -64,12 +76,5 @@ pub fn line(self: Source, line_index: usize) ?[]const u8 {
         };
         start += 1; // move past the newline character
     }
-    const end = std.mem.indexOfScalarPos(u8, self.source, start, '\n') orelse self.source.len;
-    return std.mem.trim(u8, self.source[start..end], "\r\n");
-}
-
-pub fn lineIndex(self: Source, index: usize) ?usize {
-    if (index > self.source.len) return null;
-    const line_index = std.mem.count(u8, self.source[0..@min(index, self.source.len)], "\n");
-    return line_index;
+    return start;
 }

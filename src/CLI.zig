@@ -268,21 +268,22 @@ pub fn printRuntimeError(runtime_error: urt.results.RuntimeError, out: std.fs.Fi
 }
 
 pub fn printLineHighlight(loc: urt.Token.Location, source: urt.Source, out: std.fs.File.Writer) !void {
-    const line_number = source.lineIndex(loc.index) orelse return error.InvalidLocation;
-    if (line_number != source.lineIndex(loc.index + @max(loc.len, 1) - 1)) return error.InvalidLocation;
-    const line = source.line(line_number) orelse return error.InvalidLocation;
+    const line_index = source.lineIndex(loc.index) orelse return error.InvalidLocation;
+    if (line_index != source.lineIndex(loc.index + @max(loc.len, 1) - 1)) return error.InvalidLocation;
+    const line = source.line(line_index) orelse return error.InvalidLocation;
 
     const ansi = ANSI.init(out);
     if (source.name) |name| {
-        try ansi.print("*", "{s}:{d} \r\n", .{ name, line_number + 1 });
+        try ansi.print("*", "{s}:{d} \r\n", .{ name, line_index + 1 });
     }
     try out.print("{s}\r\n", .{line});
 
+    const index = loc.index - (source.lineStart(line_index) orelse unreachable);
+    const start = offset(index, line);
+    const len = offset(index + @max(loc.len, 1) - 1, line) + 1 - start;
+
     ansi.begin("g");
     defer ansi.end("g");
-
-    const start = offset(loc.index, line);
-    const len = offset(loc.index + @max(loc.len, 1) - 1, line) + 1 - start;
 
     try out.writeByteNTimes(' ', start);
     try out.writeByte('^');
