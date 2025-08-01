@@ -208,12 +208,12 @@ pub fn printParseError(parse_error: urt.results.ParseError, source: urt.Source, 
             {
                 ansi.begin(e);
                 defer ansi.end(e);
-                try out.print("Unexpected token '{s}'", .{@tagName(err.found.value)});
+                try out.print("Unexpected {}", .{err.found.value});
                 if (err.expected.len > 0) try out.print(", expected ", .{});
                 for (err.expected, 0..) |expected_type, i| {
                     if (i > 0 and i != err.expected.len - 1) try out.print(", ", .{});
                     if (i != 0 and i == err.expected.len - 1) try out.print(" or ", .{});
-                    try out.print("{s}", .{@tagName(expected_type)});
+                    try out.print("{}", .{expected_type});
                 }
                 try out.print("\r\n", .{});
             }
