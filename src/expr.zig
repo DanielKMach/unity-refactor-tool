@@ -26,7 +26,13 @@ pub const Expr = union(enum) {
     }
 };
 
-pub fn makeUniqueBinaryParseFunc(next_call: ParseFn, expected_tokens: []const core.Token.Type) ParseFn {
+/// The difference between this and L2R is that this func will return an error if the matching operation is found twice
+/// in the same expression without explicit parentheses.
+///
+/// This is the case for assignment operations, where it should be right-to-left, but since
+/// there is no easy way to find the end of the expression from the iterator, I simply
+/// decided that it needed explicit parentheses to be valid.
+fn uniqueBinaryParseFunc(next_call: *const ParseFn, expected_tokens: []const core.Token.Type) ParseFn {
     return (struct {
         pub fn parse(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.Allocator) !core.results.ParseResult(*Expr) {
             var left = switch (try next_call(tokens, allocator)) {
@@ -55,16 +61,16 @@ pub fn makeUniqueBinaryParseFunc(next_call: ParseFn, expected_tokens: []const co
     }).parse;
 }
 
-// TODO: see if this func works (could be useful to reduce code)
-pub fn makeL2RBinaryParseFunc(next_call: ParseFn, expected_tokens: []const core.Token.Type) ParseFn {
+/// Generates a function that parses binary expressions from left to right.
+fn l2rBinaryParseFunc(next_call: *const ParseFn, expected_tokens: []const core.Token.Type) ParseFn {
     return (struct {
         pub fn parse(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.Allocator) !core.results.ParseResult(*Expr) {
-            var left = switch (next_call(tokens, allocator)) {
+            var left = switch (try next_call(tokens, allocator)) {
                 .ok => |expr| expr,
                 .err => |err| return .ERR(err),
             };
             while (tokens.matchAny(expected_tokens)) |t| {
-                const right = switch (next_call(tokens, allocator)) {
+                const right = switch (try next_call(tokens, allocator)) {
                     .ok => |expr| expr,
                     .err => |err| return .ERR(err),
                 };
@@ -77,6 +83,27 @@ pub fn makeL2RBinaryParseFunc(next_call: ParseFn, expected_tokens: []const core.
                 left = expr;
             }
             return .OK(left);
+        }
+    }).parse;
+}
+
+/// Unused. TODO: fix dependency loop.
+fn unaryParseFunc(self: *const ParseFn, next_call: *const ParseFn, expected_tokens: []const core.Token.Type) ParseFn {
+    return (struct {
+        pub fn parse(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.Allocator) !core.results.ParseResult(*Expr) {
+            if (tokens.matchAny(expected_tokens)) |t| {
+                const operand = switch (try self(tokens, allocator)) {
+                    .ok => |expr| expr,
+                    .err => |err| return .ERR(err),
+                };
+                const expr = try allocator.create(Expr);
+                expr.* = .{ .unary = Unary{
+                    .op = t,
+                    .operand = operand,
+                } };
+                return .OK(expr);
+            }
+            return try next_call(tokens, allocator);
         }
     }).parse;
 }
@@ -102,116 +129,14 @@ pub fn parse(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.A
     return parseAssignment(tokens, allocator);
 }
 
-fn parseAssignment(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.Allocator) !core.results.ParseResult(*Expr) {
-    // TODO: handle right-to-left assignment (if not too much headache)
-    var left = switch (try parseEquality(tokens, allocator)) {
-        .ok => |expr| expr,
-        .err => |err| return .ERR(err),
-    };
-    log.debug("peek = {s}", .{@tagName(tokens.peek(1).value)});
-    if (tokens.matchAny(&.{.equal})) |t| {
-        const right = switch (try parseEquality(tokens, allocator)) {
-            .ok => |expr| expr,
-            .err => |err| return .ERR(err),
-        };
-        const expr = try allocator.create(Expr);
-        expr.* = .{ .binary = .init(left, t, right) };
-        left = expr;
-    }
-    if (tokens.matchAny(&.{.equal})) |t| {
-        return .ERR(.{
-            .unexpected_token = .{
-                .found = t,
-                .expected = &.{.equal},
-            },
-        });
-    }
-    return .OK(left);
-}
-
-fn parseEquality(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.Allocator) !core.results.ParseResult(*Expr) {
-    var left = switch (try parseComparison(tokens, allocator)) {
-        .ok => |expr| expr,
-        .err => |err| return .ERR(err),
-    };
-    while (tokens.matchAny(&.{ .equal_equal, .bang_equal })) |t| {
-        const right = switch (try parseComparison(tokens, allocator)) {
-            .ok => |expr| expr,
-            .err => |err| return .ERR(err),
-        };
-        const expr = try allocator.create(Expr);
-        expr.* = .{ .binary = Binary{
-            .left = left,
-            .op = t,
-            .right = right,
-        } };
-        left = expr;
-    }
-    return .OK(left);
-}
-
-fn parseComparison(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.Allocator) !core.results.ParseResult(*Expr) {
-    var left = switch (try parseTerm(tokens, allocator)) {
-        .ok => |expr| expr,
-        .err => |err| return .ERR(err),
-    };
-    while (tokens.matchAny(&.{ .greater, .greater_equal, .less, .less_equal })) |t| {
-        const right = switch (try parseTerm(tokens, allocator)) {
-            .ok => |expr| expr,
-            .err => |err| return .ERR(err),
-        };
-        const expr = try allocator.create(Expr);
-        expr.* = .{ .binary = Binary{
-            .left = left,
-            .op = t,
-            .right = right,
-        } };
-        left = expr;
-    }
-    return .OK(left);
-}
-
-fn parseTerm(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.Allocator) !core.results.ParseResult(*Expr) {
-    var left = switch (try parseFactor(tokens, allocator)) {
-        .ok => |expr| expr,
-        .err => |err| return .ERR(err),
-    };
-    while (tokens.matchAny(&.{ .plus, .minus })) |t| {
-        const right = switch (try parseFactor(tokens, allocator)) {
-            .ok => |expr| expr,
-            .err => |err| return .ERR(err),
-        };
-        const expr = try allocator.create(Expr);
-        expr.* = .{ .binary = Binary{
-            .left = left,
-            .op = t,
-            .right = right,
-        } };
-        left = expr;
-    }
-    return .OK(left);
-}
-
-fn parseFactor(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.Allocator) !core.results.ParseResult(*Expr) {
-    var left = switch (try parseUnary(tokens, allocator)) {
-        .ok => |expr| expr,
-        .err => |err| return .ERR(err),
-    };
-    while (tokens.matchAny(&.{ .star, .slash })) |t| {
-        const right = switch (try parseUnary(tokens, allocator)) {
-            .ok => |expr| expr,
-            .err => |err| return .ERR(err),
-        };
-        const expr = try allocator.create(Expr);
-        expr.* = .{ .binary = Binary{
-            .left = left,
-            .op = t,
-            .right = right,
-        } };
-        left = expr;
-    }
-    return .OK(left);
-}
+const parseAssignment = uniqueBinaryParseFunc(parseOr, &.{.equal});
+const parseOr = l2rBinaryParseFunc(parseAnd, &.{.OR});
+const parseAnd = l2rBinaryParseFunc(parseEquality, &.{.AND});
+const parseEquality = l2rBinaryParseFunc(parseComparison, &.{ .equal_equal, .bang_equal });
+const parseComparison = l2rBinaryParseFunc(parseTerm, &.{ .greater, .greater_equal, .less, .less_equal });
+const parseTerm = l2rBinaryParseFunc(parseFactor, &.{ .plus, .minus });
+const parseFactor = l2rBinaryParseFunc(parseUnary, &.{ .star, .slash });
+const parseAccess = l2rBinaryParseFunc(parseValue, &.{.dot});
 
 fn parseUnary(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.Allocator) !core.results.ParseResult(*Expr) {
     if (tokens.matchAny(&.{ .NOT, .minus })) |t| {
@@ -229,36 +154,12 @@ fn parseUnary(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.
     return try parseAccess(tokens, allocator);
 }
 
-fn parseAccess(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.Allocator) !core.results.ParseResult(*Expr) {
-    var left = switch (try parseValue(tokens, allocator)) {
-        .ok => |expr| expr,
-        .err => |err| return .ERR(err),
-    };
-    while (tokens.matchAny(&.{.dot})) |t| {
-        const right = switch (try parseValue(tokens, allocator)) {
-            .ok => |expr| expr,
-            .err => |err| return .ERR(err),
-        };
-        const expr = try allocator.create(Expr);
-        expr.* = .{ .binary = Binary{
-            .left = left,
-            .op = t,
-            .right = right,
-        } };
-        left = expr;
-    }
-    return .OK(left);
-}
-
 fn parseValue(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.Allocator) !core.results.ParseResult(*Expr) {
     if (tokens.matchAny(&.{ .string, .literal, .number })) |t| {
-        log.debug("Parsed value: {s}", .{@tagName(t.value)});
         const expr = try allocator.create(Expr);
         expr.* = .{ .literal = .init(t) };
-        log.debug("Parsed literal: {}", .{expr});
         return .OK(expr);
     } else if (tokens.match(.left_paren)) {
-        log.debug("Parsed value: left_paren", .{});
         const group = switch (try parse(tokens, allocator)) {
             .ok => |grouping| grouping,
             .err => |err| return .ERR(err),
