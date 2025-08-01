@@ -3,6 +3,7 @@ const std = @import("std");
 pub const parsing = @import("parsing.zig");
 pub const results = @import("results.zig");
 pub const stmt = @import("stmt.zig");
+pub const expr = @import("expr.zig");
 pub const runtime = @import("runtime.zig");
 pub const profiling = @import("profiling.zig");
 pub const util = @import("util.zig");
