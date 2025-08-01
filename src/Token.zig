@@ -29,6 +29,15 @@ pub const operator_list: []const struct { []const u8, Value } = &.{
     .{ "-", .minus },
     .{ "*", .star },
     .{ "/", .slash },
+    .{ "=", .equal },
+    .{ ">", .greater },
+    .{ "<", .less },
+    .{ "(", .left_paren },
+    .{ ")", .right_paren },
+    .{ ">=", .greater_equal },
+    .{ "<=", .less_equal },
+    .{ "!=", .bang_equal },
+    .{ "==", .equal_equal },
 };
 
 /// The type of the token.
@@ -84,6 +93,15 @@ pub const Value = union(enum) {
     minus, // '-'
     star, // '*'
     slash, // '/'
+    equal, // '='
+    greater, // '>'
+    greater_equal, // '>='
+    less, // '<'
+    less_equal, // '<='
+    bang_equal, // '!='
+    equal_equal, // '=='
+    left_paren, // '('
+    right_paren, // ')'
 
     /// A number literal.
     number: f32,
