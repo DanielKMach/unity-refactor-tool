@@ -220,6 +220,13 @@ pub const TokenIterator = struct {
         return false;
     }
 
+    pub fn matchAny(self: *TokenIterator, types: []const Token.Type) ?Token {
+        for (types) |t| {
+            if (self.match(t)) return self.peek(0);
+        }
+        return null;
+    }
+
     /// Returns the amount of tokens left to iterate.
     pub fn remaining(self: TokenIterator) usize {
         return self.tokens.len - self.index;
