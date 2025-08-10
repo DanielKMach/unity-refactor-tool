@@ -25,6 +25,13 @@ pub fn parse(tokens: *Tokenizer.TokenIterator, env: core.parsing.ParsetimeEnv) a
 
     if (!tokens.match(.EVAL)) return .ERR(.unknown);
 
+    const expr = switch (try core.expr.parseSafe(tokens, env.allocator)) {
+        .ok => |expr| expr,
+        .err => |err| return .ERR(err),
+    };
+    log.debug("{}", .{expr});
+    std.process.abort();
+
     var path = std.ArrayList([]const u8).init(env.allocator);
     defer path.deinit();
     errdefer for (path.items) |p| env.allocator.free(p);

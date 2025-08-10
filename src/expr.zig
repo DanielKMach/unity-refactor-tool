@@ -3,7 +3,9 @@ const core = @import("core");
 
 const log = std.log.scoped(.expr_parser);
 
-const ParseFn = fn (*core.parsing.Tokenizer.TokenIterator, std.mem.Allocator) std.mem.Allocator.Error!core.results.ParseResult(*Expr);
+const ParseFn = fn (*core.parsing.Tokenizer.TokenIterator, *std.heap.MemoryPool(Expr)) std.mem.Allocator.Error!core.results.ParseResult(*Expr);
+
+pub const ExprManaged = @import("expr/ExprManaged.zig");
 
 pub const Grouping = @import("expr/Grouping.zig");
 pub const Literal = @import("expr/Literal.zig");
@@ -34,17 +36,17 @@ pub const Expr = union(enum) {
 /// decided that it needed explicit parentheses to be valid.
 fn uniqueBinaryParseFunc(next_call: *const ParseFn, expected_tokens: []const core.Token.Type) ParseFn {
     return (struct {
-        pub fn parse(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.Allocator) !core.results.ParseResult(*Expr) {
-            var left = switch (try next_call(tokens, allocator)) {
+        pub fn parse(tokens: *core.parsing.Tokenizer.TokenIterator, pool: *std.heap.MemoryPool(Expr)) !core.results.ParseResult(*Expr) {
+            var left = switch (try next_call(tokens, pool)) {
                 .ok => |expr| expr,
                 .err => |err| return .ERR(err),
             };
             if (tokens.matchAny(expected_tokens)) |t| {
-                const right = switch (try next_call(tokens, allocator)) {
+                const right = switch (try next_call(tokens, pool)) {
                     .ok => |expr| expr,
                     .err => |err| return .ERR(err),
                 };
-                const expr = try allocator.create(Expr);
+                const expr = try pool.create();
                 expr.* = .{ .binary = .init(left, t, right) };
                 left = expr;
             }
@@ -64,17 +66,17 @@ fn uniqueBinaryParseFunc(next_call: *const ParseFn, expected_tokens: []const cor
 /// Generates a function that parses binary expressions from left to right.
 fn l2rBinaryParseFunc(next_call: *const ParseFn, expected_tokens: []const core.Token.Type) ParseFn {
     return (struct {
-        pub fn parse(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.Allocator) !core.results.ParseResult(*Expr) {
-            var left = switch (try next_call(tokens, allocator)) {
+        pub fn parse(tokens: *core.parsing.Tokenizer.TokenIterator, pool: *std.heap.MemoryPool(Expr)) !core.results.ParseResult(*Expr) {
+            var left = switch (try next_call(tokens, pool)) {
                 .ok => |expr| expr,
                 .err => |err| return .ERR(err),
             };
             while (tokens.matchAny(expected_tokens)) |t| {
-                const right = switch (try next_call(tokens, allocator)) {
+                const right = switch (try next_call(tokens, pool)) {
                     .ok => |expr| expr,
                     .err => |err| return .ERR(err),
                 };
-                const expr = try allocator.create(Expr);
+                const expr = try pool.create();
                 expr.* = .{ .binary = Binary{
                     .left = left,
                     .op = t,
@@ -90,43 +92,43 @@ fn l2rBinaryParseFunc(next_call: *const ParseFn, expected_tokens: []const core.T
 /// Unused. TODO: fix dependency loop.
 fn unaryParseFunc(self: *const ParseFn, next_call: *const ParseFn, expected_tokens: []const core.Token.Type) ParseFn {
     return (struct {
-        pub fn parse(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.Allocator) !core.results.ParseResult(*Expr) {
+        pub fn parse(tokens: *core.parsing.Tokenizer.TokenIterator, pool: *std.heap.MemoryPool(Expr)) !core.results.ParseResult(*Expr) {
             if (tokens.matchAny(expected_tokens)) |t| {
-                const operand = switch (try self(tokens, allocator)) {
+                const operand = switch (try self(tokens, pool)) {
                     .ok => |expr| expr,
                     .err => |err| return .ERR(err),
                 };
-                const expr = try allocator.create(Expr);
+                const expr = try pool.create(Expr);
                 expr.* = .{ .unary = Unary{
                     .op = t,
                     .operand = operand,
                 } };
                 return .OK(expr);
             }
-            return try next_call(tokens, allocator);
+            return try next_call(tokens, pool);
         }
     }).parse;
 }
 
 // Garantees that, if an error occurs, all allocated memory is freed.
-pub fn parseSafe(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.Allocator) !core.results.ParseResult(*Expr) {
-    var arena = std.heap.ArenaAllocator.init(allocator);
-    const new_alloc = arena.allocator();
-
-    return switch (try parse(tokens, new_alloc)) {
+pub fn parseSafe(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.Allocator) !core.results.ParseResult(ExprManaged) {
+    var pool = std.heap.MemoryPool(Expr).init(allocator);
+    return switch (try parse(tokens, &pool)) {
         .ok => |expr| blk: {
-            log.debug("{}", .{expr});
-            break :blk .OK(expr);
+            break :blk .OK(.{
+                .pool = pool,
+                .expr = expr,
+            });
         },
         .err => |err| blk: {
-            _ = arena.reset(.free_all);
+            _ = pool.reset(.free_all);
             break :blk .ERR(err);
         },
     };
 }
 
-pub fn parse(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.Allocator) std.mem.Allocator.Error!core.results.ParseResult(*Expr) {
-    return parseAssignment(tokens, allocator);
+pub fn parse(tokens: *core.parsing.Tokenizer.TokenIterator, pool: *std.heap.MemoryPool(Expr)) std.mem.Allocator.Error!core.results.ParseResult(*Expr) {
+    return parseAssignment(tokens, pool);
 }
 
 const parseAssignment = uniqueBinaryParseFunc(parseOr, &.{.equal});
@@ -138,29 +140,29 @@ const parseTerm = l2rBinaryParseFunc(parseFactor, &.{ .plus, .minus });
 const parseFactor = l2rBinaryParseFunc(parseUnary, &.{ .star, .slash });
 const parseAccess = l2rBinaryParseFunc(parseValue, &.{.dot});
 
-fn parseUnary(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.Allocator) !core.results.ParseResult(*Expr) {
+fn parseUnary(tokens: *core.parsing.Tokenizer.TokenIterator, pool: *std.heap.MemoryPool(Expr)) !core.results.ParseResult(*Expr) {
     if (tokens.matchAny(&.{ .NOT, .minus })) |t| {
-        const operand = switch (try parseUnary(tokens, allocator)) {
+        const operand = switch (try parseUnary(tokens, pool)) {
             .ok => |expr| expr,
             .err => |err| return .ERR(err),
         };
-        const expr = try allocator.create(Expr);
+        const expr = try pool.create();
         expr.* = .{ .unary = Unary{
             .op = t,
             .operand = operand,
         } };
         return .OK(expr);
     }
-    return try parseAccess(tokens, allocator);
+    return try parseAccess(tokens, pool);
 }
 
-fn parseValue(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.Allocator) !core.results.ParseResult(*Expr) {
+fn parseValue(tokens: *core.parsing.Tokenizer.TokenIterator, pool: *std.heap.MemoryPool(Expr)) !core.results.ParseResult(*Expr) {
     if (tokens.matchAny(&.{ .string, .literal, .number })) |t| {
-        const expr = try allocator.create(Expr);
+        const expr = try pool.create();
         expr.* = .{ .literal = .init(t) };
         return .OK(expr);
     } else if (tokens.match(.left_paren)) {
-        const group = switch (try parse(tokens, allocator)) {
+        const group = switch (try parse(tokens, pool)) {
             .ok => |grouping| grouping,
             .err => |err| return .ERR(err),
         };
@@ -172,7 +174,7 @@ fn parseValue(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.
                 },
             });
         }
-        const expr = try allocator.create(Expr);
+        const expr = try pool.create();
         expr.* = .{ .grouping = .init(group) };
         return .OK(expr);
     } else {
