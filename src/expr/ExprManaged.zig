@@ -1,7 +1,7 @@
 const core = @import("core");
 const std = @import("std");
 
-const Expr = core.expr.Expr;
+const Expr = core.Expr;
 const ExprManaged = @This();
 
 pool: std.heap.MemoryPool(Expr),

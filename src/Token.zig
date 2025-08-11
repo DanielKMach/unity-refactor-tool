@@ -204,4 +204,15 @@ pub const Location = struct {
     pub fn lexeme(self: Location, string: []const u8) []const u8 {
         return string[self.index .. self.index + self.len];
     }
+
+    pub fn merge(locations: []const Location) Location {
+        std.debug.assert(locations.len > 0);
+        var min = locations[0].index;
+        var max = locations[0].index + locations[0].len;
+        for (locations[1..]) |loc| {
+            min = @min(min, loc.index);
+            max = @max(max, loc.index + loc.len);
+        }
+        return Location{ .index = min, .len = max - min };
+    }
 };

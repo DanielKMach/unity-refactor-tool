@@ -25,7 +25,7 @@ pub fn parse(tokens: *Tokenizer.TokenIterator, env: core.parsing.ParsetimeEnv) a
 
     if (!tokens.match(.EVAL)) return .ERR(.unknown);
 
-    const expr = switch (try core.expr.parseSafe(tokens, env.allocator)) {
+    const expr = switch (try core.Expr.parseSafe(tokens, env.allocator)) {
         .ok => |expr| expr,
         .err => |err| return .ERR(err),
     };

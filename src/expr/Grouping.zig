@@ -2,8 +2,8 @@ const core = @import("core");
 
 const This = @This();
 
-expr: *core.expr.Expr,
+expr: *core.Expr,
 
-pub fn init(expr: *core.expr.Expr) This {
+pub fn init(expr: *core.Expr) This {
     return .{ .expr = expr };
 }
