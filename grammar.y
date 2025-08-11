@@ -27,7 +27,7 @@ equality <- comparison ( ( '==' / '!=' ) comparison )*
 comparison <- term ( ( '>=' / '>' / '<=' / '<' ) term )*
 term <- factor ( ( '*' / '/' ) factor )*
 factor <- unary ( ( '+' / '-' ) unary )*
-unary <- ( ( '-' / 'NOT' ) unary ) / access
+unary <- ( '-' / 'NOT' ) unary / access
 access <- value ( '.' value )*
 value <- string / number / literal / '(' expr ')'
 
