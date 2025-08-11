@@ -4,14 +4,19 @@ statement <- show / rename / evaluate / update
 # === statements ===
 show <- 'SHOW' ( 'refs' / ( 'direct' / 'indirect' )? 'uses' ) of in? where?
 rename <- 'RENAME' attribure 'FOR' attribute of in? where?
-evaluate <- 'EVALUATE' expr of in? where?
+evaluate <- 'EVAL' expr of in? where?
 update <- 'UPDATE' ( 'ADD' / 'REMOVE' ) asset in? where?
 
 # === clauses ===
 of <- 'OF' asset ( ',' asset )*
-asset <- literal / string / 'GUID' guid
 in <- 'IN' literal / string
 where <- 'WHERE' expr
+having <- 'HAVING' asset literal? ( 'ON' target )?
+
+# === constructs ===
+asset <- literal / string / 'GUID' guid
+guid <- hex{32}
+target <- 'self' / 'parent' / 'anychild'
 
 # === expressions ===
 expr <- assignment
@@ -28,8 +33,7 @@ value <- string / number / literal / '(' expr ')'
 
 # === words ===
 string <- '"' [^"]* '"'
-guid <- hex{32}
-number <- digit* ( '.' digit+ )?
+number <- digit+ ( '.' digit+ )?
 literal <- ( alpha / '_' ) ( alphanum / '_' )*
 
 # === single characters ===
