@@ -50,7 +50,7 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
                         .cwd = self.cwd,
                         .out = self.out.any(),
                         .allocator = self.allocator,
-                    });
+                    }, source);
                 }
                 return false;
             }
@@ -85,10 +85,11 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
         switch (mode) {
             .args => {
                 const source = try urt.Source.anonymous(arg, self.allocator);
-                defer source.deinit();
+                errdefer source.deinit();
                 if (try self.parse(source, &parser)) |script| {
                     try scripts.append(.{
                         .script = script,
+                        .source = source,
                     });
                     continue;
                 }
@@ -111,6 +112,7 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
                 if (try self.parse(source, &parser)) |script| {
                     try scripts.append(.{
                         .script = script,
+                        .source = source,
                         .dir = dir,
                     });
                     continue;
@@ -126,7 +128,7 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
             .cwd = script.dir orelse self.cwd,
             .out = writer.any(),
             .allocator = self.allocator,
-        })) {
+        }, script.source)) {
             return false;
         }
     }
@@ -174,10 +176,10 @@ pub fn parse(self: This, source: urt.Source, parser: *urt.parsing.Parser) !?urt.
     return result.ok;
 }
 
-pub fn run(self: This, script: urt.runtime.Script, config: urt.runtime.Script.RunConfig) !bool {
+pub fn run(self: This, script: urt.runtime.Script, config: urt.runtime.Script.RunConfig, source: urt.Source) !bool {
     const result = try script.run(config);
     if (result.isErr()) |err| {
-        try printRuntimeError(err, self.out);
+        try printRuntimeError(err, source, self.out);
         return false;
     }
     return true;
@@ -187,7 +189,7 @@ pub fn parseAndRun(self: This, source: urt.Source, parser: *urt.parsing.Parser, 
     const script = try self.parse(source, parser);
     if (script) |s| {
         defer s.deinit();
-        return try self.run(s, config);
+        return try self.run(s, config, source);
     }
     return false;
 }
@@ -253,7 +255,7 @@ pub fn printParseError(parse_error: urt.results.ParseError, source: urt.Source, 
     }
 }
 
-pub fn printRuntimeError(runtime_error: urt.results.RuntimeError, out: std.fs.File.Writer) !void {
+pub fn printRuntimeError(runtime_error: urt.results.RuntimeError, source: urt.Source, out: std.fs.File.Writer) !void {
     const ansi = ANSI.init(out);
     try ansi.print(eh, "RUNTIME ERROR: ", .{});
 
@@ -263,6 +265,27 @@ pub fn printRuntimeError(runtime_error: urt.results.RuntimeError, out: std.fs.Fi
         },
         .invalid_path => |_| {
             try ansi.print(e, "Invalid path\r\n", .{});
+        },
+        .division_by_zero => |err| {
+            try ansi.print(e, "Division by zero\r\n", .{});
+            try printLineHighlight(err.location, source, out);
+        },
+        .type_mismatch => |err| {
+            try ansi.print(e, "Found {s} as lhs\r\n", .{@tagName(err.left)});
+            try printLineHighlight(err.left_loc, source, out);
+            try ansi.print(e, "And {s} as rhs\r\n", .{@tagName(err.right)});
+            try printLineHighlight(err.right_loc, source, out);
+        },
+        .unexpected_type => |err| {
+            try ansi.print(e, "Unexpected type '{s}'\r\n", .{@tagName(err.found)});
+            try ansi.print(e, "Expected types: ", .{});
+            for (err.expected, 0..) |expected_type, i| {
+                if (i > 0 and i != err.expected.len - 1) try out.print(", ", .{});
+                if (i != 0 and i == err.expected.len - 1) try out.print(" or ", .{});
+                try out.print("{}", .{expected_type});
+            }
+            try out.print("\r\n", .{});
+            try printLineHighlight(err.location, source, out);
         },
     }
 }
@@ -345,10 +368,12 @@ pub fn openURL(url: [:0]const u8) void {
 
 pub const LocalizedScript = struct {
     script: urt.runtime.Script,
+    source: urt.Source,
     dir: ?std.fs.Dir = null,
 
     pub fn cleanup(self: *LocalizedScript) void {
         self.script.deinit();
+        self.source.deinit();
         if (self.dir) |*d| d.close();
     }
 };

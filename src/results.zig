@@ -88,6 +88,20 @@ pub const RuntimeError = union(enum) {
     invalid_path: struct {
         path: []const u8,
     },
+    unexpected_type: struct {
+        found: core.Expr.Value.Type,
+        expected: []const core.Expr.Value.Type,
+        location: core.Token.Location,
+    },
+    type_mismatch: struct {
+        left: core.Expr.Value.Type,
+        left_loc: core.Token.Location,
+        right: core.Expr.Value.Type,
+        right_loc: core.Token.Location,
+    },
+    division_by_zero: struct {
+        location: core.Token.Location,
+    },
 };
 
 pub fn RuntimeResult(T: type) type {
