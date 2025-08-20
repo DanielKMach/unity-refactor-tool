@@ -58,10 +58,10 @@ pub fn negate(expr: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
 }
 
 pub fn equals(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
-    const resA = try validateType(left, &.{ .number, .string }, env);
+    const resA = try left.evaluate(env);
     const a = resA.isOk() orelse return .ERR(resA.err);
     defer a.cleanup(env.allocator);
-    const resB = try validateType(right, &.{ .number, .string }, env);
+    const resB = try right.evaluate(env);
     const b = resB.isOk() orelse return .ERR(resB.err);
     defer b.cleanup(env.allocator);
     if (@as(Value.Type, a) != @as(Value.Type, b)) {
