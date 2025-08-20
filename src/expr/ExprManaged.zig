@@ -10,3 +10,9 @@ expr: *Expr,
 pub fn format(value: ExprManaged, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
     return value.expr.format(fmt, options, writer);
 }
+
+pub fn deinit(self: *ExprManaged) void {
+    self.pool.deinit();
+    self.* = undefined;
+    // TODO: Cleanup allocated tokens within the tree.
+}

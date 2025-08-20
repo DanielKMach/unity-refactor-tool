@@ -15,9 +15,11 @@ pub const Literal = @import("expr/Literal.zig");
 pub const Binary = @import("expr/Binary.zig");
 pub const Unary = @import("expr/Unary.zig");
 
+pub const ops = @import("expr/ops.zig");
+
 pub const RunEnv = struct {
     allocator: std.mem.Allocator,
-    vars: std.StringHashMap(Value),
+    vars: *const std.StringHashMap(Value),
 };
 
 pub const Value = union(enum) {
@@ -28,6 +30,13 @@ pub const Value = union(enum) {
     number: f32,
     object: void,
     array: void,
+
+    pub fn cleanup(self: Value, allocator: std.mem.Allocator) void {
+        switch (self) {
+            .string => |s| allocator.free(s),
+            else => {},
+        }
+    }
 };
 
 pub const Class = union(enum) {
@@ -37,6 +46,15 @@ pub const Class = union(enum) {
     literal: Literal,
     binary: Binary,
     unary: Unary,
+
+    pub fn evaluate(self: Class, env: RunEnv) anyerror!core.results.RuntimeResult(Value) {
+        return switch (self) {
+            .grouping => |g| g.expr.evaluate(env),
+            .literal => |l| l.evaluate(env),
+            .binary => |b| b.evaluate(env),
+            .unary => |u| u.evaluate(env),
+        };
+    }
 
     pub fn format(value: Class, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
         switch (value) {
