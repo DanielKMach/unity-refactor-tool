@@ -166,16 +166,15 @@ fn l2rBinaryParseFunc(next_call: *const ParseFn, expected_tokens: []const core.T
     }).parse;
 }
 
-/// Unused. TODO: fix dependency loop.
-fn unaryParseFunc(self: *const ParseFn, next_call: *const ParseFn, expected_tokens: []const core.Token.Type) ParseFn {
+fn unaryParseFunc(next_call: *const ParseFn, expected_tokens: []const core.Token.Type) ParseFn {
     return (struct {
         pub fn parse(tokens: *core.parsing.Tokenizer.TokenIterator, pool: *std.heap.MemoryPool(Expr)) !core.results.ParseResult(*Expr) {
             if (tokens.matchAny(expected_tokens)) |t| {
-                const operand = switch (try self(tokens, pool)) {
+                const operand = switch (try @This().parse(tokens, pool)) {
                     .ok => |expr| expr,
                     .err => |err| return .ERR(err),
                 };
-                const expr = try pool.create(Expr);
+                const expr = try pool.create();
                 const loc: Location = .merge(&.{ operand.loc, t.loc });
                 expr.* = .initUnary(loc, .init(t, operand));
                 return .OK(expr);
@@ -214,20 +213,7 @@ const parseComparison = l2rBinaryParseFunc(parseTerm, &.{ .greater, .greater_equ
 const parseTerm = l2rBinaryParseFunc(parseFactor, &.{ .plus, .minus });
 const parseFactor = l2rBinaryParseFunc(parseUnary, &.{ .star, .slash });
 const parseAccess = l2rBinaryParseFunc(parseValue, &.{.dot});
-
-fn parseUnary(tokens: *core.parsing.Tokenizer.TokenIterator, pool: *std.heap.MemoryPool(Expr)) !core.results.ParseResult(*Expr) {
-    if (tokens.matchAny(&.{ .NOT, .minus })) |t| {
-        const operand = switch (try parseUnary(tokens, pool)) {
-            .ok => |expr| expr,
-            .err => |err| return .ERR(err),
-        };
-        const expr = try pool.create();
-        const loc: Location = .merge(&.{ operand.loc, t.loc });
-        expr.* = .initUnary(loc, .init(t, operand));
-        return .OK(expr);
-    }
-    return try parseAccess(tokens, pool);
-}
+const parseUnary = unaryParseFunc(parseAccess, &.{ .NOT, .minus });
 
 fn parseValue(tokens: *core.parsing.Tokenizer.TokenIterator, pool: *std.heap.MemoryPool(Expr)) !core.results.ParseResult(*Expr) {
     if (tokens.matchAny(&.{ .string, .literal, .number })) |t| {
