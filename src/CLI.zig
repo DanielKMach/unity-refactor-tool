@@ -277,14 +277,18 @@ pub fn printRuntimeError(runtime_error: urt.results.RuntimeError, source: urt.So
             try printLineHighlight(err.right_loc, source, out);
         },
         .unexpected_type => |err| {
-            try ansi.print(e, "Unexpected type '{s}'\r\n", .{@tagName(err.found)});
-            try ansi.print(e, "Expected types: ", .{});
-            for (err.expected, 0..) |expected_type, i| {
-                if (i > 0 and i != err.expected.len - 1) try out.print(", ", .{});
-                if (i != 0 and i == err.expected.len - 1) try out.print(" or ", .{});
-                try out.print("{}", .{expected_type});
+            {
+                ansi.begin(e);
+                defer ansi.end(e);
+                try out.print("Unexpected type {s}", .{@tagName(err.found)});
+                if (err.expected.len > 0) try out.print(", expected ", .{});
+                for (err.expected, 0..) |expected_type, i| {
+                    if (i > 0 and i != err.expected.len - 1) try out.print(", ", .{});
+                    if (i != 0 and i == err.expected.len - 1) try out.print(" or ", .{});
+                    try out.print("{s}", .{@tagName(expected_type)});
+                }
+                try out.print("\r\n", .{});
             }
-            try out.print("\r\n", .{});
             try printLineHighlight(err.location, source, out);
         },
     }
