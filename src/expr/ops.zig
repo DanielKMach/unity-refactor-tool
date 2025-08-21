@@ -7,6 +7,29 @@ const Location = core.Token.Location;
 const RuntimeResult = core.results.RuntimeResult;
 const RuntimeError = core.results.RuntimeError;
 
+pub fn addOrConcat(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
+    const resA = try validateType(left, &.{ .string, .number }, env);
+    const a = resA.isOk() orelse return .ERR(resA.err);
+    defer a.cleanup(env.allocator);
+    const resB = try validateType(right, &.{ .string, .number }, env);
+    const b = resB.isOk() orelse return .ERR(resB.err);
+    defer b.cleanup(env.allocator);
+
+    return .OK(switch (a) {
+        .string => |str_a| switch (b) {
+            .string => |str_b| .{ .string = try std.fmt.allocPrint(env.allocator, "{s}{s}", .{ str_a, str_b }) },
+            .number => |num_b| .{ .string = try std.fmt.allocPrint(env.allocator, "{s}{d}", .{ str_a, num_b }) },
+            else => unreachable,
+        },
+        .number => |num_a| switch (b) {
+            .string => |str_b| .{ .string = try std.fmt.allocPrint(env.allocator, "{d}{s}", .{ num_a, str_b }) },
+            .number => |num_b| .{ .number = num_a + num_b },
+            else => unreachable,
+        },
+        else => unreachable,
+    });
+}
+
 pub fn add(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
     const resA = try validateType(left, &.{.number}, env);
     const a = resA.isOk() orelse return .ERR(resA.err);

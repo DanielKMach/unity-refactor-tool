@@ -12,7 +12,7 @@ pub fn init(left: *core.Expr, op: core.Token, right: *core.Expr) This {
 
 pub fn evaluate(self: This, env: core.Expr.RunEnv) anyerror!core.results.RuntimeResult(core.Expr.Value) {
     return switch (self.op.value) {
-        .plus => core.Expr.ops.concat(self.left, self.right, env), // TODO: make also add numbers
+        .plus => core.Expr.ops.addOrConcat(self.left, self.right, env),
         .minus => core.Expr.ops.subtract(self.left, self.right, env),
         .star => core.Expr.ops.multiply(self.left, self.right, env),
         .slash => core.Expr.ops.divide(self.left, self.right, env),
