@@ -38,6 +38,7 @@ pub const operator_list: []const struct { []const u8, Value } = &.{
     .{ "<=", .less_equal },
     .{ "!=", .bang_equal },
     .{ "==", .equal_equal },
+    .{ "??", .question_question },
 };
 
 /// The type of the token.
@@ -55,6 +56,32 @@ pub fn new(value: Value, loc: Location) Token {
 /// Checks if the token is of the given type.
 pub fn is(self: Token, t: Type) bool {
     return self.value == t;
+}
+
+/// Duplicates the token, the caller owns the returned token.
+///
+/// Safe to call but unnecessary if token is not a string or literal
+pub fn dupe(self: Token, allocator: std.mem.Allocator) std.mem.Allocator.Error!Token {
+    const new_value = switch (self.value) {
+        .string => |s| .{ .string = try allocator.dupe(u8, s) },
+        .literal => |l| .{ .literal = try allocator.dupe(u8, l) },
+        else => self.value,
+    };
+    return Token{
+        .value = new_value,
+        .loc = self.loc,
+    };
+}
+
+/// Free token if duped.
+///
+/// Unnecessary to call if token is not a string or literal.
+pub fn cleanup(self: Token, allocator: std.mem.Allocator) void {
+    switch (self.value) {
+        .string => |s| allocator.free(s),
+        .literal => |l| allocator.free(l),
+        else => {},
+    }
 }
 
 pub const Type = enum {
@@ -97,6 +124,7 @@ pub const Type = enum {
     less_equal, // '<='
     bang_equal, // '!='
     equal_equal, // '=='
+    question_question, // '??'
     left_paren, // '('
     right_paren, // ')'
 
@@ -161,6 +189,7 @@ pub const Value = union(Type) {
     less_equal,
     bang_equal,
     equal_equal,
+    question_question,
     left_paren,
     right_paren,
     number: f32,

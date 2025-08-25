@@ -24,6 +24,7 @@ pub fn evaluate(self: This, env: core.Expr.RunEnv) anyerror!core.results.Runtime
         .less_equal => core.Expr.ops.lessThanOrEqual(self.left, self.right, env),
         .OR => core.Expr.ops.logicalOr(self.left, self.right, env),
         .AND => core.Expr.ops.logicalAnd(self.left, self.right, env),
+        .question_question => core.Expr.ops.nullCoalesce(self.left, self.right, env),
         else => unreachable,
     };
 }

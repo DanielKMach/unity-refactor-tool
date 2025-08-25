@@ -184,6 +184,16 @@ pub fn logicalNot(expr: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
     return .OK(.{ .number = if (isTrythy(value)) 0 else 1 });
 }
 
+pub fn nullCoalesce(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
+    const resA = try left.evaluate(env);
+    const a = resA.isOk() orelse return .ERR(resA.err);
+    if (a != .nil) return .OK(a);
+
+    const resB = try right.evaluate(env);
+    const b = resB.isOk() orelse return .ERR(resB.err);
+    return .OK(b);
+}
+
 pub fn concat(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
     const resA = try validateType(left, &.{.string}, env);
     const a = resA.isOk() orelse return .ERR(resA.err);
