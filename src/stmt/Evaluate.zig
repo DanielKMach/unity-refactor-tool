@@ -12,10 +12,11 @@ const Yaml = core.runtime.Yaml;
 const InTarget = core.stmt.clse.InTarget;
 const AssetTarget = core.stmt.clse.AssetTarget;
 const GUID = core.runtime.GUID;
+const Expr = core.Expr;
 
 const files = &.{ ".prefab", ".unity", ".asset" };
 
-path: [][]const u8,
+expr: *Expr,
 of: AssetTarget,
 in: ?InTarget,
 
@@ -25,31 +26,10 @@ pub fn parse(tokens: *Tokenizer.TokenIterator, env: core.parsing.ParsetimeEnv) a
 
     if (!tokens.match(.EVAL)) return .ERR(.unknown);
 
-    const expr = switch (try core.Expr.parseSafe(tokens, env.allocator)) {
+    const expr = switch (try Expr.parse(tokens, env.allocator)) {
         .ok => |expr| expr,
         .err => |err| return .ERR(err),
     };
-    log.debug("{}", .{expr});
-    std.process.abort();
-
-    var path = std.ArrayList([]const u8).init(env.allocator);
-    defer path.deinit();
-    errdefer for (path.items) |p| env.allocator.free(p);
-
-    while (true) {
-        switch (tokens.next().value) {
-            .string => |str| try path.append(try env.allocator.dupe(u8, str)),
-            .literal => |lit| try path.append(try env.allocator.dupe(u8, lit)),
-            else => return .ERR(.{
-                .unexpected_token = .{
-                    .found = tokens.peek(0),
-                    .expected = &.{ .literal, .string },
-                },
-            }),
-        }
-
-        if (!tokens.match(.dot)) break;
-    }
 
     const Clauses = struct {
         OF: AssetTarget,
@@ -61,7 +41,7 @@ pub fn parse(tokens: *Tokenizer.TokenIterator, env: core.parsing.ParsetimeEnv) a
     };
 
     return .OK(.{
-        .path = try path.toOwnedSlice(),
+        .expr = expr,
         .of = clauses.OF,
         .in = clauses.IN,
     });
@@ -70,7 +50,7 @@ pub fn parse(tokens: *Tokenizer.TokenIterator, env: core.parsing.ParsetimeEnv) a
 pub fn cleanup(self: This, allocator: std.mem.Allocator) void {
     self.of.cleanup(allocator);
     if (self.in) |in| in.cleanup(allocator);
-    for (self.path) |p| allocator.free(p);
+    self.expr.cleanup(allocator);
 }
 
 pub fn run(self: This, data: RuntimeEnv) anyerror!results.RuntimeResult(void) {
@@ -114,12 +94,14 @@ pub fn run(self: This, data: RuntimeEnv) anyerror!results.RuntimeResult(void) {
 
     log.info("Printing references...", .{});
 
-    try self.searchAndPrint(target_assets, guid, data.allocator, data.out);
-
-    return .OK(void{});
+    const result = try self.searchAndPrint(target_assets, guid, data.allocator, data.out);
+    return switch (result) {
+        .ok => .OK(void{}),
+        .err => |err| .ERR(err),
+    };
 }
 
-pub fn searchAndPrint(self: This, assets: []const []const u8, guid: []const GUID, allocator: std.mem.Allocator, out: std.io.AnyWriter) !void {
+pub fn searchAndPrint(self: This, assets: []const []const u8, guid: []const GUID, allocator: std.mem.Allocator, out: std.io.AnyWriter) !results.RuntimeResult(void) {
     core.profiling.begin(searchAndPrint);
     defer core.profiling.stop();
 
@@ -130,14 +112,16 @@ pub fn searchAndPrint(self: This, assets: []const []const u8, guid: []const GUID
         };
         defer file.close();
 
-        self.scanAndPrint(file, path, guid, allocator, out) catch |err| {
+        const result = self.scanAndPrint(file, path, guid, allocator, out) catch |err| {
             log.warn("Error ({s}) scanning file: '{s}'", .{ @errorName(err), path });
             continue;
         };
+        if (result.isErr()) |err| return .ERR(err);
     }
+    return .OK(void{});
 }
 
-pub fn scanAndPrint(self: This, file: std.fs.File, file_path: []const u8, guid: []const GUID, allocator: std.mem.Allocator, out: std.io.AnyWriter) !void {
+pub fn scanAndPrint(self: This, file: std.fs.File, file_path: []const u8, guid: []const GUID, allocator: std.mem.Allocator, out: std.io.AnyWriter) !results.RuntimeResult(void) {
     core.profiling.begin(scanAndPrint);
     defer core.profiling.stop();
 
@@ -149,22 +133,30 @@ pub fn scanAndPrint(self: This, file: std.fs.File, file_path: []const u8, guid: 
 
         if (!(try core.stmt.Show.matchScriptOrPrefabGUID(guid, &yaml))) continue;
 
-        const path = self.path;
-        const new_path = try allocator.alloc([]const u8, path.len + 1);
-        defer allocator.free(new_path);
-        @memcpy(new_path[1..], path);
-        new_path[0] = "MonoBehaviour";
+        const vars = std.StringHashMap(core.Expr.Value).init(allocator);
+        const result = try self.expr.evaluateAuto(.{
+            .allocator = allocator,
+            .vars = &vars,
+        });
 
-        const value = try yaml.getAlloc(new_path, allocator);
-        defer if (value) |v| allocator.free(v) else {};
+        const value = result.isOk() orelse return .ERR(result.err);
+        defer value.cleanup(allocator);
 
-        try print(file_path, value orelse continue, out);
+        try print(file_path, value, out);
     }
+    return .OK(void{});
 }
 
-pub fn print(path: []const u8, value: []const u8, out: std.io.AnyWriter) !void {
+pub fn print(path: []const u8, value: core.Expr.Value, out: std.io.AnyWriter) !void {
     core.profiling.begin(print);
     defer core.profiling.stop();
 
-    try out.print("{s} => {s}\r\n", .{ path, value });
+    try out.print("{s} =>", .{path});
+    switch (value) {
+        .nil => try out.print(" nil\n", .{}),
+        .string => |s| try out.print(" '{s}'\n", .{s}),
+        .number => |n| try out.print(" {d}\n", .{n}),
+        .object => try out.print(" object\n", .{}),
+        .array => try out.print(" array\n", .{}),
+    }
 }
