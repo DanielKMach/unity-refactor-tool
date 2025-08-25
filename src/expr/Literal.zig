@@ -11,7 +11,7 @@ pub fn init(token: core.Token) This {
 pub fn evaluate(self: This, env: core.Expr.RunEnv) anyerror!core.results.RuntimeResult(core.Expr.Value) {
     return .OK(switch (self.token.value) {
         .number => |num| .{ .number = num },
-        .string => |str| .{ .string = try env.allocator.dupe(u8, str) },
+        .string => |str| .{ .string = str },
         .literal => |lit| env.vars.get(lit) orelse .nil,
         else => unreachable, // TODO: array and object
     });

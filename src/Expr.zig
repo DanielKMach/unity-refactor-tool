@@ -29,6 +29,22 @@ pub const Value = union(enum) {
     object: void,
     array: void,
 
+    /// Duplicates this value into the given allocator.
+    ///
+    /// Unnecessary but safe to call if the value is not a string.
+    pub fn dupe(self: Value, allocator: std.mem.Allocator) std.mem.Allocator.Error!Value {
+        return switch (self) {
+            .string => |s| .{ .string = try allocator.dupe(u8, s) },
+            else => self,
+        };
+    }
+
+    /// Frees the value.
+    ///
+    /// This function is intended to be called when a value is duplicated using `dupe`.
+    /// The given allocator must be the same as the one used to duplicate the value.
+    ///
+    /// Unnecessary but safe to call if the value is not a string.
     pub fn cleanup(self: Value, allocator: std.mem.Allocator) void {
         switch (self) {
             .string => |s| allocator.free(s),
@@ -44,15 +60,6 @@ pub const Class = union(enum) {
     literal: Literal,
     binary: Binary,
     unary: Unary,
-
-    pub fn evaluate(self: Class, env: RunEnv) anyerror!core.results.RuntimeResult(Value) {
-        return switch (self) {
-            .grouping => |g| g.expr.evaluate(env),
-            .literal => |l| l.evaluate(env),
-            .binary => |b| b.evaluate(env),
-            .unary => |u| u.evaluate(env),
-        };
-    }
 
     pub fn format(value: Class, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
         switch (value) {
@@ -71,12 +78,34 @@ pub fn format(value: Expr, comptime fmt: []const u8, options: std.fmt.FormatOpti
     return value.class.format(fmt, options, writer);
 }
 
+/// Evaluates the expression in the given environment.
+///
+/// May leak memory if not used with an arena allocator.
 pub fn evaluate(self: Expr, env: RunEnv) anyerror!core.results.RuntimeResult(Value) {
     return switch (self.class) {
-        else => |cls| cls.evaluate(env),
+        inline else => |cls| cls.evaluate(env),
     };
 }
 
+/// Evaluates the expression in a temporary environment, duplicating the result into the original environment's allocator.
+///
+/// Frees any temporary allocations made during evaluation.
+pub fn evaluateAuto(self: Expr, env: RunEnv) anyerror!core.results.RuntimeResult(Value) {
+    var buf: [1024 * 1024]u8 = undefined; // 1 MiB
+    var stack = std.heap.FixedBufferAllocator.init(&buf);
+
+    const new_env = RunEnv{
+        .allocator = stack.allocator(),
+        .vars = env.vars,
+    };
+
+    return switch (try self.evaluate(new_env)) {
+        .ok => |value| .OK(try value.dupe(env.allocator)),
+        .err => |err| .ERR(err),
+    };
+}
+
+/// Recursively frees any allocations made when parsing the expression.
 pub fn cleanup(self: Expr, allocator: std.mem.Allocator) void {
     switch (self.class) {
         .grouping => |g| g.expr.cleanup(allocator),

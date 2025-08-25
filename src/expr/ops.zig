@@ -10,10 +10,9 @@ const RuntimeError = core.results.RuntimeError;
 pub fn addOrConcat(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
     const resA = try validateType(left, &.{ .string, .number }, env);
     const a = resA.isOk() orelse return .ERR(resA.err);
-    defer a.cleanup(env.allocator);
+
     const resB = try validateType(right, &.{ .string, .number }, env);
     const b = resB.isOk() orelse return .ERR(resB.err);
-    defer b.cleanup(env.allocator);
 
     return .OK(switch (a) {
         .string => |str_a| switch (b) {
@@ -33,40 +32,40 @@ pub fn addOrConcat(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!Runtime
 pub fn add(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
     const resA = try validateType(left, &.{.number}, env);
     const a = resA.isOk() orelse return .ERR(resA.err);
-    defer a.cleanup(env.allocator);
+
     const resB = try validateType(right, &.{.number}, env);
     const b = resB.isOk() orelse return .ERR(resB.err);
-    defer b.cleanup(env.allocator);
+
     return .OK(.{ .number = a.number + b.number });
 }
 
 pub fn subtract(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
     const resA = try validateType(left, &.{.number}, env);
     const a = resA.isOk() orelse return .ERR(resA.err);
-    defer a.cleanup(env.allocator);
+
     const resB = try validateType(right, &.{.number}, env);
     const b = resB.isOk() orelse return .ERR(resB.err);
-    defer b.cleanup(env.allocator);
+
     return .OK(.{ .number = a.number - b.number });
 }
 
 pub fn multiply(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
     const resA = try validateType(left, &.{.number}, env);
     const a = resA.isOk() orelse return .ERR(resA.err);
-    defer a.cleanup(env.allocator);
+
     const resB = try validateType(right, &.{.number}, env);
     const b = resB.isOk() orelse return .ERR(resB.err);
-    defer b.cleanup(env.allocator);
+
     return .OK(.{ .number = a.number * b.number });
 }
 
 pub fn divide(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
     const resA = try validateType(left, &.{.number}, env);
     const a = resA.isOk() orelse return .ERR(resA.err);
-    defer a.cleanup(env.allocator);
+
     const resB = try validateType(right, &.{.number}, env);
     const b = resB.isOk() orelse return .ERR(resB.err);
-    defer b.cleanup(env.allocator);
+
     if (b.number == 0) return .ERR(.{
         .division_by_zero = .{ .location = right.loc },
     });
@@ -76,17 +75,16 @@ pub fn divide(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResul
 pub fn negate(expr: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
     const res = try validateType(expr, &.{.number}, env);
     const value = res.isOk() orelse return .ERR(res.err);
-    defer value.cleanup(env.allocator);
     return .OK(.{ .number = -value.number });
 }
 
 pub fn equals(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
     const resA = try left.evaluate(env);
     const a = resA.isOk() orelse return .ERR(resA.err);
-    defer a.cleanup(env.allocator);
+
     const resB = try right.evaluate(env);
     const b = resB.isOk() orelse return .ERR(resB.err);
-    defer b.cleanup(env.allocator);
+
     if (@as(Value.Type, a) != @as(Value.Type, b)) {
         return .OK(.{ .number = 0 });
     }
@@ -102,10 +100,10 @@ pub fn equals(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResul
 pub fn notEquals(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
     const resA = try left.evaluate(env);
     const a = resA.isOk() orelse return .ERR(resA.err);
-    defer a.cleanup(env.allocator);
+
     const resB = try right.evaluate(env);
     const b = resB.isOk() orelse return .ERR(resB.err);
-    defer b.cleanup(env.allocator);
+
     if (@as(Value.Type, a) != @as(Value.Type, b)) {
         return .OK(.{ .number = 1 });
     }
@@ -120,60 +118,60 @@ pub fn notEquals(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeRe
 pub fn lessThan(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
     const resA = try validateType(left, &.{.number}, env);
     const a = resA.isOk() orelse return .ERR(resA.err);
-    defer a.cleanup(env.allocator);
+
     const resB = try validateType(right, &.{.number}, env);
     const b = resB.isOk() orelse return .ERR(resB.err);
-    defer b.cleanup(env.allocator);
+
     return .OK(.{ .number = if (a.number < b.number) 1 else 0 });
 }
 
 pub fn greaterThan(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
     const resA = try validateType(left, &.{.number}, env);
     const a = resA.isOk() orelse return .ERR(resA.err);
-    defer a.cleanup(env.allocator);
+
     const resB = try validateType(right, &.{.number}, env);
     const b = resB.isOk() orelse return .ERR(resB.err);
-    defer b.cleanup(env.allocator);
+
     return .OK(.{ .number = if (a.number > b.number) 1 else 0 });
 }
 
 pub fn lessThanOrEqual(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
     const resA = try validateType(left, &.{.number}, env);
     const a = resA.isOk() orelse return .ERR(resA.err);
-    defer a.cleanup(env.allocator);
+
     const resB = try validateType(right, &.{.number}, env);
     const b = resB.isOk() orelse return .ERR(resB.err);
-    defer b.cleanup(env.allocator);
+
     return .OK(.{ .number = if (a.number <= b.number) 1 else 0 });
 }
 
 pub fn greaterThanOrEqual(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
     const resA = try validateType(left, &.{.number}, env);
     const a = resA.isOk() orelse return .ERR(resA.err);
-    defer a.cleanup(env.allocator);
+
     const resB = try validateType(right, &.{.number}, env);
     const b = resB.isOk() orelse return .ERR(resB.err);
-    defer b.cleanup(env.allocator);
+
     return .OK(.{ .number = if (a.number >= b.number) 1 else 0 });
 }
 
 pub fn logicalAnd(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
     const resA = try left.evaluate(env);
     const a = resA.isOk() orelse return .ERR(resA.err);
-    defer a.cleanup(env.allocator);
+
     const resB = try right.evaluate(env);
     const b = resB.isOk() orelse return .ERR(resB.err);
-    defer b.cleanup(env.allocator);
+
     return .OK(.{ .number = if (isTrythy(a) and isTrythy(b)) 1 else 0 });
 }
 
 pub fn logicalOr(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
     const resA = try left.evaluate(env);
     const a = resA.isOk() orelse return .ERR(resA.err);
-    defer a.cleanup(env.allocator);
+
     const resB = try right.evaluate(env);
     const b = resB.isOk() orelse return .ERR(resB.err);
-    defer b.cleanup(env.allocator);
+
     return .OK(.{ .number = if (isTrythy(a) or isTrythy(b)) 1 else 0 });
 }
 
@@ -197,10 +195,9 @@ pub fn nullCoalesce(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!Runtim
 pub fn concat(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
     const resA = try validateType(left, &.{.string}, env);
     const a = resA.isOk() orelse return .ERR(resA.err);
-    defer a.cleanup(env.allocator);
+
     const resB = try validateType(right, &.{.string}, env);
     const b = resB.isOk() orelse return .ERR(resB.err);
-    defer b.cleanup(env.allocator);
 
     const combined = try env.allocator.alloc(u8, a.string.len + b.string.len);
     @memcpy(combined[0..a.string.len], a.string);
