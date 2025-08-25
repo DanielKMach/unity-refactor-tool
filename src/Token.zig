@@ -62,7 +62,7 @@ pub fn is(self: Token, t: Type) bool {
 ///
 /// Safe to call but unnecessary if token is not a string or literal
 pub fn dupe(self: Token, allocator: std.mem.Allocator) std.mem.Allocator.Error!Token {
-    const new_value = switch (self.value) {
+    const new_value: Value = switch (self.value) {
         .string => |s| .{ .string = try allocator.dupe(u8, s) },
         .literal => |l| .{ .literal = try allocator.dupe(u8, l) },
         else => self.value,

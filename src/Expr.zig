@@ -6,9 +6,7 @@ const log = std.log.scoped(.expr_parser);
 const Expr = @This();
 
 const Location = core.Token.Location;
-const ParseFn = fn (*core.parsing.Tokenizer.TokenIterator, *std.heap.MemoryPool(Expr)) std.mem.Allocator.Error!core.results.ParseResult(*Expr);
-
-pub const ExprManaged = @import("expr/ExprManaged.zig");
+const ParseFn = fn (*core.parsing.Tokenizer.TokenIterator, std.mem.Allocator) std.mem.Allocator.Error!core.results.ParseResult(*Expr);
 
 pub const Grouping = @import("expr/Grouping.zig");
 pub const Literal = @import("expr/Literal.zig");
@@ -79,6 +77,24 @@ pub fn evaluate(self: Expr, env: RunEnv) anyerror!core.results.RuntimeResult(Val
     };
 }
 
+pub fn cleanup(self: Expr, allocator: std.mem.Allocator) void {
+    switch (self.class) {
+        .grouping => |g| g.expr.cleanup(allocator),
+        .literal => |l| {
+            l.token.cleanup(allocator);
+        },
+        .binary => |b| {
+            b.left.cleanup(allocator);
+            b.right.cleanup(allocator);
+            b.op.cleanup(allocator);
+        },
+        .unary => |u| {
+            u.operand.cleanup(allocator);
+            u.op.cleanup(allocator);
+        },
+    }
+}
+
 pub fn initBinary(loc: Location, class: Binary) Expr {
     return Expr{
         .loc = loc,
@@ -115,19 +131,19 @@ pub fn initUnary(loc: Location, class: Unary) Expr {
 /// decided that it needed explicit parentheses to be valid.
 fn uniqueBinaryParseFunc(next_call: *const ParseFn, expected_tokens: []const core.Token.Type) ParseFn {
     return (struct {
-        pub fn parse(tokens: *core.parsing.Tokenizer.TokenIterator, pool: *std.heap.MemoryPool(Expr)) !core.results.ParseResult(*Expr) {
-            var left = switch (try next_call(tokens, pool)) {
+        pub fn parse(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.Allocator) !core.results.ParseResult(*Expr) {
+            var left = switch (try next_call(tokens, allocator)) {
                 .ok => |expr| expr,
                 .err => |err| return .ERR(err),
             };
             if (tokens.matchAny(expected_tokens)) |t| {
-                const right = switch (try next_call(tokens, pool)) {
+                const right = switch (try next_call(tokens, allocator)) {
                     .ok => |expr| expr,
                     .err => |err| return .ERR(err),
                 };
-                const expr = try pool.create();
+                const expr = try allocator.create(Expr);
                 const loc: Location = .merge(&.{ left.loc, right.loc });
-                expr.* = .initBinary(loc, .init(left, t, right));
+                expr.* = .initBinary(loc, .init(left, try t.dupe(allocator), right));
                 left = expr;
             }
             if (tokens.matchAny(expected_tokens)) |t| {
@@ -146,19 +162,19 @@ fn uniqueBinaryParseFunc(next_call: *const ParseFn, expected_tokens: []const cor
 /// Generates a function that parses binary expressions from left to right.
 fn l2rBinaryParseFunc(next_call: *const ParseFn, expected_tokens: []const core.Token.Type) ParseFn {
     return (struct {
-        pub fn parse(tokens: *core.parsing.Tokenizer.TokenIterator, pool: *std.heap.MemoryPool(Expr)) !core.results.ParseResult(*Expr) {
-            var left = switch (try next_call(tokens, pool)) {
+        pub fn parse(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.Allocator) !core.results.ParseResult(*Expr) {
+            var left = switch (try next_call(tokens, allocator)) {
                 .ok => |expr| expr,
                 .err => |err| return .ERR(err),
             };
             while (tokens.matchAny(expected_tokens)) |t| {
-                const right = switch (try next_call(tokens, pool)) {
+                const right = switch (try next_call(tokens, allocator)) {
                     .ok => |expr| expr,
                     .err => |err| return .ERR(err),
                 };
-                const expr = try pool.create();
+                const expr = try allocator.create(Expr);
                 const loc: Location = .merge(&.{ left.loc, right.loc });
-                expr.* = .initBinary(loc, .init(left, t, right));
+                expr.* = .initBinary(loc, .init(left, try t.dupe(allocator), right));
                 left = expr;
             }
             return .OK(left);
@@ -168,41 +184,24 @@ fn l2rBinaryParseFunc(next_call: *const ParseFn, expected_tokens: []const core.T
 
 fn unaryParseFunc(next_call: *const ParseFn, expected_tokens: []const core.Token.Type) ParseFn {
     return (struct {
-        pub fn parse(tokens: *core.parsing.Tokenizer.TokenIterator, pool: *std.heap.MemoryPool(Expr)) !core.results.ParseResult(*Expr) {
+        pub fn parse(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.Allocator) !core.results.ParseResult(*Expr) {
             if (tokens.matchAny(expected_tokens)) |t| {
-                const operand = switch (try @This().parse(tokens, pool)) {
+                const operand = switch (try @This().parse(tokens, allocator)) {
                     .ok => |expr| expr,
                     .err => |err| return .ERR(err),
                 };
-                const expr = try pool.create();
+                const expr = try allocator.create(Expr);
                 const loc: Location = .merge(&.{ operand.loc, t.loc });
-                expr.* = .initUnary(loc, .init(t, operand));
+                expr.* = .initUnary(loc, .init(try t.dupe(allocator), operand));
                 return .OK(expr);
             }
-            return try next_call(tokens, pool);
+            return try next_call(tokens, allocator);
         }
     }).parse;
 }
 
-// Garantees that, if an error occurs, all allocated memory is freed.
-pub fn parseSafe(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.Allocator) !core.results.ParseResult(ExprManaged) {
-    var pool = std.heap.MemoryPool(Expr).init(allocator);
-    return switch (try parse(tokens, &pool)) {
-        .ok => |expr| blk: {
-            break :blk .OK(.{
-                .pool = pool,
-                .expr = expr,
-            });
-        },
-        .err => |err| blk: {
-            _ = pool.reset(.free_all);
-            break :blk .ERR(err);
-        },
-    };
-}
-
-pub fn parse(tokens: *core.parsing.Tokenizer.TokenIterator, pool: *std.heap.MemoryPool(Expr)) std.mem.Allocator.Error!core.results.ParseResult(*Expr) {
-    return parseAssignment(tokens, pool);
+pub fn parse(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.Allocator) std.mem.Allocator.Error!core.results.ParseResult(*Expr) {
+    return parseAssignment(tokens, allocator);
 }
 
 const parseAssignment = uniqueBinaryParseFunc(parseOr, &.{.equal});
@@ -216,14 +215,14 @@ const parseNullCoalesce = l2rBinaryParseFunc(parseUnary, &.{.question_question})
 const parseAccess = l2rBinaryParseFunc(parseValue, &.{.dot});
 const parseUnary = unaryParseFunc(parseAccess, &.{ .NOT, .minus });
 
-fn parseValue(tokens: *core.parsing.Tokenizer.TokenIterator, pool: *std.heap.MemoryPool(Expr)) !core.results.ParseResult(*Expr) {
+fn parseValue(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.Allocator) !core.results.ParseResult(*Expr) {
     if (tokens.matchAny(&.{ .string, .literal, .number })) |t| {
-        const expr = try pool.create();
-        expr.* = .initLiteral(t.loc, .init(t));
+        const expr = try allocator.create(Expr);
+        expr.* = .initLiteral(t.loc, .init(try t.dupe(allocator)));
         return .OK(expr);
     } else if (tokens.match(.left_paren)) {
         const left_paren = tokens.peek(0);
-        const group = switch (try parse(tokens, pool)) {
+        const group = switch (try parse(tokens, allocator)) {
             .ok => |grouping| grouping,
             .err => |err| return .ERR(err),
         };
@@ -236,7 +235,7 @@ fn parseValue(tokens: *core.parsing.Tokenizer.TokenIterator, pool: *std.heap.Mem
             });
         }
         const right_paren = tokens.peek(0);
-        const expr = try pool.create();
+        const expr = try allocator.create(Expr);
         const loc: Location = .merge(&.{ left_paren.loc, right_paren.loc });
         expr.* = .initGrouping(loc, .init(group));
         return .OK(expr);
