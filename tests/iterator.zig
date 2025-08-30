@@ -12,52 +12,42 @@ test "component iteration" {
     const file = try std.fs.cwd().openFile(test_prefab.path, .{ .mode = .read_only });
     defer file.close();
 
-    var iterator = ComponentIterator.init(file, testing.allocator);
+    var iterator = try ComponentIterator.init(file, testing.allocator);
     defer iterator.deinit();
 
-    var i: usize = 0;
-    while (try iterator.next()) |comp| : (i += 1) {
-        const expected = test_prefab.components[i].content;
-        try testing.expectEqualStrings(expected, comp.document);
+    inline for (test_prefab.components) |comp| {
+        const got = try iterator.next();
+        try testing.expect(got != null);
+        try testing.expectEqualStrings(comp.content, got.?.document);
     }
+    try testing.expectEqual(null, try iterator.next());
 }
 
 test "empty asset" {
     const file = try std.fs.cwd().openFile(empty_prefab.path, .{ .mode = .read_only });
     defer file.close();
 
-    var iterator = ComponentIterator.init(file, testing.allocator);
+    var iterator = try ComponentIterator.init(file, testing.allocator);
     defer iterator.deinit();
 
-    var i: usize = 0;
-    while (try iterator.next()) |_| {
-        i += 1;
-    }
-
-    try testing.expectEqual(0, i);
+    try testing.expectEqual(null, try iterator.next());
 }
 
-test "leak on early return" {
+test "free on early return" {
     const file = try std.fs.cwd().openFile(test_prefab.path, .{ .mode = .read_only });
     defer file.close();
 
-    var iterator = ComponentIterator.init(file, testing.allocator);
+    var iterator = try ComponentIterator.init(file, testing.allocator);
     defer iterator.deinit();
 
-    var i: usize = 0;
-    while (try iterator.next()) |_| {
-        i += 1;
-        if (i == 2) break;
-    }
+    try testing.expect(try iterator.next() != null);
+    try testing.expect(try iterator.next() != null);
 }
 
 test "out of memory" {
     const file = try std.fs.cwd().openFile(test_prefab.path, .{ .mode = .read_only });
     defer file.close();
 
-    var iterator = ComponentIterator.init(file, testing.failing_allocator);
-    defer iterator.deinit();
-
-    const result = iterator.next();
-    try testing.expectError(error.OutOfMemory, result);
+    const iterator = ComponentIterator.init(file, testing.failing_allocator);
+    try testing.expectError(error.OutOfMemory, iterator);
 }
