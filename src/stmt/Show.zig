@@ -106,11 +106,13 @@ pub fn run(self: This, data: RuntimeEnv) anyerror!results.RuntimeResult(void) {
     }
 
     sort(@ptrCast(references));
+    log.debug("{d}", .{references.len});
     for (references) |r| {
         try data.out.print("{s}\r\n", .{r});
     }
-
     try data.out.print("Scanned {d} files {d} times in {d} milliseconds \r\n", .{ fileCount, loops, time });
+    try data.out.flush();
+
     return .OK(void{});
 }
 
@@ -121,12 +123,12 @@ pub fn search(self: This, data: RuntimeEnv, count: ?*usize, times: ?*usize) !res
     const in = self.in orelse InTarget.default;
     const of = self.of;
 
-    var guids = std.ArrayList(GUID).init(data.allocator);
-    defer guids.deinit();
+    var guids = try std.ArrayList(GUID).initCapacity(data.allocator, 1);
+    defer guids.deinit(data.allocator);
     defer for (guids.items) |g| g.deinit(data.allocator);
     var searched: usize = 0;
 
-    var references = core.runtime.StringList.init(data.allocator);
+    var references = try core.runtime.StringList.init(data.allocator);
     defer references.deinit();
     var scanned: usize = 0;
 
@@ -145,7 +147,7 @@ pub fn search(self: This, data: RuntimeEnv, count: ?*usize, times: ?*usize) !res
         defer data.allocator.free(starting_targets);
         errdefer for (starting_targets) |g| g.deinit(data.allocator);
 
-        try guids.appendSlice(starting_targets);
+        try guids.appendSlice(data.allocator, starting_targets);
     }
 
     while (guids.items.len > searched) {
@@ -173,7 +175,7 @@ pub fn search(self: This, data: RuntimeEnv, count: ?*usize, times: ?*usize) !res
                 const guid = try GUID.fromFile(ref, data.allocator);
                 errdefer guid.deinit(data.allocator);
 
-                try guids.append(guid);
+                try guids.append(data.allocator, guid);
             }
             scanned = references.length();
         }
@@ -190,12 +192,12 @@ fn verifyUse(file: std.fs.File, guid: []const GUID, allocator: std.mem.Allocator
     core.profiling.begin(verifyUse);
     defer core.profiling.stop();
 
-    var iterator = ComponentIterator.init(file, allocator);
+    var iterator = try ComponentIterator.init(file, allocator);
     defer iterator.deinit();
 
     return while (try iterator.next()) |comp| {
         var yaml = Yaml.init(.{ .string = comp.document }, null, allocator);
-        if (try matchScriptOrPrefabGUID(guid, &yaml)) return true;
+        if (try matchScriptOrPrefabGUID(guid, &yaml)) break true;
     } else false;
 }
 
@@ -268,24 +270,26 @@ const Search = struct {
         core.profiling.begin(scan);
         defer core.profiling.stop();
 
-        var bufrdr = std.io.bufferedReader(file.reader());
-        const reader = bufrdr.reader();
+        var buf: [4096]u8 = undefined;
+        var fread = file.reader(&buf);
+        var reader = &fread.interface;
 
         const progress = try allocator.alloc(usize, self.guid.len);
-        for (0..self.guid.len) |i| {
-            progress[i] = 0;
-        }
         defer allocator.free(progress);
+        @memset(progress, 0);
 
         main: while (true) {
-            const c = reader.readByte() catch |err| {
-                if (err != error.EndOfStream) {
-                    self.logMtx.lock();
-                    defer self.logMtx.unlock();
-                    log.warn("Error ({s}) reading file: '{s}'", .{ @errorName(err), entry.path });
-                }
-                break;
-            };
+            if (reader.bufferedLen() == 0) {
+                reader.fillMore() catch |err| {
+                    if (err != error.EndOfStream) {
+                        self.logMtx.lock();
+                        defer self.logMtx.unlock();
+                        log.warn("Error ({s}) reading file: '{s}'", .{ @errorName(err), entry.path });
+                    }
+                    break;
+                };
+            }
+            const c = reader.takeByte() catch unreachable; // Because already filled.
 
             for (0..self.guid.len) |i| {
                 if (c == self.guid[i].value[progress[i]]) {

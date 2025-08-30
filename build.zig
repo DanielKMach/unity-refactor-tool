@@ -35,9 +35,11 @@ pub fn build(b: *std.Build) void {
     // main executable
     const exe = b.addExecutable(.{
         .name = "usrl",
-        .root_source_file = b.path("src/main.zig"),
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/main.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
     });
     exe.root_module.addImport("urt", mod);
     exe.root_module.addImport("libyaml", libyaml);
@@ -57,9 +59,11 @@ pub fn build(b: *std.Build) void {
 
     // Tests
     const tests = b.addTest(.{
-        .root_source_file = b.path("tests/tests.zig"),
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tests/tests.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
     });
 
     tests.root_module.addImport("urt", mod);

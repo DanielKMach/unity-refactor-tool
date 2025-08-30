@@ -7,7 +7,7 @@ const config = @import("config");
 const This = @This();
 const log = std.log.scoped(.transaction);
 
-pub const IncludeError = std.fs.File.OpenError || std.fs.File.WriteFileError || MakePathError || std.mem.Allocator.Error;
+pub const IncludeError = std.fs.File.OpenError || std.Io.Reader.StreamError || MakePathError || std.mem.Allocator.Error;
 pub const GetTempError = std.fs.File.OpenError || MakePathError || std.mem.Allocator.Error;
 pub const MakePathError = std.fs.Dir.RealPathError || std.mem.Allocator.Error;
 
@@ -50,10 +50,16 @@ pub fn include(self: *This, target: []const u8) IncludeError!void {
     errdefer std.fs.deleteFileAbsolute(backup_path) catch {};
     defer backup_file.close();
 
-    backup_file.writeFileAll(target_file, .{}) catch |err| {
+    var wbuf: [4096]u8 = undefined;
+    var writer = backup_file.writer(&wbuf);
+    var rbuf: [4096]u8 = undefined;
+    var reader = target_file.reader(&rbuf);
+
+    _ = reader.interface.stream(&writer.interface, .unlimited) catch |err| {
         log.err("Failed ({s}) to write backup file: {s}", .{ @errorName(err), backup_path });
         return err;
     };
+    try writer.interface.flush();
 
     try self.backups.put(target_path, backup_path);
     log.info("Included '{s}' to the transaction. ({s})", .{ target_path, std.fs.path.basename(backup_path) });
@@ -83,8 +89,15 @@ pub fn rollback(self: *This) void {
         };
         defer original_file.close();
 
-        original_file.writeFileAll(backup_file, .{}) catch |err| {
-            log.err("Failed ({s}) to restore backup file: {s} to original file: {s}", .{ @errorName(err), backup_path, original_path });
+        var wbuf: [4096]u8 = undefined;
+        var writer = original_file.writer(&wbuf);
+        defer writer.interface.flush() catch {};
+
+        var rbuf: [4096]u8 = undefined;
+        var reader = backup_file.reader(&rbuf);
+
+        _ = reader.interface.stream(&writer.interface, .unlimited) catch |err| {
+            log.err("Failed ({t}) to restore original file: {s} from backup file: {s}", .{ err, original_path, backup_path });
         };
     }
     self.eraseAndClearBackups();

@@ -46,6 +46,6 @@ pub fn deinit(this: This) void {
 
 pub const RunConfig = struct {
     allocator: std.mem.Allocator,
-    out: std.io.AnyWriter,
+    out: *std.Io.Writer,
     cwd: std.fs.Dir,
 };

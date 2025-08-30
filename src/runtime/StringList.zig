@@ -4,19 +4,21 @@ const This = @This();
 pub const AccessError = error{OutOfBounds};
 pub const UpdateError = AccessError || std.mem.Allocator.Error;
 
+allocator: std.mem.Allocator,
 ctx: std.ArrayList([]u8),
 
-pub fn init(allocator: std.mem.Allocator) This {
+pub fn init(allocator: std.mem.Allocator) std.mem.Allocator.Error!This {
     return This{
-        .ctx = .init(allocator),
+        .allocator = allocator,
+        .ctx = try .initCapacity(allocator, 1),
     };
 }
 
-pub fn deinit(self: This) void {
+pub fn deinit(self: *This) void {
     for (self.ctx.items) |item| {
-        self.ctx.allocator.free(item);
+        self.allocator.free(item);
     }
-    self.ctx.deinit();
+    self.ctx.deinit(self.allocator);
 }
 
 pub fn length(self: This) usize {
@@ -35,12 +37,12 @@ pub fn set(self: *This, index: usize, str: []const u8) UpdateError!void {
         return error.OutOfBounds;
     }
     const item = self.ctx.items[index];
-    self.ctx.allocator.free(item);
-    self.ctx.items[index] = try self.ctx.allocator.dupe(u8, str);
+    self.allocator.free(item);
+    self.ctx.items[index] = try self.allocator.dupe(u8, str);
 }
 
 pub fn push(self: *This, str: []const u8) std.mem.Allocator.Error!void {
-    try self.ctx.append(try self.ctx.allocator.dupe(u8, str));
+    try self.ctx.append(self.allocator, try self.allocator.dupe(u8, str));
 }
 
 pub fn pushSlice(self: *This, slice: []const []const u8) std.mem.Allocator.Error!void {
@@ -65,16 +67,16 @@ pub fn remove(self: *This, index: usize) UpdateError!void {
         return error.OutOfBounds;
     }
     const str = self.ctx.orderedRemove(index);
-    self.ctx.allocator.free(str);
+    self.allocator.free(str);
 }
 
 pub fn clear(self: *This) void {
     for (self.ctx.items) |item| {
-        self.ctx.allocator.free(item);
+        self.allocator.free(item);
     }
-    self.ctx.clearAndFree();
+    self.ctx.clearAndFree(self.allocator);
 }
 
 pub fn toOwnedSlice(self: *This) ![][]u8 {
-    return try self.ctx.toOwnedSlice();
+    return try self.ctx.toOwnedSlice(self.allocator);
 }

@@ -29,12 +29,18 @@ pub fn main() !void {
         else => std.heap.page_allocator,
     };
 
-    const out = std.io.getStdOut().writer();
+    var out_buf: [4096]u8 = undefined;
+    var out = std.fs.File.stdout().writer(&out_buf);
+
+    var in_buf: [4096]u8 = undefined;
+    var in = std.fs.File.stdin().reader(&in_buf);
+
     var cwd = try std.fs.cwd().openDir(".", .{ .iterate = true, .access_sub_paths = true });
     defer cwd.close();
 
     const cli = CLI{
-        .out = out,
+        .out = &out,
+        .in = &in,
         .allocator = allocator,
         .cwd = cwd,
     };
@@ -67,10 +73,7 @@ fn logFn(
     comptime format: []const u8,
     args: anytype,
 ) void {
-    if (scope == .tokenizer or scope == .parse) {
-        return;
-    }
-
+    if (builtin.mode != .Debug) return;
     const color = switch (message_level) {
         .err => "\x1B[31m",
         .warn => "\x1B[33m",
@@ -79,16 +82,10 @@ fn logFn(
     };
     const level_txt = comptime message_level.asText();
     const prefix2 = if (scope == .default) ": " else "(" ++ @tagName(scope) ++ "): ";
-    const stderr = std.io.getStdErr().writer();
-    var bw = std.io.bufferedWriter(stderr);
-    const writer = bw.writer();
-
-    std.debug.lockStdErr();
-    defer std.debug.unlockStdErr();
-    nosuspend {
-        writer.print(color ++ level_txt ++ prefix2 ++ format ++ "\x1B[0m" ++ "\n", args) catch return;
-        bw.flush() catch return;
-    }
+    var buffer: [64]u8 = undefined;
+    const stderr = std.debug.lockStderrWriter(&buffer);
+    defer std.debug.unlockStderrWriter();
+    nosuspend stderr.print(color ++ level_txt ++ prefix2 ++ format ++ "\x1B[0m\n", args) catch return;
 }
 
 pub const ExecutionMode = enum {

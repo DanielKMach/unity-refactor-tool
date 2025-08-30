@@ -25,14 +25,14 @@ pub fn parse(tokens: *Tokenizer.TokenIterator, env: core.parsing.ParsetimeEnv) a
 
     if (!tokens.match(.EVAL)) return .ERR(.unknown);
 
-    var path = std.ArrayList([]const u8).init(env.allocator);
-    defer path.deinit();
+    var path = try std.ArrayList([]const u8).initCapacity(env.allocator, 1);
+    defer path.deinit(env.allocator);
     errdefer for (path.items) |p| env.allocator.free(p);
 
     while (true) {
         switch (tokens.next().value) {
-            .string => |str| try path.append(try env.allocator.dupe(u8, str)),
-            .literal => |lit| try path.append(try env.allocator.dupe(u8, lit)),
+            .string => |str| try path.append(env.allocator, try env.allocator.dupe(u8, str)),
+            .literal => |lit| try path.append(env.allocator, try env.allocator.dupe(u8, lit)),
             else => return .ERR(.{
                 .unexpected_token = .{
                     .found = tokens.peek(0),
@@ -54,7 +54,7 @@ pub fn parse(tokens: *Tokenizer.TokenIterator, env: core.parsing.ParsetimeEnv) a
     };
 
     return .OK(.{
-        .path = try path.toOwnedSlice(),
+        .path = try path.toOwnedSlice(env.allocator),
         .of = clauses.OF,
         .in = clauses.IN,
     });
@@ -112,7 +112,7 @@ pub fn run(self: This, data: RuntimeEnv) anyerror!results.RuntimeResult(void) {
     return .OK(void{});
 }
 
-pub fn searchAndPrint(self: This, assets: []const []const u8, guid: []const GUID, allocator: std.mem.Allocator, out: std.io.AnyWriter) !void {
+pub fn searchAndPrint(self: This, assets: []const []const u8, guid: []const GUID, allocator: std.mem.Allocator, out: *std.Io.Writer) !void {
     core.profiling.begin(searchAndPrint);
     defer core.profiling.stop();
 
@@ -130,11 +130,11 @@ pub fn searchAndPrint(self: This, assets: []const []const u8, guid: []const GUID
     }
 }
 
-pub fn scanAndPrint(self: This, file: std.fs.File, file_path: []const u8, guid: []const GUID, allocator: std.mem.Allocator, out: std.io.AnyWriter) !void {
+pub fn scanAndPrint(self: This, file: std.fs.File, file_path: []const u8, guid: []const GUID, allocator: std.mem.Allocator, out: *std.Io.Writer) !void {
     core.profiling.begin(scanAndPrint);
     defer core.profiling.stop();
 
-    var iter = ComponentIterator.init(file, allocator);
+    var iter = try ComponentIterator.init(file, allocator);
     defer iter.deinit();
 
     while (try iter.next()) |comp| {
@@ -155,7 +155,7 @@ pub fn scanAndPrint(self: This, file: std.fs.File, file_path: []const u8, guid: 
     }
 }
 
-pub fn print(path: []const u8, value: []const u8, out: std.io.AnyWriter) !void {
+pub fn print(path: []const u8, value: []const u8, out: *std.Io.Writer) !void {
     core.profiling.begin(print);
     defer core.profiling.stop();
 
