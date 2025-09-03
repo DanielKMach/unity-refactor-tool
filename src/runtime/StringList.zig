@@ -59,7 +59,7 @@ pub fn pop(self: *This, allocator: std.mem.Allocator) std.mem.Allocator.Error!?[
     if (self.length() == 0) return null;
     const popped = try allocator.dupe(u8, self.ctx.items[self.ctx.items.len - 1]);
     errdefer allocator.free(popped);
-    self.allocator.free(self.ctx.pop());
+    self.allocator.free(self.ctx.pop().?);
     return popped;
 }
 
