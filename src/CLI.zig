@@ -149,7 +149,6 @@ pub fn startInteractiveMode(self: This) !bool {
             error.EndOfStream => break :it,
             else => return err,
         };
-        defer self.allocator.free(line);
 
         const query = std.mem.trim(u8, line, " \n\t\r");
         if (query.len == 0) {
