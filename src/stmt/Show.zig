@@ -128,16 +128,18 @@ pub fn search(self: This, data: RuntimeEnv, count: ?*usize, times: ?*usize) !res
     defer for (guids.items) |g| g.deinit(data.allocator);
     var searched: usize = 0;
 
-    var references = try core.runtime.StringList.init(data.allocator);
-    defer references.deinit();
-    var scanned: usize = 0;
-
     var dir = in.openDir(data, .{ .iterate = true, .access_sub_paths = true }) catch {
         return .ERR(.{
             .invalid_path = .{ .path = in.dir },
         });
     };
     defer dir.close();
+
+    var scanner = Scanner(Search).init(dir, data.allocator);
+
+    var references = try core.runtime.StringList.init(scanner.allocator.allocator());
+    defer references.deinit();
+    var scanned: usize = 0;
 
     {
         const starting_targets: []GUID = switch (try of.getGUID(data.cwd, data.allocator)) {
@@ -159,14 +161,11 @@ pub fn search(self: This, data: RuntimeEnv, count: ?*usize, times: ?*usize) !res
         };
         searched = guids.items.len;
 
-        var scanner = try Scanner(Search).init(dir, data.allocator);
-        defer scanner.deinit();
-
         log.info("Scanning...", .{});
 
         try scanner.scan(&searchData);
 
-        if (count) |c| c.* = searchData.fileCount;
+        if (count) |c| c.* = searchData.file_count;
 
         // Feeds the guid list with any prefab references found in the files, if in indirect mode.
         if (self.mode == .indirect_uses) {
@@ -234,15 +233,15 @@ fn sort(arr: [][]const u8) void {
 
 const Search = struct {
     mode: SearchMode,
-    dir: std.fs.Dir,
     guid: []const GUID,
-    fileCount: usize = 0,
-    dataMtx: std.Thread.Mutex = .{},
+
+    dir: std.fs.Dir,
+
+    file_count: usize = 0,
+    count_mtx: std.Thread.Mutex = .{},
 
     references: *core.runtime.StringList,
-    refsMtx: std.Thread.Mutex = .{},
-
-    logMtx: std.Thread.Mutex = .{},
+    refs_mtx: std.Thread.Mutex = .{},
 
     pub fn filter(self: *Search, entry: std.fs.Dir.Walker.Entry, _: std.mem.Allocator) ?std.fs.File {
         core.profiling.begin(filter);
@@ -266,7 +265,7 @@ const Search = struct {
         };
     }
 
-    pub fn scan(self: *Search, entry: std.fs.Dir.Walker.Entry, file: std.fs.File, allocator: std.mem.Allocator) anyerror!void {
+    pub fn scan(self: *Search, path: [:0]const u8, file: std.fs.File, allocator: std.mem.Allocator) anyerror!void {
         core.profiling.begin(scan);
         defer core.profiling.stop();
 
@@ -282,9 +281,7 @@ const Search = struct {
             if (reader.bufferedLen() == 0) {
                 reader.fillMore() catch |err| {
                     if (err != error.EndOfStream) {
-                        self.logMtx.lock();
-                        defer self.logMtx.unlock();
-                        log.warn("Error ({s}) reading file: '{s}'", .{ @errorName(err), entry.path });
+                        log.warn("Error ({s}) reading file: '{s}'", .{ @errorName(err), path });
                     }
                     break;
                 };
@@ -295,7 +292,7 @@ const Search = struct {
                 if (c == self.guid[i].value[progress[i]]) {
                     progress[i] += 1;
                     if (progress[i] == self.guid[i].value.len) {
-                        try self.addPath(entry.path, file, allocator);
+                        try self.addPath(path, file, allocator);
                         break :main;
                     }
                 } else {
@@ -304,9 +301,9 @@ const Search = struct {
             }
         }
 
-        self.dataMtx.lock();
-        defer self.dataMtx.unlock();
-        self.fileCount += 1;
+        self.count_mtx.lock();
+        defer self.count_mtx.unlock();
+        self.file_count += 1;
     }
 
     /// Add a path to the list of references if it is not already present.
@@ -320,10 +317,10 @@ const Search = struct {
         const abs_path = try self.dir.realpathAlloc(allocator, path);
         defer allocator.free(abs_path);
 
-        for (self.references.ctx.items) |g| {
-            if (std.mem.eql(u8, g, abs_path)) {
-                return;
-            }
+        {
+            self.refs_mtx.lock();
+            defer self.refs_mtx.unlock();
+            if (self.references.has(abs_path)) return;
         }
 
         if (self.mode == .indirect_uses or self.mode == .direct_uses) {
@@ -333,8 +330,8 @@ const Search = struct {
             }
         }
 
-        self.refsMtx.lock();
-        defer self.refsMtx.unlock();
+        self.refs_mtx.lock();
+        defer self.refs_mtx.unlock();
         try self.references.push(abs_path);
     }
 };
