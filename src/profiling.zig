@@ -20,30 +20,32 @@ fn setup() !void {
 pub fn begin(comptime func: anytype) void {
     if (!config.profiling) return;
     if (prof == null) setup() catch |err| {
-        log.err("Failed to setup profiler: {s}", .{@errorName(err)});
+        log.err("Failed to setup profiler: {t}", .{err});
         return;
     };
-    (prof orelse unreachable).begin(func) catch |err| {
-        log.err("Failed to begin profiling: {s}", .{@errorName(err)});
+    prof.?.begin(func) catch |err| {
+        log.err("Failed to begin profiling: {t}", .{err});
     };
 }
 
 pub fn stop() void {
     if (!config.profiling) return;
+    std.debug.assert(prof != null);
     (prof orelse return).stop() catch |err| {
-        log.err("Failed to stop profiling: {s}", .{@errorName(err)});
+        log.err("Failed to stop profiling: {t}", .{err});
     };
 }
 
 pub fn finalize() void {
     if (!config.profiling) return;
+    std.debug.assert(prof != null);
     const success = (prof orelse return).finalize();
 
     if (success) {
         log.info("Profiling data written to '{s}'", .{output_path});
     } else |err| {
-        log.err("Failed to finalize profiling: {s}", .{@errorName(err)});
-        prof.?.deinit();
+        log.err("Failed to finalize profiling: {t}", .{err});
     }
+    prof.?.deinit();
     prof = null;
 }
