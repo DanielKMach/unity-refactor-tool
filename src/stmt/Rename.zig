@@ -157,7 +157,7 @@ pub fn updateAll(self: This, asset_paths: []const []const u8, guids: []const GUI
         var rbuf: [4096]u8 = undefined;
         var reader = temp.reader(&rbuf);
 
-        _ = try reader.interface.stream(&writer.interface, .unlimited);
+        _ = try reader.interface.streamRemaining(&writer.interface);
         try writer.interface.flush();
         try env.out.print(" DONE.\r\n", .{});
     }
