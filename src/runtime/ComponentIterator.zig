@@ -96,9 +96,10 @@ pub fn patch(self: *This, out: *std.Io.Writer, components: []const Component) Pa
     for (components) |comp| {
         try reader.streamExact(out, comp.index - last_index);
         try out.writeAll(comp.document);
+        try reader.discardAll(comp.len);
         last_index = comp.index + comp.len;
-        try self.freader.seekTo(last_index);
     }
 
     _ = try reader.streamRemaining(out);
+    try out.flush();
 }
