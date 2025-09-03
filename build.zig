@@ -4,6 +4,7 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    const name = b.option([]const u8, "name", "Name of the executable") orelse "usrl";
     const profile = b.option(bool, "profile", "Enable profiling") orelse false;
     const keep_temp = b.option(bool, "keep-temp", "Keep transaction and temp files.") orelse false;
 
@@ -34,7 +35,7 @@ pub fn build(b: *std.Build) void {
 
     // main executable
     const exe = b.addExecutable(.{
-        .name = "usrl",
+        .name = name,
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/main.zig"),
             .target = target,
