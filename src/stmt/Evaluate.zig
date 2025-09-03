@@ -108,6 +108,7 @@ pub fn run(self: This, data: RuntimeEnv) anyerror!results.RuntimeResult(void) {
     log.info("Printing references...", .{});
 
     try self.searchAndPrint(target_assets, guid, data.allocator, data.out);
+    try data.out.flush();
 
     return .OK(void{});
 }
