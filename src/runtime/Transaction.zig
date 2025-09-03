@@ -36,7 +36,7 @@ pub fn include(self: *This, target: []const u8) IncludeError!void {
     const target_path = try self.allocator.dupe(u8, target);
     errdefer self.allocator.free(target_path);
     const target_file = std.fs.openFileAbsolute(target_path, .{ .mode = .read_only }) catch |err| {
-        log.err("Failed ({s}) to open target file: {s}", .{ @errorName(err), target_path });
+        log.err("Failed to open target file '{s}': {t}", .{ target_path, err });
         return err;
     };
     defer target_file.close();
@@ -44,7 +44,7 @@ pub fn include(self: *This, target: []const u8) IncludeError!void {
     const backup_path = try self.makePath("{x}.usrlbackup", self.allocator);
     errdefer self.allocator.free(backup_path);
     const backup_file = std.fs.createFileAbsolute(backup_path, .{ .lock = .exclusive }) catch |err| {
-        log.err("Failed ({s}) to create backup file: {s}", .{ @errorName(err), backup_path });
+        log.err("Failed to create backup file '{s}': {t}", .{ backup_path, err });
         return err;
     };
     errdefer std.fs.deleteFileAbsolute(backup_path) catch {};
@@ -55,17 +55,24 @@ pub fn include(self: *This, target: []const u8) IncludeError!void {
     var rbuf: [4096]u8 = undefined;
     var reader = target_file.reader(&rbuf);
 
-    _ = reader.interface.stream(&writer.interface, .unlimited) catch |err| {
-        log.err("Failed ({s}) to write backup file: {s}", .{ @errorName(err), backup_path });
+    _ = reader.interface.streamRemaining(&writer.interface) catch |err| {
+        log.err("Failed to write backup file '{s}': {t}", .{ backup_path, err });
         return err;
     };
-    try writer.interface.flush();
+    writer.interface.flush() catch |err| {
+        log.err("Failed to flush file '{s}': {t}", .{ target_path, err });
+        return err;
+    };
 
     try self.backups.put(target_path, backup_path);
     log.info("Included '{s}' to the transaction. ({s})", .{ target_path, std.fs.path.basename(backup_path) });
 }
 
 pub fn commit(self: *This) void {
+    if (self.backups.count() == 0) {
+        log.info("Nothing to commit.", .{});
+        return;
+    }
     log.info("Committing changes...", .{});
     self.eraseAndClearBackups();
 }
@@ -78,26 +85,27 @@ pub fn rollback(self: *This) void {
         const backup_path = backup.value_ptr.*;
 
         const backup_file = std.fs.openFileAbsolute(backup_path, .{ .mode = .read_only }) catch |err| {
-            log.err("Failed ({s}) to open backup file: {s}", .{ @errorName(err), backup_path });
+            log.err("Failed to open backup file '{s}': {t}", .{ backup_path, err });
             continue;
         };
         defer backup_file.close();
 
         const original_file = std.fs.openFileAbsolute(original_path, .{ .mode = .read_write }) catch |err| {
-            log.err("Failed ({s}) to open original file: {s}", .{ @errorName(err), original_path });
+            log.err("Failed to open original file '{s}': {t}", .{ original_path, err });
             continue;
         };
         defer original_file.close();
 
         var wbuf: [4096]u8 = undefined;
         var writer = original_file.writer(&wbuf);
-        defer writer.interface.flush() catch {};
-
         var rbuf: [4096]u8 = undefined;
         var reader = backup_file.reader(&rbuf);
 
-        _ = reader.interface.stream(&writer.interface, .unlimited) catch |err| {
-            log.err("Failed ({t}) to restore original file: {s} from backup file: {s}", .{ err, original_path, backup_path });
+        _ = reader.interface.streamRemaining(&writer.interface) catch |err| {
+            log.err("Failed to restore original file '{s}' from backup file '{s}': {t}", .{ original_path, backup_path, err });
+        };
+        writer.interface.flush() catch |err| {
+            log.err("Failed to flush to file '{s}': {t}", .{ original_path, err });
         };
     }
     self.eraseAndClearBackups();
