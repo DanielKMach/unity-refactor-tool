@@ -106,7 +106,7 @@ pub fn evaluateAuto(self: Expr, env: RunEnv) anyerror!core.results.RuntimeResult
 }
 
 /// Recursively frees any allocations made when parsing the expression.
-pub fn cleanup(self: Expr, allocator: std.mem.Allocator) void {
+pub fn cleanup(self: *Expr, allocator: std.mem.Allocator) void {
     switch (self.class) {
         .grouping => |g| g.expr.cleanup(allocator),
         .literal => |l| {
@@ -122,6 +122,8 @@ pub fn cleanup(self: Expr, allocator: std.mem.Allocator) void {
             u.op.cleanup(allocator);
         },
     }
+    allocator.destroy(self);
+    self.* = undefined;
 }
 
 pub fn initBinary(loc: Location, class: Binary) Expr {

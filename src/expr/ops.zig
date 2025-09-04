@@ -221,7 +221,6 @@ fn validateType(expr: *Expr, comptime types: []const Value.Type, env: Expr.RunEn
     inline for (types) |t| {
         if (value == t) return .OK(value);
     }
-    value.cleanup(env.allocator);
     return .ERR(.{
         .unexpected_type = .{
             .found = value,
