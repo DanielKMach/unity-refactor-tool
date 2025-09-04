@@ -28,7 +28,10 @@ pub fn fromFile(path: []const u8, allocator: std.mem.Allocator) !This {
     const file = try std.fs.openFileAbsolute(metafile_path, .{ .mode = .read_only });
     defer file.close();
 
-    const guid = try scanMetafileAlloc(file.reader().any(), allocator);
+    var buf: [4096]u8 = undefined;
+    var reader = file.reader(&buf);
+
+    const guid = try scanMetafileAlloc(&reader.interface, allocator);
 
     return This{
         .value = guid,
@@ -47,11 +50,10 @@ pub fn deinit(self: This, allocator: std.mem.Allocator) void {
 /// Returns `error.InvalidMetaFile` if it can't be found.
 ///
 /// Asserts that the buffer is at least 32 bytes long.
-pub fn scanMetafile(reader: std.io.AnyReader, buf: []u8, alloc: std.mem.Allocator) ![]u8 {
+pub fn scanMetafile(reader: *std.Io.Reader, buf: []u8, alloc: std.mem.Allocator) ![]u8 {
     std.debug.assert(buf.len >= 32);
 
-    var bufrdr = std.io.bufferedReader(reader);
-    var yaml = core.runtime.Yaml.init(.{ .reader = bufrdr.reader().any() }, null, alloc);
+    var yaml = core.runtime.Yaml.init(.{ .reader = reader }, null, alloc);
 
     const nullable_guid = try yaml.get(&.{"guid"}, buf);
     const guid = nullable_guid orelse return error.InvalidMetaFile;
@@ -68,7 +70,7 @@ pub fn scanMetafile(reader: std.io.AnyReader, buf: []u8, alloc: std.mem.Allocato
 /// The return value is owned by the caller.
 ///
 /// Asserts that the buffer is at least 32 bytes long.
-pub fn scanMetafileAlloc(reader: std.io.AnyReader, alloc: std.mem.Allocator) ![]u8 {
+pub fn scanMetafileAlloc(reader: *std.Io.Reader, alloc: std.mem.Allocator) ![]u8 {
     var buf: [32]u8 = undefined;
     const guid = try scanMetafile(reader, &buf, alloc);
     return try alloc.dupe(u8, guid);

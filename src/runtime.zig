@@ -13,6 +13,6 @@ pub const Transaction = @import("runtime/Transaction.zig");
 pub const RuntimeEnv = struct {
     allocator: std.mem.Allocator,
     transaction: *Transaction,
-    out: std.io.AnyWriter,
+    out: *std.Io.Writer,
     cwd: std.fs.Dir,
 };

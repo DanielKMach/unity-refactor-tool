@@ -3,68 +3,76 @@ const std = @import("std");
 pub fn Scanner(T: type) type {
     return struct {
         const This = @This();
-        const FragFn = fn (*T, std.fs.Dir.Walker.Entry, std.fs.File, std.mem.Allocator) anyerror!void;
+        const FragFn = fn (*T, [:0]const u8, std.fs.File, std.mem.Allocator) anyerror!void;
         const FilterFn = fn (*T, std.fs.Dir.Walker.Entry, std.mem.Allocator) ?std.fs.File;
 
         const fragFn: FragFn = if (@hasDecl(T, "scan") and @TypeOf(T.scan) == FragFn) T.scan else @compileError("scan function not defined");
         const filterFn: FilterFn = if (@hasDecl(T, "filter") and @TypeOf(T.filter) == FilterFn) T.filter else defaultFilter;
 
-        allocator: std.mem.Allocator,
-        threads: []std.Thread,
+        allocator: std.heap.ThreadSafeAllocator,
+        dir: std.fs.Dir,
 
-        walker: ?std.fs.Dir.Walker,
-        walkerMtx: std.Thread.Mutex,
+        walker: ?std.fs.Dir.Walker = null,
+        walker_mtx: std.Thread.Mutex = .{},
 
-        pub fn init(dir: std.fs.Dir, allocator: std.mem.Allocator) !This {
-            const walker = try dir.walk(allocator);
-
+        pub fn init(dir: std.fs.Dir, allocator: std.mem.Allocator) This {
             return This{
-                .walker = walker,
-                .walkerMtx = std.Thread.Mutex{},
-                .allocator = allocator,
-                .threads = try allocator.alloc(std.Thread, 4),
+                .dir = dir,
+                .allocator = .{
+                    .child_allocator = allocator,
+                },
             };
-        }
-
-        pub fn deinit(self: *This) void {
-            if (self.walker) |*wlkr| wlkr.deinit();
-            self.allocator.free(self.threads);
         }
 
         pub fn scan(self: *This, data: *T) !void {
-            var thread_safe_alloc = std.heap.ThreadSafeAllocator{
-                .child_allocator = self.allocator,
-            };
+            const allocator = self.allocator.allocator();
+            var walker = try self.dir.walk(allocator);
+            defer walker.deinit();
 
-            for (self.threads) |*thread| {
-                thread.* = try std.Thread.spawn(
-                    .{ .allocator = thread_safe_alloc.allocator() },
+            // var pool: std.Thread.Pool = undefined;
+            // var wg: std.Thread.WaitGroup = .{};
+
+            // try std.Thread.Pool.init(&pool, .{
+            //     .n_jobs = 4,
+            //     .allocator = allocator,
+            // });
+            // pool.spawnWg(&wg, loop, .{ data, &walker, &self.walker_mtx, allocator });
+            // wg.wait(); // Why is thread pool 3 times slower than just spawning threads?
+            const threads = try allocator.alloc(std.Thread, 4);
+            defer allocator.free(threads);
+
+            for (threads) |*t| {
+                t.* = try std.Thread.spawn(
+                    .{ .allocator = allocator },
                     loop,
-                    .{ self, data, thread_safe_alloc.allocator() },
+                    .{ data, &walker, &self.walker_mtx, allocator },
                 );
             }
 
-            for (self.threads) |thread| {
+            for (threads) |thread| {
                 thread.join();
             }
         }
 
-        fn loop(self: *This, data: *T, allocator: std.mem.Allocator) !void {
+        fn loop(data: *T, walker: *std.fs.Dir.Walker, w_mtx: *std.Thread.Mutex, allocator: std.mem.Allocator) void {
             while (true) {
-                var entry: std.fs.Dir.Walker.Entry = undefined;
                 var file: ?std.fs.File = null;
-                if (self.walker) |*wlkr| {
-                    self.walkerMtx.lock();
-                    defer self.walkerMtx.unlock();
-                    const e = try wlkr.next() orelse break;
-                    entry = try dupeEntry(e, allocator);
+                defer if (file) |f| f.close();
+                var path: ?[:0]const u8 = null;
+                defer if (path) |p| allocator.free(p);
+
+                {
+                    w_mtx.lock();
+                    defer w_mtx.unlock();
+
+                    const entry = walker.next() catch unreachable orelse break;
                     file = filterFn(data, entry, allocator);
+                    path = allocator.dupeZ(u8, entry.path) catch unreachable;
                 }
-                if (file) |f| {
-                    try fragFn(data, entry, f, allocator);
-                    f.close();
+
+                if (file != null and path != null) {
+                    fragFn(data, path.?, file.?, allocator) catch unreachable;
                 }
-                freeEntry(entry, allocator);
             }
         }
 
@@ -73,20 +81,6 @@ pub fn Scanner(T: type) type {
                 return entry.dir.openFile(entry.basename, .{ .mode = .read_only }) catch return null;
             }
             return null;
-        }
-
-        fn dupeEntry(entry: std.fs.Dir.Walker.Entry, allocator: std.mem.Allocator) !std.fs.Dir.Walker.Entry {
-            return std.fs.Dir.Walker.Entry{
-                .dir = entry.dir,
-                .basename = try allocator.dupeZ(u8, entry.basename),
-                .path = try allocator.dupeZ(u8, entry.path),
-                .kind = entry.kind,
-            };
-        }
-
-        fn freeEntry(entry: std.fs.Dir.Walker.Entry, allocator: std.mem.Allocator) void {
-            allocator.free(entry.basename);
-            allocator.free(entry.path);
         }
     };
 }

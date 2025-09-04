@@ -1,65 +1,62 @@
 const std = @import("std");
 
+const log = std.log.scoped(.component_iterator);
+
 const This = @This();
 const History = @import("history.zig").History;
 
-pub const IterateError = std.mem.Allocator.Error || std.fs.File.ReadError || std.fs.File.SeekError || std.fs.File.GetSeekPosError;
-pub const PatchError = IterateError || std.fs.File.WriteError;
+pub const IterateError = std.mem.Allocator.Error || std.Io.Reader.Error || std.Io.Reader.DelimiterError || std.fs.File.Reader.SeekError;
+pub const PatchError = IterateError || std.Io.Writer.Error || std.Io.Reader.StreamError;
 
 pub const Component = struct {
     index: usize,
     len: usize,
-    document: []u8,
+    document: []const u8,
 };
 
+freader: std.fs.File.Reader,
 allocator: std.mem.Allocator,
-file: std.fs.File,
 last: ?Component,
 
-pub fn init(file: std.fs.File, allocator: std.mem.Allocator) This {
+pub fn init(file: std.fs.File, allocator: std.mem.Allocator) std.mem.Allocator.Error!This {
+    const buf = try allocator.alloc(u8, 4096);
     return This{
+        .freader = file.reader(buf),
         .allocator = allocator,
-        .file = file,
         .last = null,
     };
 }
 
 pub fn deinit(self: *This) void {
+    self.allocator.free(self.freader.interface.buffer);
     self.freeLast();
+    self.* = undefined;
 }
 
 pub fn next(self: *This) IterateError!?Component {
-    const reader = self.file.reader();
-    const seekable = self.file.seekableStream();
+    var reader = &self.freader.interface;
 
     var target: usize = 0;
     if (self.last) |c| {
         target = c.index + c.len;
         self.freeLast();
     }
-    try seekable.seekTo(target);
+    try self.freader.seekTo(target);
 
-    var index: usize = undefined;
-    var len: usize = undefined;
-    findNextComponent(reader, seekable, &index, &len) catch |err| switch (err) {
-        error.EndOfStream => {},
-        else => |e| return e,
+    const index, const len = findNextComponent(&self.freader) catch |err| switch (err) {
+        error.EndOfStream => return null,
+        else => return err,
     };
+    std.debug.assert(len != 0);
 
-    if (len == 0) {
-        return null;
-    }
-
-    const buf = try self.allocator.alloc(u8, len);
-
-    try seekable.seekTo(index);
-    const count = try reader.read(buf);
-    std.debug.assert(count == buf.len);
+    try self.freader.seekTo(index);
+    const doc = try reader.readAlloc(self.allocator, len);
+    std.debug.assert(doc.len == len);
 
     const comp = Component{
         .index = index,
         .len = len,
-        .document = buf,
+        .document = doc,
     };
     self.last = comp;
     return comp;
@@ -72,72 +69,37 @@ fn freeLast(self: *This) void {
     }
 }
 
-fn findNextComponent(reader: std.fs.File.Reader, seekable: std.fs.File.SeekableStream, index: *usize, len: *usize) !void {
-    var last_chars = History(u8, 8).empty;
-    var c: u8 = undefined;
+fn findNextComponent(freader: *std.fs.File.Reader) ![2]usize {
+    var reader = &freader.interface;
+    var line: []u8 = try reader.takeDelimiterInclusive('\n');
 
-    index.* = try seekable.getPos();
-    len.* = 0;
-    while (true) {
-        c = try reader.readByte();
-        last_chars.push(c);
-        len.* += 1;
-
-        if (c == '%' and (last_chars.last(1) == '\n' or last_chars.last(1) == null)) {
-            if (len.* - 1 > 0) {
-                len.* -= 1;
-                break;
-            }
-            while (c != '\n') {
-                c = try reader.readByte();
-                last_chars.push(c);
-            }
-            index.* = try seekable.getPos();
-            len.* = 0;
-        }
-
-        if (c == '-' and last_chars.last(1) == '-' and (last_chars.last(2) == '\n' or last_chars.last(2) == null)) {
-            if (len.* - 2 > 0) {
-                len.* -= 2;
-                break;
-            }
-            while (c != '\n') {
-                c = try reader.readByte();
-                last_chars.push(c);
-            }
-            index.* = try seekable.getPos();
-            len.* = 0;
-        }
+    while (line[0] == '%' or std.mem.startsWith(u8, line, "--- ")) {
+        line = try reader.takeDelimiterInclusive('\n');
     }
+
+    const index = freader.logicalPos() - line.len;
+    while (!std.mem.startsWith(u8, line, "--- ")) {
+        line = reader.takeDelimiterInclusive('\n') catch |err| switch (err) {
+            error.EndOfStream => return .{ index, freader.logicalPos() - index },
+            else => return err,
+        };
+    }
+
+    return .{ index, freader.logicalPos() - line.len - index };
 }
 
-pub fn patch(self: This, out: std.fs.File, components: []const Component) PatchError!void {
-    try self.file.seekTo(0);
-    try out.seekTo(0);
+pub fn patch(self: *This, out: *std.Io.Writer, components: []const Component) PatchError!void {
+    try self.freader.seekTo(0);
+    var reader = &self.freader.interface;
 
-    const writer = out.writer();
-    const reader = self.file.reader();
-    var buf: [4096]u8 = undefined;
-
-    var i: usize = 0;
+    var last_index: usize = 0;
     for (components) |comp| {
-        var len: usize = undefined;
-        var count: usize = undefined;
-        while (true) {
-            len = @min(comp.index - i, buf.len);
-            if (len == 0) break;
-            count = try reader.read(buf[0..len]);
-            if (count == 0) break;
-            _ = try writer.write(buf[0..count]);
-            i += count;
-        }
-        _ = try writer.write(comp.document);
-        try self.file.seekTo(comp.index + comp.len);
+        try reader.streamExact(out, comp.index - last_index);
+        try out.writeAll(comp.document);
+        try reader.discardAll(comp.len);
+        last_index = comp.index + comp.len;
     }
 
-    while (true) {
-        const count = try reader.read(buf[0..]);
-        if (count == 0) break;
-        _ = try writer.write(buf[0..count]);
-    }
+    _ = try reader.streamRemaining(out);
+    try out.flush();
 }

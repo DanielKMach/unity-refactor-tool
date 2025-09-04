@@ -35,7 +35,7 @@ pub fn cleanup(self: This, allocator: std.mem.Allocator) void {
     allocator.free(self.dir);
 }
 
-pub fn openDir(self: This, data: RuntimeEnv, options: std.fs.Dir.OpenDirOptions) !std.fs.Dir {
+pub fn openDir(self: This, data: RuntimeEnv, options: std.fs.Dir.OpenOptions) !std.fs.Dir {
     const dir = try data.cwd.openDir(self.dir, options);
     return dir;
 }

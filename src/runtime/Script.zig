@@ -11,22 +11,18 @@ pub fn run(this: This, options: RunConfig) !core.results.RuntimeResult(void) {
     core.profiling.begin(run);
     defer core.profiling.stop();
 
-    var arena = std.heap.ArenaAllocator.init(options.allocator);
-    defer arena.deinit();
-
     var transaction = core.runtime.Transaction.init(options.allocator);
     defer transaction.deinit();
     errdefer transaction.rollback();
 
     const env = core.runtime.RuntimeEnv{
-        .allocator = arena.allocator(),
+        .allocator = options.allocator,
         .transaction = &transaction,
         .out = options.out,
         .cwd = options.cwd,
     };
 
     for (this.statements) |stmt| {
-        defer _ = arena.reset(.retain_capacity);
         const result = try stmt.run(env);
         if (result.isErr()) |err| {
             transaction.rollback();
@@ -46,6 +42,6 @@ pub fn deinit(this: This) void {
 
 pub const RunConfig = struct {
     allocator: std.mem.Allocator,
-    out: std.io.AnyWriter,
+    out: *std.Io.Writer,
     cwd: std.fs.Dir,
 };

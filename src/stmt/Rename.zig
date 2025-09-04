@@ -151,8 +151,14 @@ pub fn updateAll(self: This, asset_paths: []const []const u8, guids: []const GUI
         file.close();
 
         file = try std.fs.createFileAbsolute(path, .{ .truncate = true });
-        try file.writeFileAll(temp, .{});
 
+        var wbuf: [4096]u8 = undefined;
+        var writer = file.writer(&wbuf);
+        var rbuf: [4096]u8 = undefined;
+        var reader = temp.reader(&rbuf);
+
+        _ = try reader.interface.streamRemaining(&writer.interface);
+        try writer.interface.flush();
         try env.out.print(" DONE.\r\n", .{});
     }
 }
@@ -161,15 +167,18 @@ pub fn findAndReplace(self: This, asset: std.fs.File, out: std.fs.File, guids: [
     core.profiling.begin(findAndReplace);
     defer core.profiling.stop();
 
-    var iterator = ComponentIterator.init(asset, allocator);
+    var iterator = try ComponentIterator.init(asset, allocator);
     defer iterator.deinit();
 
     const changes = try self.computeChanges(&iterator, guids, allocator);
     defer allocator.free(changes);
     defer for (changes) |c| allocator.free(c.document);
 
+    var buf: [4096]u8 = undefined;
+    var fwriter = out.writer(&buf);
+
     if (changes.len != 0) {
-        try iterator.patch(out, changes);
+        try iterator.patch(&fwriter.interface, changes);
     }
 
     return changes.len != 0;
@@ -179,8 +188,8 @@ pub fn computeChanges(self: This, iterator: *ComponentIterator, guid: []const GU
     core.profiling.begin(computeChanges);
     defer core.profiling.stop();
 
-    var modified = std.ArrayList(ComponentIterator.Component).init(allocator);
-    defer modified.deinit();
+    var modified = try std.ArrayList(ComponentIterator.Component).initCapacity(allocator, 1);
+    defer modified.deinit(allocator);
 
     while (try iterator.next()) |comp| {
         var yaml = Yaml.init(.{ .string = comp.document }, null, allocator);
@@ -188,16 +197,21 @@ pub fn computeChanges(self: This, iterator: *ComponentIterator, guid: []const GU
         if (!(core.stmt.Show.matchScriptOrPrefabGUID(guid, &yaml) catch false)) continue;
 
         var buf = try allocator.alloc(u8, comp.len * 2);
-        errdefer allocator.free(buf);
-        yaml.out = .{ .string = &buf };
+        defer allocator.free(buf);
+        var out = buf[0..];
+
+        yaml.out = .{ .string = &out };
         try yaml.rename(self.old_name, self.new_name);
 
-        try modified.append(.{
+        const doc = try allocator.dupe(u8, out);
+        errdefer allocator.free(doc);
+
+        try modified.append(allocator, .{
             .index = comp.index,
             .len = comp.len,
-            .document = buf,
+            .document = doc,
         });
     }
 
-    return try modified.toOwnedSlice();
+    return try modified.toOwnedSlice(allocator);
 }

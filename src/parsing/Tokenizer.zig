@@ -138,26 +138,26 @@ pub fn tokenize(expression: []const u8, allocator: std.mem.Allocator) !results.P
     core.profiling.begin(tokenize);
     defer core.profiling.stop();
 
-    var list = std.ArrayList(Token).init(allocator);
-    defer list.deinit();
+    var list = try std.ArrayList(Token).initCapacity(allocator, 16);
+    defer list.deinit(allocator);
 
     var tokenizer = This.init(expression);
     while (true) {
         switch (tokenizer.token()) {
-            .ok => |t| try list.append(t orelse break),
+            .ok => |t| try list.append(allocator, t orelse break),
             .err => |err| return .ERR(err),
         }
     }
 
     if (!list.items[list.items.len - 1].is(.eos)) {
-        try list.append(Token.new(.eos, .init(expression.len, 0)));
+        try list.append(allocator, Token.new(.eos, .init(expression.len, 0)));
     }
 
     for (list.items) |tkn| {
         log.info("Token({s}, <{s}>)", .{ @tagName(tkn.value), tkn.loc.lexeme(expression) });
     }
 
-    return .OK(try list.toOwnedSlice());
+    return .OK(try list.toOwnedSlice(allocator));
 }
 
 /// A token

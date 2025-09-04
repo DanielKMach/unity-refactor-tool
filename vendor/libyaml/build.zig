@@ -7,14 +7,13 @@ pub fn build(b: *std.Build) void {
     const include = b.path("lib/include");
     const src = b.path("lib/src");
 
-    const lib = b.addStaticLibrary(.{
-        .name = "libyaml",
+    const mod = b.createModule(.{
         .target = target,
         .optimize = optimize,
         .link_libc = true,
     });
-    lib.addIncludePath(include);
-    lib.addCSourceFiles(.{
+    mod.addIncludePath(include);
+    mod.addCSourceFiles(.{
         .root = src,
         .files = &.{
             "api.c",
@@ -27,11 +26,15 @@ pub fn build(b: *std.Build) void {
             "writer.c",
         },
     });
+    mod.addCMacro("YAML_VERSION_STRING", "\"1.1\"");
+    mod.addCMacro("YAML_VERSION_MAJOR", "1");
+    mod.addCMacro("YAML_VERSION_MINOR", "1");
+    mod.addCMacro("YAML_VERSION_PATCH", "0");
 
-    lib.root_module.addCMacro("YAML_VERSION_STRING", "\"1.1\"");
-    lib.root_module.addCMacro("YAML_VERSION_MAJOR", "1");
-    lib.root_module.addCMacro("YAML_VERSION_MINOR", "1");
-    lib.root_module.addCMacro("YAML_VERSION_PATCH", "0");
+    const lib = b.addLibrary(.{
+        .name = "libyaml",
+        .root_module = mod,
+    });
 
     const header = b.addTranslateC(.{
         .root_source_file = include.path(b, "yaml.h"),
@@ -39,6 +42,6 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    const mod = header.addModule("libyaml");
-    mod.linkLibrary(lib);
+    const libyaml = header.addModule("libyaml");
+    libyaml.linkLibrary(lib);
 }

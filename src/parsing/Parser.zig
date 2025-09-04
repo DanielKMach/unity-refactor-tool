@@ -25,15 +25,15 @@ pub fn parse(self: Parser, source: core.Source) !core.results.ParseResult(core.r
         .allocator = self.allocator,
     };
 
-    var statements = std.ArrayList(core.stmt.Statement).init(self.allocator);
-    defer statements.deinit();
+    var statements = try std.ArrayList(core.stmt.Statement).initCapacity(self.allocator, 8);
+    defer statements.deinit(self.allocator);
 
     while (iterator.remaining() > 0) {
         const stmt = switch (try core.stmt.Statement.parse(&iterator, env)) {
             .ok => |stmt| stmt,
             .err => |err| return .ERR(err),
         };
-        try statements.append(stmt);
+        try statements.append(self.allocator, stmt);
         if (!iterator.match(.eos)) {
             return .ERR(.{
                 .unexpected_token = .{
@@ -46,6 +46,6 @@ pub fn parse(self: Parser, source: core.Source) !core.results.ParseResult(core.r
 
     return .OK(core.runtime.Script{
         .allocator = self.allocator,
-        .statements = try statements.toOwnedSlice(),
+        .statements = try statements.toOwnedSlice(self.allocator),
     });
 }
