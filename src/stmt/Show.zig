@@ -106,7 +106,6 @@ pub fn run(self: This, data: RuntimeEnv) anyerror!results.RuntimeResult(void) {
     }
 
     sort(@ptrCast(references));
-    log.debug("{d}", .{references.len});
     for (references) |r| {
         try data.out.print("{s}\r\n", .{r});
     }
