@@ -197,14 +197,19 @@ pub fn computeChanges(self: This, iterator: *ComponentIterator, guid: []const GU
         if (!(core.stmt.Show.matchScriptOrPrefabGUID(guid, &yaml) catch false)) continue;
 
         var buf = try allocator.alloc(u8, comp.len * 2);
-        errdefer allocator.free(buf);
-        yaml.out = .{ .string = &buf };
+        defer allocator.free(buf);
+        var out = buf[0..];
+
+        yaml.out = .{ .string = &out };
         try yaml.rename(self.old_name, self.new_name);
+
+        const doc = try allocator.dupe(u8, out);
+        errdefer allocator.free(doc);
 
         try modified.append(allocator, .{
             .index = comp.index,
             .len = comp.len,
-            .document = buf,
+            .document = doc,
         });
     }
 
