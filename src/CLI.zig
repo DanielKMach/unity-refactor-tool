@@ -137,15 +137,17 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
 
 pub fn startInteractiveMode(self: This) !bool {
     const ansi = ANSI.init(self.out);
+    const writer = &self.out.interface;
+    const reader = &self.in.interface;
     var parser = urt.parsing.Parser{
         .allocator = self.allocator,
     };
 
     it: while (true) {
         try ansi.print("D", ">> ", .{});
-        try self.out.interface.flush();
+        try writer.flush();
 
-        const line = self.in.interface.takeDelimiterExclusive('\n') catch |err| switch (err) {
+        const line = reader.takeDelimiterInclusive('\n') catch |err| switch (err) {
             error.EndOfStream => break :it,
             else => return err,
         };
@@ -164,7 +166,7 @@ pub fn startInteractiveMode(self: This) !bool {
             .out = &self.out.interface,
         });
     }
-    try self.out.interface.writeAll("\r\n");
+    try writer.writeAll("\r\n");
     return true;
 }
 
@@ -197,9 +199,9 @@ pub fn parseAndRun(self: This, source: urt.Source, parser: *urt.parsing.Parser, 
 
 pub fn printParseError(parse_error: urt.results.ParseError, source: urt.Source, fw: *std.fs.File.Writer) !void {
     var ansi = ANSI.init(fw);
-    try ansi.print(eh, "PARSING ERROR: ", .{});
+    var out = &fw.interface;
 
-    var out = fw.interface;
+    try ansi.print(eh, "PARSING ERROR: ", .{});
 
     switch (parse_error) {
         .unknown => {
@@ -256,10 +258,14 @@ pub fn printParseError(parse_error: urt.results.ParseError, source: urt.Source, 
             }
         },
     }
+
+    try out.flush();
 }
 
-pub fn printRuntimeError(runtime_error: urt.results.RuntimeError, out: *std.fs.File.Writer) !void {
-    const ansi = ANSI.init(out);
+pub fn printRuntimeError(runtime_error: urt.results.RuntimeError, fw: *std.fs.File.Writer) !void {
+    const ansi = ANSI.init(fw);
+    const out = &fw.interface;
+
     try ansi.print(eh, "RUNTIME ERROR: ", .{});
 
     switch (runtime_error) {
@@ -270,6 +276,8 @@ pub fn printRuntimeError(runtime_error: urt.results.RuntimeError, out: *std.fs.F
             try ansi.print(e, "Invalid path\r\n", .{});
         },
     }
+
+    try out.flush();
 }
 
 pub fn printLineHighlight(loc: urt.Token.Location, source: urt.Source, out: *std.fs.File.Writer) !void {
