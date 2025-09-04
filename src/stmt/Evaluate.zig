@@ -64,6 +64,7 @@ pub fn cleanup(self: This, allocator: std.mem.Allocator) void {
     self.of.cleanup(allocator);
     if (self.in) |in| in.cleanup(allocator);
     for (self.path) |p| allocator.free(p);
+    allocator.free(self.path);
 }
 
 pub fn run(self: This, data: RuntimeEnv) anyerror!results.RuntimeResult(void) {
