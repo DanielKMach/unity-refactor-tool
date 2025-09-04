@@ -145,6 +145,7 @@ pub fn deinit(self: *This) void {
         log.warn("Transaction deinit called with uncleaned temporary files. Cleaning up...", .{});
         self.eraseAndClearTemps();
     }
+    self.temps.deinit();
 
     std.debug.assert(self.backups.count() == 0);
     self.backups.deinit();
