@@ -23,10 +23,10 @@ pub fn main() !void {
     const allocator = switch (builtin.mode) {
         .Debug => bdy: {
             debug_allocator = .init;
-            debug_allocator.backing_allocator = std.heap.page_allocator;
+            debug_allocator.backing_allocator = std.heap.smp_allocator;
             break :bdy debug_allocator.allocator();
         },
-        else => std.heap.page_allocator,
+        else => std.heap.smp_allocator,
     };
 
     var out_buf: [4096]u8 = undefined;
@@ -49,12 +49,10 @@ pub fn main() !void {
     _ = args.next(); // skip the first argument
     defer args.deinit();
 
-    const exit_code: u8 = if (try cli.process(&args)) 0 else 1;
+    _ = try cli.process(&args);
 
     log.info("Total memory allocated {d:.3}MB", .{@as(f32, @floatFromInt(debug_allocator.total_requested_bytes)) / 1000000.0});
     log.info("Total execution time {d}ms", .{std.time.milliTimestamp() - start});
-
-    std.process.exit(exit_code);
 }
 
 /// Prints the standard help message to the given writer.
