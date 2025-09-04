@@ -161,7 +161,7 @@ fn getParser(self: *This) ParseError!*Parser {
 
     switch (self.in) {
         .string => |str| libyaml.yaml_parser_set_input_string(parser, str.ptr, str.len),
-        .reader => |*reader| libyaml.yaml_parser_set_input(parser, &readHandler, @ptrCast(reader)),
+        .reader => |reader| libyaml.yaml_parser_set_input(parser, &readHandler, @ptrCast(reader)),
     }
 
     return parser;
@@ -184,7 +184,7 @@ fn getEmitter(self: *This) UpdateError!*Emitter {
 
     if (self.out) |*out| switch (out.*) {
         .string => |str| libyaml.yaml_emitter_set_output_string(emitter, str.ptr, str.len, &str.len),
-        .writer => |*writer| libyaml.yaml_emitter_set_output(emitter, &writeHandler, @ptrCast(writer)),
+        .writer => |writer| libyaml.yaml_emitter_set_output(emitter, &writeHandler, @ptrCast(writer)),
     } else {
         return error.NoOutput;
     }
@@ -209,33 +209,24 @@ fn deleteEventsList(allocator: std.mem.Allocator, events: *std.SegmentedList(Eve
     events.deinit(allocator);
 }
 
-fn readHandler(context: ?*anyopaque, buffer: [*c]u8, size: usize, length: [*c]usize) callconv(.C) c_int {
-    const reader: *std.io.AnyReader = @alignCast(@ptrCast(context.?));
-    const read = reader.read(buffer[0..size]);
-    if (read) |count| {
-        length.* = count;
-        return 1;
-    } else |_| {
-        return 0;
-    }
+fn readHandler(context: ?*anyopaque, buffer: [*c]u8, size: usize, length: [*c]usize) callconv(.c) c_int {
+    const reader: *std.Io.Reader = @ptrCast(@alignCast(context.?));
+    length.* = reader.readSliceShort(buffer[0..size]) catch return 0;
+    return 1;
 }
 
-fn writeHandler(context: ?*anyopaque, buffer: [*c]u8, size: usize) callconv(.C) c_int {
-    const writer: *std.io.AnyWriter = @alignCast(@ptrCast(context.?));
-    const write = writer.write(buffer[0..size]);
-    if (write) |_| {
-        return 1;
-    } else |_| {
-        return 0;
-    }
+fn writeHandler(context: ?*anyopaque, buffer: [*c]u8, size: usize) callconv(.c) c_int {
+    const writer: *std.Io.Writer = @ptrCast(@alignCast(context.?));
+    writer.writeAll(buffer[0..size]) catch return 0;
+    return 1;
 }
 
 pub const In = union(enum) {
     string: []const u8,
-    reader: std.io.AnyReader,
+    reader: *std.Io.Reader,
 };
 
 pub const Out = union(enum) {
     string: *[]u8,
-    writer: std.io.AnyWriter,
+    writer: *std.Io.Writer,
 };

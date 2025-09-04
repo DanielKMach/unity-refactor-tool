@@ -137,12 +137,7 @@ pub const Type = enum {
     /// Any alphanumeric literal, such as identifiers, component names, etc.
     literal,
 
-    pub fn format(
-        self: Type,
-        comptime _: []const u8,
-        _: std.fmt.FormatOptions,
-        writer: anytype,
-    ) anyerror!void {
+    pub fn format(self: Type, writer: *std.Io.Writer) std.Io.Writer.Error!void {
         inline for (operator_list) |op| {
             if (self == op[1]) {
                 return writer.print("'{s}'", .{op[0]});
@@ -196,17 +191,12 @@ pub const Value = union(Type) {
     string: []const u8,
     literal: []const u8,
 
-    pub fn format(
-        self: Value,
-        comptime _: []const u8,
-        _: std.fmt.FormatOptions,
-        writer: anytype,
-    ) anyerror!void {
+    pub fn format(self: Value, writer: *std.Io.Writer) std.Io.Writer.Error!void {
         switch (self) {
             .number => |n| try writer.print("number '{d}'", .{n}),
             .string => |s| try writer.print("string '{s}'", .{s}),
             .literal => |l| try writer.print("literal '{s}'", .{l}),
-            else => try writer.print("{}", .{@as(Type, self)}),
+            else => try writer.print("{f}", .{@as(Type, self)}),
         }
     }
 };

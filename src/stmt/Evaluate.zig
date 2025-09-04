@@ -95,13 +95,14 @@ pub fn run(self: This, data: RuntimeEnv) anyerror!results.RuntimeResult(void) {
     log.info("Printing references...", .{});
 
     const result = try self.searchAndPrint(target_assets, guid, data.allocator, data.out);
+    try data.out.flush();
     return switch (result) {
         .ok => .OK(void{}),
         .err => |err| .ERR(err),
     };
 }
 
-pub fn searchAndPrint(self: This, assets: []const []const u8, guid: []const GUID, allocator: std.mem.Allocator, out: std.io.AnyWriter) !results.RuntimeResult(void) {
+pub fn searchAndPrint(self: This, assets: []const []const u8, guid: []const GUID, allocator: std.mem.Allocator, out: *std.Io.Writer) !results.RuntimeResult(void) {
     core.profiling.begin(searchAndPrint);
     defer core.profiling.stop();
 
@@ -121,11 +122,11 @@ pub fn searchAndPrint(self: This, assets: []const []const u8, guid: []const GUID
     return .OK(void{});
 }
 
-pub fn scanAndPrint(self: This, file: std.fs.File, file_path: []const u8, guid: []const GUID, allocator: std.mem.Allocator, out: std.io.AnyWriter) !results.RuntimeResult(void) {
+pub fn scanAndPrint(self: This, file: std.fs.File, file_path: []const u8, guid: []const GUID, allocator: std.mem.Allocator, out: *std.Io.Writer) !results.RuntimeResult(void) {
     core.profiling.begin(scanAndPrint);
     defer core.profiling.stop();
 
-    var iter = ComponentIterator.init(file, allocator);
+    var iter = try ComponentIterator.init(file, allocator);
     defer iter.deinit();
 
     while (try iter.next()) |comp| {
@@ -147,7 +148,7 @@ pub fn scanAndPrint(self: This, file: std.fs.File, file_path: []const u8, guid: 
     return .OK(void{});
 }
 
-pub fn print(path: []const u8, value: core.Expr.Value, out: std.io.AnyWriter) !void {
+pub fn print(path: []const u8, value: core.Expr.Value, out: *std.Io.Writer) !void {
     core.profiling.begin(print);
     defer core.profiling.stop();
 

@@ -37,30 +37,14 @@ test "string parsing (alloc)" {
 test "file reader parsing" {
     const file = try std.fs.cwd().openFile(test_file.path, .{ .mode = .read_only });
     defer file.close();
-    const reader = file.reader();
+    var rbuf: [4096]u8 = undefined;
+    var freader = file.reader(&rbuf);
 
-    var yaml = Yaml.init(.{ .reader = reader.any() }, null, testing.allocator);
+    var yaml = Yaml.init(.{ .reader = &freader.interface }, null, testing.allocator);
     var buf: [256]u8 = undefined;
 
     for (test_file.kv_pairs) |kv| {
-        try file.seekTo(0);
-        try testing.expectEqualStrings(kv.value, (try yaml.get(kv.path, &buf)).?);
-    }
-}
-
-test "buffered reader parsing" {
-    const file = try std.fs.cwd().openFile(test_file.path, .{ .mode = .read_only });
-    defer file.close();
-    const freader = file.reader();
-
-    var bufrdr = std.io.bufferedReader(freader);
-    const reader = bufrdr.reader();
-
-    var yaml = Yaml.init(.{ .reader = reader.any() }, null, testing.allocator);
-    var buf: [256]u8 = undefined;
-
-    for (test_file.kv_pairs) |kv| {
-        try file.seekTo(0);
+        try freader.seekTo(0);
         try testing.expectEqualStrings(kv.value, (try yaml.get(kv.path, &buf)).?);
     }
 }

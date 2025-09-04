@@ -61,12 +61,12 @@ pub const Class = union(enum) {
     binary: Binary,
     unary: Unary,
 
-    pub fn format(value: Class, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
+    pub fn format(value: Class, writer: *std.Io.Writer) std.Io.Writer.Error!void {
         switch (value) {
-            .grouping => |g| try writer.print("(group {})", .{g.expr}),
+            .grouping => |g| try writer.print("(group {f})", .{g.expr}),
             .literal => |l| try writer.print("{s}", .{l.token.value}),
-            .binary => |b| try writer.print("({s} {} {})", .{ b.op.value, b.left, b.right }),
-            .unary => |u| try writer.print("({s} {})", .{ u.op.value, u.operand }),
+            .binary => |b| try writer.print("({s} {f} {f})", .{ b.op.value, b.left, b.right }),
+            .unary => |u| try writer.print("({s} {f})", .{ u.op.value, u.operand }),
         }
     }
 };
@@ -74,8 +74,8 @@ pub const Class = union(enum) {
 loc: Location,
 class: Class,
 
-pub fn format(value: Expr, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
-    return value.class.format(fmt, options, writer);
+pub fn format(value: Expr, writer: *std.Io.Writer) std.Io.Writer.Error!void {
+    return value.class.format(writer);
 }
 
 /// Evaluates the expression in the given environment.

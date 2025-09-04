@@ -37,7 +37,7 @@ pub fn fromStdin(allocator: std.mem.Allocator) FromFileError!Source {
     return Source{
         .allocator = allocator,
         .name = try allocator.dupe(u8, "stdin"),
-        .source = try std.io.getStdIn().readToEndAlloc(allocator, std.math.maxInt(usize)),
+        .source = try std.fs.File.stdout().readToEndAlloc(allocator, std.math.maxInt(usize)),
     };
 }
 
