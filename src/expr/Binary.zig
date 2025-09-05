@@ -16,6 +16,7 @@ pub fn evaluate(self: This, env: core.Expr.RunEnv) anyerror!core.results.Runtime
         .minus => core.Expr.ops.subtract(self.left, self.right, env),
         .star => core.Expr.ops.multiply(self.left, self.right, env),
         .slash => core.Expr.ops.divide(self.left, self.right, env),
+        .percentage => core.Expr.ops.mod(self.left, self.right, env),
         .equal_equal => core.Expr.ops.equals(self.left, self.right, env),
         .bang_equal => core.Expr.ops.notEquals(self.left, self.right, env),
         .greater => core.Expr.ops.greaterThan(self.left, self.right, env),

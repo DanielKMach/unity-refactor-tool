@@ -72,6 +72,19 @@ pub fn divide(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResul
     return .OK(.{ .number = a.number / b.number });
 }
 
+pub fn mod(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
+    const resA = try validateType(left, &.{.number}, env);
+    const a = resA.isOk() orelse return .ERR(resA.err);
+
+    const resB = try validateType(right, &.{.number}, env);
+    const b = resB.isOk() orelse return .ERR(resB.err);
+
+    if (b.number == 0) return .ERR(.{
+        .division_by_zero = .{ .location = right.loc },
+    });
+    return .OK(.{ .number = @mod(a.number, b.number) });
+}
+
 pub fn negate(expr: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
     const res = try validateType(expr, &.{.number}, env);
     const value = res.isOk() orelse return .ERR(res.err);
