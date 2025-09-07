@@ -19,6 +19,12 @@ pub const Class = union(enum) {
         right: *core.Expr,
     };
 
+    pub const Ternary = struct {
+        left: *core.Expr,
+        middle: *core.Expr,
+        right: *core.Expr,
+    };
+
     pub const Grouping = struct {
         expr: *core.Expr,
     };
@@ -26,6 +32,7 @@ pub const Class = union(enum) {
     unary: Unary,
     literal: Literal,
     binary: Binary,
+    ternary: Ternary,
     grouping: Grouping,
 
     pub fn format(value: Class, writer: *std.Io.Writer) std.Io.Writer.Error!void {

@@ -24,7 +24,8 @@ search <- 'refs' / ( 'direct' / 'indirect' )? 'uses'
 
 # === expressions ===
 expr <- assignment
-assignment <- access '=' or
+assignment <- access '=' ternary
+ternary <- or ( '?' or ':' ternary )?
 or <- and ( 'OR' and )*
 and <- equality ( 'AND' equality )*
 equality <- comparison ( ( '==' / '!=' ) comparison )*

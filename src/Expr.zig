@@ -66,6 +66,11 @@ pub fn cleanup(self: *Expr, allocator: std.mem.Allocator) void {
             b.right.cleanup(allocator);
             b.op.cleanup(allocator);
         },
+        .ternary => |t| {
+            t.left.cleanup(allocator);
+            t.middle.cleanup(allocator);
+            t.right.cleanup(allocator);
+        },
         .grouping => |g| g.expr.cleanup(allocator),
     }
     allocator.destroy(self);
@@ -93,11 +98,56 @@ fn initBinary(loc: Location, class: Class.Binary) Expr {
     };
 }
 
+fn initTernary(loc: Location, class: Class.Ternary) Expr {
+    return Expr{
+        .loc = loc,
+        .class = .{ .ternary = class },
+    };
+}
+
 fn initGrouping(loc: Location, class: Class.Grouping) Expr {
     return Expr{
         .loc = loc,
         .class = .{ .grouping = class },
     };
+}
+
+fn ternaryParseFunc(next_call: *const ParseFn) ParseFn {
+    return (struct {
+        pub fn parse(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.Allocator) !core.results.ParseResult(*Expr) {
+            var left = switch (try next_call(tokens, allocator)) {
+                .ok => |expr| expr,
+                .err => |err| return .ERR(err),
+            };
+            if (tokens.match(.question)) {
+                const middle = switch (try next_call(tokens, allocator)) {
+                    .ok => |expr| expr,
+                    .err => |err| return .ERR(err),
+                };
+                if (!tokens.match(.colon)) {
+                    return .ERR(.{
+                        .unexpected_token = .{
+                            .found = tokens.next(),
+                            .expected = &.{.colon},
+                        },
+                    });
+                }
+                const right = switch (try @This().parse(tokens, allocator)) {
+                    .ok => |expr| expr,
+                    .err => |err| return .ERR(err),
+                };
+                const expr = try allocator.create(Expr);
+                const loc: Location = .merge(&.{ left.loc, right.loc });
+                expr.* = .initTernary(loc, .{
+                    .left = left,
+                    .middle = middle,
+                    .right = right,
+                });
+                left = expr;
+            }
+            return .OK(left);
+        }
+    }).parse;
 }
 
 /// The difference between this and L2R is that this func will return an error if the matching operation is found twice
@@ -188,7 +238,8 @@ fn unaryParseFunc(next_call: *const ParseFn, expected_tokens: []const core.Token
     }).parse;
 }
 
-const parseAssignment = uniqueBinaryParseFunc(parseOr, &.{.equal});
+const parseAssignment = uniqueBinaryParseFunc(parseTernary, &.{.equal});
+const parseTernary = ternaryParseFunc(parseOr);
 const parseOr = l2rBinaryParseFunc(parseAnd, &.{.OR});
 const parseAnd = l2rBinaryParseFunc(parseEquality, &.{.AND});
 const parseEquality = l2rBinaryParseFunc(parseComparison, &.{ .equal_equal, .bang_equal });

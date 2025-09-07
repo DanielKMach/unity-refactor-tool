@@ -37,6 +37,7 @@ pub fn evaluate(expr: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
             .question_question => nullCoalesce(bin.left, bin.right, env),
             else => unreachable,
         },
+        .ternary => |tern| ternary(tern.left, tern.middle, tern.right, env),
         .grouping => |group| evaluate(group.expr, env),
     };
 }
@@ -251,6 +252,14 @@ pub fn concat(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResul
     @memcpy(combined[a.string.len..], b.string);
 
     return .OK(.{ .string = combined });
+}
+
+pub fn ternary(condition: *Expr, then: *Expr, otherwise: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
+    const cond_res = try condition.evaluate(env);
+    const cond_value = cond_res.isOk() orelse return .ERR(cond_res.err);
+
+    const target = if (isTrythy(cond_value)) then else otherwise;
+    return evaluate(target, env);
 }
 
 fn isTrythy(value: Value) bool {

@@ -40,6 +40,8 @@ pub const operator_list: []const struct { []const u8, Value } = &.{
     .{ "!=", .bang_equal },
     .{ "==", .equal_equal },
     .{ "??", .question_question },
+    .{ "?", .question },
+    .{ ":", .colon },
 };
 
 /// The type of the token.
@@ -127,6 +129,8 @@ pub const Type = enum {
     bang_equal, // '!='
     equal_equal, // '=='
     question_question, // '??'
+    question, // '?'
+    colon, // ':'
     left_paren, // '('
     right_paren, // ')'
 
@@ -188,6 +192,8 @@ pub const Value = union(Type) {
     bang_equal,
     equal_equal,
     question_question,
+    question,
+    colon,
     left_paren,
     right_paren,
     number: f32,
