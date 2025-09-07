@@ -48,7 +48,9 @@ pub fn evaluateAuto(self: *Expr, env: RunEnv) anyerror!core.results.RuntimeResul
 }
 
 pub fn parse(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.Allocator) std.mem.Allocator.Error!core.results.ParseResult(*Expr) {
-    return parseAssignment(tokens, allocator);
+    const result = try parseAssignment(tokens, allocator);
+    if (result == .ok) log.debug("{f}", .{result.ok});
+    return result;
 }
 
 /// Recursively frees any allocations made when parsing the expression.
@@ -77,42 +79,8 @@ pub fn cleanup(self: *Expr, allocator: std.mem.Allocator) void {
     self.* = undefined;
 }
 
-fn initLiteral(loc: Location, class: Class.Literal) Expr {
-    return Expr{
-        .loc = loc,
-        .class = .{ .literal = class },
-    };
-}
-
-fn initUnary(loc: Location, class: Class.Unary) Expr {
-    return Expr{
-        .loc = loc,
-        .class = .{ .unary = class },
-    };
-}
-
-fn initBinary(loc: Location, class: Class.Binary) Expr {
-    return Expr{
-        .loc = loc,
-        .class = .{ .binary = class },
-    };
-}
-
-fn initTernary(loc: Location, class: Class.Ternary) Expr {
-    return Expr{
-        .loc = loc,
-        .class = .{ .ternary = class },
-    };
-}
-
-fn initGrouping(loc: Location, class: Class.Grouping) Expr {
-    return Expr{
-        .loc = loc,
-        .class = .{ .grouping = class },
-    };
-}
-
-fn ternaryParseFunc(next_call: *const ParseFn) ParseFn {
+/// Generates a function that parses ternary expressions from right to left.
+fn l2rTernaryParseFunc(next_call: *const ParseFn) ParseFn {
     return (struct {
         pub fn parse(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.Allocator) !core.results.ParseResult(*Expr) {
             var left = switch (try next_call(tokens, allocator)) {
@@ -138,11 +106,14 @@ fn ternaryParseFunc(next_call: *const ParseFn) ParseFn {
                 };
                 const expr = try allocator.create(Expr);
                 const loc: Location = .merge(&.{ left.loc, right.loc });
-                expr.* = .initTernary(loc, .{
-                    .left = left,
-                    .middle = middle,
-                    .right = right,
-                });
+                expr.* = .{
+                    .loc = loc,
+                    .class = .{ .ternary = .{
+                        .left = left,
+                        .middle = middle,
+                        .right = right,
+                    } },
+                };
                 left = expr;
             }
             return .OK(left);
@@ -150,13 +121,8 @@ fn ternaryParseFunc(next_call: *const ParseFn) ParseFn {
     }).parse;
 }
 
-/// The difference between this and L2R is that this func will return an error if the matching operation is found twice
-/// in the same expression without explicit parentheses.
-///
-/// This is the case for assignment operations, where it should be right-to-left, but since
-/// there is no easy way to find the end of the expression from the iterator, I simply
-/// decided that it needed explicit parentheses to be valid.
-fn uniqueBinaryParseFunc(next_call: *const ParseFn, expected_tokens: []const core.Token.Type) ParseFn {
+/// Generates a function that parses binary expressions from right to left.
+fn r2lBinaryParseFunc(next_call: *const ParseFn, expected_tokens: []const core.Token.Type) ParseFn {
     return (struct {
         pub fn parse(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.Allocator) !core.results.ParseResult(*Expr) {
             var left = switch (try next_call(tokens, allocator)) {
@@ -164,17 +130,20 @@ fn uniqueBinaryParseFunc(next_call: *const ParseFn, expected_tokens: []const cor
                 .err => |err| return .ERR(err),
             };
             if (tokens.matchAny(expected_tokens)) |t| {
-                const right = switch (try next_call(tokens, allocator)) {
+                const right = switch (try @This().parse(tokens, allocator)) {
                     .ok => |expr| expr,
                     .err => |err| return .ERR(err),
                 };
                 const expr = try allocator.create(Expr);
                 const loc: Location = .merge(&.{ left.loc, right.loc });
-                expr.* = .initBinary(loc, .{
-                    .left = left,
-                    .op = try t.dupe(allocator),
-                    .right = right,
-                });
+                expr.* = .{
+                    .loc = loc,
+                    .class = .{ .binary = .{
+                        .left = left,
+                        .op = try t.dupe(allocator),
+                        .right = right,
+                    } },
+                };
                 left = expr;
             }
             if (tokens.matchAny(expected_tokens)) |t| {
@@ -205,11 +174,14 @@ fn l2rBinaryParseFunc(next_call: *const ParseFn, expected_tokens: []const core.T
                 };
                 const expr = try allocator.create(Expr);
                 const loc: Location = .merge(&.{ left.loc, right.loc });
-                expr.* = .initBinary(loc, .{
-                    .left = left,
-                    .op = try t.dupe(allocator),
-                    .right = right,
-                });
+                expr.* = .{
+                    .loc = loc,
+                    .class = .{ .binary = .{
+                        .left = left,
+                        .op = try t.dupe(allocator),
+                        .right = right,
+                    } },
+                };
                 left = expr;
             }
             return .OK(left);
@@ -217,7 +189,8 @@ fn l2rBinaryParseFunc(next_call: *const ParseFn, expected_tokens: []const core.T
     }).parse;
 }
 
-fn unaryParseFunc(next_call: *const ParseFn, expected_tokens: []const core.Token.Type) ParseFn {
+/// Generates a function that parses prefixed unary expressions.
+fn preUnaryParseFunc(next_call: *const ParseFn, expected_tokens: []const core.Token.Type) ParseFn {
     return (struct {
         pub fn parse(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.Allocator) !core.results.ParseResult(*Expr) {
             if (tokens.matchAny(expected_tokens)) |t| {
@@ -227,10 +200,13 @@ fn unaryParseFunc(next_call: *const ParseFn, expected_tokens: []const core.Token
                 };
                 const expr = try allocator.create(Expr);
                 const loc: Location = .merge(&.{ operand.loc, t.loc });
-                expr.* = .initUnary(loc, .{
-                    .op = try t.dupe(allocator),
-                    .operand = operand,
-                });
+                expr.* = .{
+                    .loc = loc,
+                    .class = .{ .unary = .{
+                        .op = try t.dupe(allocator),
+                        .operand = operand,
+                    } },
+                };
                 return .OK(expr);
             }
             return try next_call(tokens, allocator);
@@ -238,8 +214,8 @@ fn unaryParseFunc(next_call: *const ParseFn, expected_tokens: []const core.Token
     }).parse;
 }
 
-const parseAssignment = uniqueBinaryParseFunc(parseTernary, &.{.equal});
-const parseTernary = ternaryParseFunc(parseOr);
+const parseAssignment = r2lBinaryParseFunc(parseTernary, &.{.equal});
+const parseTernary = l2rTernaryParseFunc(parseOr);
 const parseOr = l2rBinaryParseFunc(parseAnd, &.{.OR});
 const parseAnd = l2rBinaryParseFunc(parseEquality, &.{.AND});
 const parseEquality = l2rBinaryParseFunc(parseComparison, &.{ .equal_equal, .bang_equal });
@@ -248,12 +224,15 @@ const parseTerm = l2rBinaryParseFunc(parseFactor, &.{ .plus, .minus });
 const parseFactor = l2rBinaryParseFunc(parseNullCoalesce, &.{ .star, .slash, .percentage });
 const parseNullCoalesce = l2rBinaryParseFunc(parseUnary, &.{.question_question});
 const parseAccess = l2rBinaryParseFunc(parseValue, &.{.dot});
-const parseUnary = unaryParseFunc(parseAccess, &.{ .NOT, .minus });
+const parseUnary = preUnaryParseFunc(parseAccess, &.{ .NOT, .minus });
 
 fn parseValue(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.Allocator) !core.results.ParseResult(*Expr) {
     if (tokens.matchAny(&.{ .string, .literal, .number })) |t| {
         const expr = try allocator.create(Expr);
-        expr.* = .initLiteral(t.loc, .{ .token = try t.dupe(allocator) });
+        expr.* = .{
+            .loc = t.loc,
+            .class = .{ .literal = .{ .token = try t.dupe(allocator) } },
+        };
         return .OK(expr);
     } else if (tokens.match(.left_paren)) {
         const left_paren = tokens.peek(0);
@@ -272,7 +251,10 @@ fn parseValue(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.
         const right_paren = tokens.peek(0);
         const expr = try allocator.create(Expr);
         const loc: Location = .merge(&.{ left_paren.loc, right_paren.loc });
-        expr.* = .initGrouping(loc, .{ .expr = group });
+        expr.* = .{
+            .loc = loc,
+            .class = .{ .grouping = .{ .expr = group } },
+        };
         return .OK(expr);
     } else {
         return .ERR(.{
