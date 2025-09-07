@@ -54,29 +54,22 @@ pub fn parse(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.A
 /// Recursively frees any allocations made when parsing the expression.
 pub fn cleanup(self: *Expr, allocator: std.mem.Allocator) void {
     switch (self.class) {
-        .grouping => |g| g.expr.cleanup(allocator),
         .literal => |l| {
             l.token.cleanup(allocator);
+        },
+        .unary => |u| {
+            u.operand.cleanup(allocator);
+            u.op.cleanup(allocator);
         },
         .binary => |b| {
             b.left.cleanup(allocator);
             b.right.cleanup(allocator);
             b.op.cleanup(allocator);
         },
-        .unary => |u| {
-            u.operand.cleanup(allocator);
-            u.op.cleanup(allocator);
-        },
+        .grouping => |g| g.expr.cleanup(allocator),
     }
     allocator.destroy(self);
     self.* = undefined;
-}
-
-fn initBinary(loc: Location, class: Class.Binary) Expr {
-    return Expr{
-        .loc = loc,
-        .class = .{ .binary = class },
-    };
 }
 
 fn initLiteral(loc: Location, class: Class.Literal) Expr {
@@ -86,17 +79,24 @@ fn initLiteral(loc: Location, class: Class.Literal) Expr {
     };
 }
 
-fn initGrouping(loc: Location, class: Class.Grouping) Expr {
-    return Expr{
-        .loc = loc,
-        .class = .{ .grouping = class },
-    };
-}
-
 fn initUnary(loc: Location, class: Class.Unary) Expr {
     return Expr{
         .loc = loc,
         .class = .{ .unary = class },
+    };
+}
+
+fn initBinary(loc: Location, class: Class.Binary) Expr {
+    return Expr{
+        .loc = loc,
+        .class = .{ .binary = class },
+    };
+}
+
+fn initGrouping(loc: Location, class: Class.Grouping) Expr {
+    return Expr{
+        .loc = loc,
+        .class = .{ .grouping = class },
     };
 }
 

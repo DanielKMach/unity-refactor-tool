@@ -9,6 +9,17 @@ const RuntimeError = core.results.RuntimeError;
 
 pub fn evaluate(expr: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
     return switch (expr.class) {
+        .literal => |lit| .OK(switch (lit.token.value) {
+            .number => |num| .{ .number = num },
+            .string => |str| .{ .string = str },
+            .literal => |varr| env.vars.get(varr) orelse .nil,
+            else => unreachable, // TODO: array and object
+        }),
+        .unary => |un| switch (un.op.value) {
+            .minus => negate(un.operand, env),
+            .NOT => logicalNot(un.operand, env),
+            else => unreachable,
+        },
         .binary => |bin| switch (bin.op.value) {
             .plus => addOrConcat(bin.left, bin.right, env),
             .minus => subtract(bin.left, bin.right, env),
@@ -26,17 +37,6 @@ pub fn evaluate(expr: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
             .question_question => nullCoalesce(bin.left, bin.right, env),
             else => unreachable,
         },
-        .unary => |un| switch (un.op.value) {
-            .minus => negate(un.operand, env),
-            .NOT => logicalNot(un.operand, env),
-            else => unreachable,
-        },
-        .literal => |lit| .OK(switch (lit.token.value) {
-            .number => |num| .{ .number = num },
-            .string => |str| .{ .string = str },
-            .literal => |varr| env.vars.get(varr) orelse .nil,
-            else => unreachable, // TODO: array and object
-        }),
         .grouping => |group| evaluate(group.expr, env),
     };
 }
