@@ -127,10 +127,10 @@ pub fn negate(expr: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
 }
 
 pub fn equals(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
-    const resA = try left.evaluate(env);
+    const resA = try evaluate(left, env);
     const a = resA.isOk() orelse return .ERR(resA.err);
 
-    const resB = try right.evaluate(env);
+    const resB = try evaluate(right, env);
     const b = resB.isOk() orelse return .ERR(resB.err);
 
     if (@as(Value.Type, a) != @as(Value.Type, b)) {
@@ -146,10 +146,10 @@ pub fn equals(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResul
 }
 
 pub fn notEquals(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
-    const resA = try left.evaluate(env);
+    const resA = try evaluate(left, env);
     const a = resA.isOk() orelse return .ERR(resA.err);
 
-    const resB = try right.evaluate(env);
+    const resB = try evaluate(right, env);
     const b = resB.isOk() orelse return .ERR(resB.err);
 
     if (@as(Value.Type, a) != @as(Value.Type, b)) {
@@ -204,38 +204,38 @@ pub fn greaterThanOrEqual(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!
 }
 
 pub fn logicalAnd(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
-    const resA = try left.evaluate(env);
+    const resA = try evaluate(left, env);
     const a = resA.isOk() orelse return .ERR(resA.err);
 
-    const resB = try right.evaluate(env);
+    const resB = try evaluate(right, env);
     const b = resB.isOk() orelse return .ERR(resB.err);
 
     return .OK(.{ .number = if (isTrythy(a) and isTrythy(b)) 1 else 0 });
 }
 
 pub fn logicalOr(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
-    const resA = try left.evaluate(env);
+    const resA = try evaluate(left, env);
     const a = resA.isOk() orelse return .ERR(resA.err);
 
-    const resB = try right.evaluate(env);
+    const resB = try evaluate(right, env);
     const b = resB.isOk() orelse return .ERR(resB.err);
 
     return .OK(.{ .number = if (isTrythy(a) or isTrythy(b)) 1 else 0 });
 }
 
 pub fn logicalNot(expr: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
-    const res = try expr.evaluate(env);
+    const res = try evaluate(expr, env);
     const value = res.isOk() orelse return .ERR(res.err);
     defer value.cleanup(env.allocator);
     return .OK(.{ .number = if (isTrythy(value)) 0 else 1 });
 }
 
 pub fn nullCoalesce(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
-    const resA = try left.evaluate(env);
+    const resA = try evaluate(left, env);
     const a = resA.isOk() orelse return .ERR(resA.err);
     if (a != .nil) return .OK(a);
 
-    const resB = try right.evaluate(env);
+    const resB = try evaluate(right, env);
     const b = resB.isOk() orelse return .ERR(resB.err);
     return .OK(b);
 }
@@ -255,7 +255,7 @@ pub fn concat(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResul
 }
 
 pub fn ternary(condition: *Expr, then: *Expr, otherwise: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
-    const cond_res = try condition.evaluate(env);
+    const cond_res = try evaluate(condition, env);
     const cond_value = cond_res.isOk() orelse return .ERR(cond_res.err);
 
     const target = if (isTrythy(cond_value)) then else otherwise;
@@ -272,7 +272,7 @@ fn isTrythy(value: Value) bool {
 }
 
 fn validateType(expr: *Expr, comptime types: []const Value.Type, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
-    const result = try expr.evaluate(env);
+    const result = try evaluate(expr, env);
     const value = result.isOk() orelse return .ERR(result.err);
     inline for (types) |t| {
         if (value == t) return .OK(value);
