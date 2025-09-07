@@ -37,9 +37,10 @@ pub const Class = union(enum) {
 
     pub fn format(value: Class, writer: *std.Io.Writer) std.Io.Writer.Error!void {
         switch (value) {
-            .literal => |l| try writer.print("{s}", .{l.token.value}),
-            .unary => |u| try writer.print("({s} {f})", .{ u.op.value, u.operand }),
-            .binary => |b| try writer.print("({s} {f} {f})", .{ b.op.value, b.left, b.right }),
+            .literal => |l| try writer.print("{f}", .{std.fmt.alt(l.token.value, .raw)}),
+            .unary => |u| try writer.print("({f} {f})", .{ std.fmt.alt(u.op.value, .raw), u.operand }),
+            .binary => |b| try writer.print("({f} {f} {f})", .{ std.fmt.alt(b.op.value, .raw), b.left, b.right }),
+            .ternary => |t| try writer.print("(?: {f} {f} {f})", .{ t.left, t.middle, t.right }),
             .grouping => |g| try writer.print("(group {f})", .{g.expr}),
         }
     }

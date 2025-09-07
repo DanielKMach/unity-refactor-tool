@@ -154,7 +154,21 @@ pub const Type = enum {
                 return writer.print("'{s}'", .{kw[0]});
             }
         }
-        return writer.print("{s}", .{@tagName(self)});
+        return writer.print("{t}", .{self});
+    }
+
+    pub fn raw(self: Type, writer: *std.Io.Writer) std.Io.Writer.Error!void {
+        inline for (operator_list) |op| {
+            if (self == op[1]) {
+                return writer.print("{s}", .{op[0]});
+            }
+        }
+        inline for (keyword_list) |kw| {
+            if (self == kw[1]) {
+                return writer.print("{s}", .{kw[0]});
+            }
+        }
+        return writer.print("{t}", .{self});
     }
 };
 
@@ -205,7 +219,16 @@ pub const Value = union(Type) {
             .number => |n| try writer.print("number '{d}'", .{n}),
             .string => |s| try writer.print("string '{s}'", .{s}),
             .literal => |l| try writer.print("literal '{s}'", .{l}),
-            else => try writer.print("{f}", .{@as(Type, self)}),
+            else => try @as(Type, self).format(writer),
+        }
+    }
+
+    pub fn raw(self: Value, writer: *std.Io.Writer) std.Io.Writer.Error!void {
+        switch (self) {
+            .number => |n| try writer.print("{d}", .{n}),
+            .string => |s| try writer.print("'{s}'", .{s}),
+            .literal => |l| try writer.print("`{s}`", .{l}),
+            else => try @as(Type, self).raw(writer),
         }
     }
 };
