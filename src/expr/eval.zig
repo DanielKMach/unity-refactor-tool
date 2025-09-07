@@ -7,6 +7,40 @@ const Location = core.Token.Location;
 const RuntimeResult = core.results.RuntimeResult;
 const RuntimeError = core.results.RuntimeError;
 
+pub fn evaluate(expr: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
+    return switch (expr.class) {
+        .binary => |bin| switch (bin.op.value) {
+            .plus => addOrConcat(bin.left, bin.right, env),
+            .minus => subtract(bin.left, bin.right, env),
+            .star => multiply(bin.left, bin.right, env),
+            .slash => divide(bin.left, bin.right, env),
+            .percentage => mod(bin.left, bin.right, env),
+            .equal_equal => equals(bin.left, bin.right, env),
+            .bang_equal => notEquals(bin.left, bin.right, env),
+            .greater => greaterThan(bin.left, bin.right, env),
+            .less => lessThan(bin.left, bin.right, env),
+            .greater_equal => greaterThanOrEqual(bin.left, bin.right, env),
+            .less_equal => lessThanOrEqual(bin.left, bin.right, env),
+            .OR => logicalOr(bin.left, bin.right, env),
+            .AND => logicalAnd(bin.left, bin.right, env),
+            .question_question => nullCoalesce(bin.left, bin.right, env),
+            else => unreachable,
+        },
+        .unary => |un| switch (un.op.value) {
+            .minus => negate(un.operand, env),
+            .NOT => logicalNot(un.operand, env),
+            else => unreachable,
+        },
+        .literal => |lit| .OK(switch (lit.token.value) {
+            .number => |num| .{ .number = num },
+            .string => |str| .{ .string = str },
+            .literal => |varr| env.vars.get(varr) orelse .nil,
+            else => unreachable, // TODO: array and object
+        }),
+        .grouping => |group| evaluate(group.expr, env),
+    };
+}
+
 pub fn addOrConcat(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
     const resA = try validateType(left, &.{ .string, .number }, env);
     const a = resA.isOk() orelse return .ERR(resA.err);

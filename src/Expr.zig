@@ -8,67 +8,13 @@ const Expr = @This();
 const Location = core.Token.Location;
 const ParseFn = fn (*core.parsing.Tokenizer.TokenIterator, std.mem.Allocator) std.mem.Allocator.Error!core.results.ParseResult(*Expr);
 
-pub const Grouping = @import("expr/Grouping.zig");
-pub const Literal = @import("expr/Literal.zig");
-pub const Binary = @import("expr/Binary.zig");
-pub const Unary = @import("expr/Unary.zig");
-
-pub const ops = @import("expr/ops.zig");
+pub const Value = @import("expr/value.zig").Value;
+pub const Class = @import("expr/class.zig").Class;
+pub const eval = @import("expr/eval.zig");
 
 pub const RunEnv = struct {
     allocator: std.mem.Allocator,
     vars: *const std.StringHashMap(Value),
-};
-
-pub const Value = union(enum) {
-    pub const Type = @typeInfo(Value).@"union".tag_type orelse unreachable;
-
-    nil,
-    string: []const u8,
-    number: f32,
-    object: void,
-    array: void,
-
-    /// Duplicates this value into the given allocator.
-    ///
-    /// Unnecessary but safe to call if the value is not a string.
-    pub fn dupe(self: Value, allocator: std.mem.Allocator) std.mem.Allocator.Error!Value {
-        return switch (self) {
-            .string => |s| .{ .string = try allocator.dupe(u8, s) },
-            else => self,
-        };
-    }
-
-    /// Frees the value.
-    ///
-    /// This function is intended to be called when a value is duplicated using `dupe`.
-    /// The given allocator must be the same as the one used to duplicate the value.
-    ///
-    /// Unnecessary but safe to call if the value is not a string.
-    pub fn cleanup(self: Value, allocator: std.mem.Allocator) void {
-        switch (self) {
-            .string => |s| allocator.free(s),
-            else => {},
-        }
-    }
-};
-
-pub const Class = union(enum) {
-    pub const Type = @typeInfo(Class).@"union".tag_type orelse unreachable;
-
-    grouping: Grouping,
-    literal: Literal,
-    binary: Binary,
-    unary: Unary,
-
-    pub fn format(value: Class, writer: *std.Io.Writer) std.Io.Writer.Error!void {
-        switch (value) {
-            .grouping => |g| try writer.print("(group {f})", .{g.expr}),
-            .literal => |l| try writer.print("{s}", .{l.token.value}),
-            .binary => |b| try writer.print("({s} {f} {f})", .{ b.op.value, b.left, b.right }),
-            .unary => |u| try writer.print("({s} {f})", .{ u.op.value, u.operand }),
-        }
-    }
 };
 
 loc: Location,
@@ -81,16 +27,12 @@ pub fn format(value: Expr, writer: *std.Io.Writer) std.Io.Writer.Error!void {
 /// Evaluates the expression in the given environment.
 ///
 /// May leak memory if not used with an arena allocator.
-pub fn evaluate(self: Expr, env: RunEnv) anyerror!core.results.RuntimeResult(Value) {
-    return switch (self.class) {
-        inline else => |cls| cls.evaluate(env),
-    };
-}
+pub const evaluate = eval.evaluate;
 
 /// Evaluates the expression in a temporary environment, duplicating the result into the original environment's allocator.
 ///
 /// Frees any temporary allocations made during evaluation.
-pub fn evaluateAuto(self: Expr, env: RunEnv) anyerror!core.results.RuntimeResult(Value) {
+pub fn evaluateAuto(self: *Expr, env: RunEnv) anyerror!core.results.RuntimeResult(Value) {
     var buf: [1024 * 1024]u8 = undefined; // 1 MiB
     var stack = std.heap.FixedBufferAllocator.init(&buf);
 
@@ -103,6 +45,10 @@ pub fn evaluateAuto(self: Expr, env: RunEnv) anyerror!core.results.RuntimeResult
         .ok => |value| .OK(try value.dupe(env.allocator)),
         .err => |err| .ERR(err),
     };
+}
+
+pub fn parse(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.Allocator) std.mem.Allocator.Error!core.results.ParseResult(*Expr) {
+    return parseAssignment(tokens, allocator);
 }
 
 /// Recursively frees any allocations made when parsing the expression.
@@ -126,28 +72,28 @@ pub fn cleanup(self: *Expr, allocator: std.mem.Allocator) void {
     self.* = undefined;
 }
 
-pub fn initBinary(loc: Location, class: Binary) Expr {
+fn initBinary(loc: Location, class: Class.Binary) Expr {
     return Expr{
         .loc = loc,
         .class = .{ .binary = class },
     };
 }
 
-pub fn initLiteral(loc: Location, class: Literal) Expr {
+fn initLiteral(loc: Location, class: Class.Literal) Expr {
     return Expr{
         .loc = loc,
         .class = .{ .literal = class },
     };
 }
 
-pub fn initGrouping(loc: Location, class: Grouping) Expr {
+fn initGrouping(loc: Location, class: Class.Grouping) Expr {
     return Expr{
         .loc = loc,
         .class = .{ .grouping = class },
     };
 }
 
-pub fn initUnary(loc: Location, class: Unary) Expr {
+fn initUnary(loc: Location, class: Class.Unary) Expr {
     return Expr{
         .loc = loc,
         .class = .{ .unary = class },
@@ -174,7 +120,11 @@ fn uniqueBinaryParseFunc(next_call: *const ParseFn, expected_tokens: []const cor
                 };
                 const expr = try allocator.create(Expr);
                 const loc: Location = .merge(&.{ left.loc, right.loc });
-                expr.* = .initBinary(loc, .init(left, try t.dupe(allocator), right));
+                expr.* = .initBinary(loc, .{
+                    .left = left,
+                    .op = try t.dupe(allocator),
+                    .right = right,
+                });
                 left = expr;
             }
             if (tokens.matchAny(expected_tokens)) |t| {
@@ -205,7 +155,11 @@ fn l2rBinaryParseFunc(next_call: *const ParseFn, expected_tokens: []const core.T
                 };
                 const expr = try allocator.create(Expr);
                 const loc: Location = .merge(&.{ left.loc, right.loc });
-                expr.* = .initBinary(loc, .init(left, try t.dupe(allocator), right));
+                expr.* = .initBinary(loc, .{
+                    .left = left,
+                    .op = try t.dupe(allocator),
+                    .right = right,
+                });
                 left = expr;
             }
             return .OK(left);
@@ -223,16 +177,15 @@ fn unaryParseFunc(next_call: *const ParseFn, expected_tokens: []const core.Token
                 };
                 const expr = try allocator.create(Expr);
                 const loc: Location = .merge(&.{ operand.loc, t.loc });
-                expr.* = .initUnary(loc, .init(try t.dupe(allocator), operand));
+                expr.* = .initUnary(loc, .{
+                    .op = try t.dupe(allocator),
+                    .operand = operand,
+                });
                 return .OK(expr);
             }
             return try next_call(tokens, allocator);
         }
     }).parse;
-}
-
-pub fn parse(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.Allocator) std.mem.Allocator.Error!core.results.ParseResult(*Expr) {
-    return parseAssignment(tokens, allocator);
 }
 
 const parseAssignment = uniqueBinaryParseFunc(parseOr, &.{.equal});
@@ -249,7 +202,7 @@ const parseUnary = unaryParseFunc(parseAccess, &.{ .NOT, .minus });
 fn parseValue(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.Allocator) !core.results.ParseResult(*Expr) {
     if (tokens.matchAny(&.{ .string, .literal, .number })) |t| {
         const expr = try allocator.create(Expr);
-        expr.* = .initLiteral(t.loc, .init(try t.dupe(allocator)));
+        expr.* = .initLiteral(t.loc, .{ .token = try t.dupe(allocator) });
         return .OK(expr);
     } else if (tokens.match(.left_paren)) {
         const left_paren = tokens.peek(0);
@@ -268,7 +221,7 @@ fn parseValue(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.
         const right_paren = tokens.peek(0);
         const expr = try allocator.create(Expr);
         const loc: Location = .merge(&.{ left_paren.loc, right_paren.loc });
-        expr.* = .initGrouping(loc, .init(group));
+        expr.* = .initGrouping(loc, .{ .expr = group });
         return .OK(expr);
     } else {
         return .ERR(.{
