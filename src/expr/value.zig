@@ -2,11 +2,12 @@ const std = @import("std");
 
 pub const Value = union(enum) {
     pub const Type = @typeInfo(Value).@"union".tag_type orelse unreachable;
+    pub const Object = @import("Object.zig");
 
     nil,
     string: []const u8,
     number: f32,
-    object: void,
+    object: Object,
     array: void,
 
     /// Duplicates this value into the given allocator.

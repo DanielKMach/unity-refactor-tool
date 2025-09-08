@@ -1,5 +1,6 @@
 const std = @import("std");
 const core = @import("core");
+const ly = @import("libyaml");
 const results = core.results;
 const log = std.log.scoped(.evaluate_statement);
 
@@ -134,9 +135,17 @@ pub fn scanAndPrint(self: This, file: std.fs.File, file_path: []const u8, guid: 
 
         if (!(try core.stmt.Show.matchScriptOrPrefabGUID(guid, &yaml))) continue;
 
-        const vars = std.StringHashMap(core.Expr.Value).init(allocator);
+        var doc = try yaml.loadDocument();
+        defer Yaml.deleteDocument(&doc);
+        var vars = Expr.VarMap.init(allocator);
+        const root = Expr.Value.Object{
+            .node = @ptrCast(doc.nodes.start),
+            .document = &doc,
+        };
+
         const result = try self.expr.evaluateAuto(.{
             .allocator = allocator,
+            .context = (root.get("MonoBehaviour") orelse unreachable).object,
             .vars = &vars,
         });
 

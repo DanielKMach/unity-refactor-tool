@@ -12,8 +12,8 @@ pub fn evaluate(expr: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
         .literal => |lit| .OK(switch (lit.token.value) {
             .number => |num| .{ .number = num },
             .string => |str| .{ .string = str },
-            .literal => |varr| env.vars.get(varr) orelse .nil,
-            else => unreachable, // TODO: array and object
+            .literal => |varr| env.context.get(varr) orelse .nil,
+            else => unreachable,
         }),
         .unary => |un| switch (un.op.value) {
             .minus => negate(un.operand, env),
@@ -35,6 +35,7 @@ pub fn evaluate(expr: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
             .OR => logicalOr(bin.left, bin.right, env),
             .AND => logicalAnd(bin.left, bin.right, env),
             .question_question => nullCoalesce(bin.left, bin.right, env),
+            .dot => access(bin.left, bin.right, env),
             else => unreachable,
         },
         .ternary => |tern| ternary(tern.left, tern.middle, tern.right, env),
@@ -141,7 +142,8 @@ pub fn equals(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResul
         .number => |a_number| .OK(.{ .number = if (a_number == b.number) 1 else 0 }),
         .string => |a_string| .OK(.{ .number = if (std.mem.eql(u8, a_string, b.string)) 1 else 0 }),
         .nil => .OK(.{ .number = 1 }),
-        else => unreachable, // TODO: Handle object and array
+        .object => |a_object| .OK(.{ .number = if (a_object.node == b.object.node) 1 else 0 }),
+        else => unreachable, // TODO: Handle array
     };
 }
 
@@ -159,7 +161,8 @@ pub fn notEquals(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeRe
         .number => |a_number| .OK(.{ .number = if (a_number != b.number) 1 else 0 }),
         .string => |a_string| .OK(.{ .number = if (!std.mem.eql(u8, a_string, b.string)) 1 else 0 }),
         .nil => .OK(.{ .number = 0 }),
-        else => unreachable, // TODO: Handle object and array
+        .object => |a_object| .OK(.{ .number = if (a_object.node != b.object.node) 1 else 0 }),
+        else => unreachable, // TODO: Handle array
     };
 }
 
@@ -262,12 +265,22 @@ pub fn ternary(condition: *Expr, then: *Expr, otherwise: *Expr, env: Expr.RunEnv
     return evaluate(target, env);
 }
 
+pub fn access(object: *Expr, key: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
+    const obj_res = try validateType(object, &.{.object}, env);
+    const obj = obj_res.isOk() orelse return .ERR(obj_res.err);
+
+    const key_value = key.class.literal.token.value.literal;
+
+    return .OK(obj.object.get(key_value) orelse .nil);
+}
+
 fn isTrythy(value: Value) bool {
     return switch (value) {
         .number => |num| num != 0,
         .string => |str| str.len > 0,
         .nil => false,
-        else => unreachable, // TODO: Handle object and array
+        .object => true, // should objects always eval to true?
+        else => unreachable, // TODO: Handle array
     };
 }
 

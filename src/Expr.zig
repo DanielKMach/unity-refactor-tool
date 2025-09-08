@@ -8,13 +8,15 @@ const Expr = @This();
 const Location = core.Token.Location;
 const ParseFn = fn (*core.parsing.Tokenizer.TokenIterator, std.mem.Allocator) std.mem.Allocator.Error!core.results.ParseResult(*Expr);
 
+pub const VarMap = @import("expr/VarMap.zig");
 pub const Value = @import("expr/value.zig").Value;
 pub const Class = @import("expr/class.zig").Class;
 pub const eval = @import("expr/eval.zig");
 
 pub const RunEnv = struct {
     allocator: std.mem.Allocator,
-    vars: *const std.StringHashMap(Value),
+    context: Value.Object,
+    vars: *VarMap,
 };
 
 loc: Location,
@@ -38,6 +40,7 @@ pub fn evaluateAuto(self: *Expr, env: RunEnv) anyerror!core.results.RuntimeResul
 
     const new_env = RunEnv{
         .allocator = stack.allocator(),
+        .context = env.context,
         .vars = env.vars,
     };
 

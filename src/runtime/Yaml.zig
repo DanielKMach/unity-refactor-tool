@@ -114,6 +114,21 @@ pub fn get(self: *This, path: []const []const u8, buf: []u8) ParseError!?[]u8 {
     return buf[0..length];
 }
 
+pub fn loadDocument(self: *This) ParseError!libyaml.yaml_document_t {
+    const parser = try self.getParser();
+    defer self.closeParser(parser);
+
+    var document: libyaml.yaml_document_t = undefined;
+    const result = libyaml.yaml_parser_load(parser, &document);
+    if (result == 0) return error.LibyamlError;
+
+    return document;
+}
+
+pub fn deleteDocument(document: *libyaml.yaml_document_t) void {
+    libyaml.yaml_document_delete(@ptrCast(document));
+}
+
 fn runTo(parser: *Parser, key: []const u8) ParseError!bool {
     var event: Event = undefined;
     var level: usize = 0;
