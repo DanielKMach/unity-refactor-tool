@@ -14,15 +14,14 @@ pub fn init(allocator: std.mem.Allocator) VarMap {
     };
 }
 
-// TODO: not allow redefinition
-pub fn define(self: *VarMap, name: []const u8, value: Value) std.mem.Allocator.Error!void {
-    self.set(name, value);
-}
-
 pub fn get(self: *VarMap, name: []const u8) ?Value {
     return self.map.get(name);
 }
 
 pub fn set(self: *VarMap, name: []const u8, value: Value) std.mem.Allocator.Error!void {
-    self.map.put(name, value);
+    try self.map.put(name, value);
+}
+
+pub fn has(self: *VarMap, name: []const u8) bool {
+    return self.map.contains(name);
 }

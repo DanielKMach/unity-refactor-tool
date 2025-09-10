@@ -29,11 +29,28 @@ pub const Class = union(enum) {
         expr: *core.Expr,
     };
 
+    pub const Access = struct {
+        base: *core.Expr,
+        property: core.Token,
+    };
+
+    pub const Variable = struct {
+        name: core.Token,
+    };
+
+    pub const Assignment = struct {
+        target: *core.Expr,
+        value: *core.Expr,
+    };
+
     unary: Unary,
     literal: Literal,
     binary: Binary,
     ternary: Ternary,
     grouping: Grouping,
+    access: Access,
+    variable: Variable,
+    assignment: Assignment,
 
     pub fn format(value: Class, writer: *std.Io.Writer) std.Io.Writer.Error!void {
         switch (value) {
@@ -42,6 +59,9 @@ pub const Class = union(enum) {
             .binary => |b| try writer.print("({f} {f} {f})", .{ std.fmt.alt(b.op.value, .raw), b.left, b.right }),
             .ternary => |t| try writer.print("(?: {f} {f} {f})", .{ t.left, t.middle, t.right }),
             .grouping => |g| try writer.print("(group {f})", .{g.expr}),
+            .access => |a| try writer.print("(. {f} {f})", .{ a.base, std.fmt.alt(a.property.value, .raw) }),
+            .variable => |v| try writer.print("{f}", .{std.fmt.alt(v.name.value, .raw)}),
+            .assignment => |as| try writer.print("(= {f} {f})", .{ as.target, as.value }),
         }
     }
 };

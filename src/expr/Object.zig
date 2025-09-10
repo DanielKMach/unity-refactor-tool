@@ -40,7 +40,7 @@ pub fn get(self: Object, key: []const u8) ?Value {
                 .document = self.document,
             } };
         },
-        ly.YAML_SEQUENCE_NODE => unreachable, // TODO: handle arrays
+        ly.YAML_SEQUENCE_NODE => @panic("TODO: Handle arrays"),
         else => unreachable,
     }
 }

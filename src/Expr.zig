@@ -77,6 +77,17 @@ pub fn cleanup(self: *Expr, allocator: std.mem.Allocator) void {
             t.right.cleanup(allocator);
         },
         .grouping => |g| g.expr.cleanup(allocator),
+        .access => |a| {
+            a.base.cleanup(allocator);
+            a.property.cleanup(allocator);
+        },
+        .variable => |v| {
+            v.name.cleanup(allocator);
+        },
+        .assignment => |as| {
+            as.target.cleanup(allocator);
+            as.value.cleanup(allocator);
+        },
     }
     allocator.destroy(self);
     self.* = undefined;
@@ -125,43 +136,6 @@ fn l2rTernaryParseFunc(next_call: *const ParseFn) ParseFn {
 }
 
 /// Generates a function that parses binary expressions from right to left.
-fn r2lBinaryParseFunc(next_call: *const ParseFn, expected_tokens: []const core.Token.Type) ParseFn {
-    return (struct {
-        pub fn parse(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.Allocator) !core.results.ParseResult(*Expr) {
-            var left = switch (try next_call(tokens, allocator)) {
-                .ok => |expr| expr,
-                .err => |err| return .ERR(err),
-            };
-            if (tokens.matchAny(expected_tokens)) |t| {
-                const right = switch (try @This().parse(tokens, allocator)) {
-                    .ok => |expr| expr,
-                    .err => |err| return .ERR(err),
-                };
-                const expr = try allocator.create(Expr);
-                const loc: Location = .merge(&.{ left.loc, right.loc });
-                expr.* = .{
-                    .loc = loc,
-                    .class = .{ .binary = .{
-                        .left = left,
-                        .op = try t.dupe(allocator),
-                        .right = right,
-                    } },
-                };
-                left = expr;
-            }
-            if (tokens.matchAny(expected_tokens)) |t| {
-                return .ERR(.{
-                    .unexpected_token = .{
-                        .found = t,
-                        .expected = expected_tokens,
-                    },
-                });
-            }
-            return .OK(left);
-        }
-    }).parse;
-}
-
 /// Generates a function that parses binary expressions from left to right.
 fn l2rBinaryParseFunc(next_call: *const ParseFn, expected_tokens: []const core.Token.Type) ParseFn {
     return (struct {
@@ -217,7 +191,35 @@ fn preUnaryParseFunc(next_call: *const ParseFn, expected_tokens: []const core.To
     }).parse;
 }
 
-const parseAssignment = r2lBinaryParseFunc(parseTernary, &.{.equal});
+fn parseAssignment(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.Allocator) !core.results.ParseResult(*Expr) {
+    var left = switch (try parseTernary(tokens, allocator)) {
+        .ok => |expr| expr,
+        .err => |err| return .ERR(err),
+    };
+    if (tokens.matchAny(&.{.equal})) |t| {
+        switch (left.class) {
+            .variable, .access => {},
+            else => @panic("TODO: Invalid assignment target"),
+        }
+        const right = switch (try parseAssignment(tokens, allocator)) {
+            .ok => |expr| expr,
+            .err => |err| return .ERR(err),
+        };
+        const expr = try allocator.create(Expr);
+        const loc: Location = .merge(&.{ left.loc, right.loc });
+        expr.* = .{
+            .loc = loc,
+            .class = .{ .binary = .{
+                .left = left,
+                .op = try t.dupe(allocator),
+                .right = right,
+            } },
+        };
+        left = expr;
+    }
+    return .OK(left);
+}
+
 const parseTernary = l2rTernaryParseFunc(parseOr);
 const parseOr = l2rBinaryParseFunc(parseAnd, &.{.OR});
 const parseAnd = l2rBinaryParseFunc(parseEquality, &.{.AND});
@@ -226,11 +228,49 @@ const parseComparison = l2rBinaryParseFunc(parseTerm, &.{ .greater, .greater_equ
 const parseTerm = l2rBinaryParseFunc(parseFactor, &.{ .plus, .minus });
 const parseFactor = l2rBinaryParseFunc(parseNullCoalesce, &.{ .star, .slash, .percentage });
 const parseNullCoalesce = l2rBinaryParseFunc(parseUnary, &.{.question_question});
-const parseAccess = l2rBinaryParseFunc(parseValue, &.{.dot});
-const parseUnary = preUnaryParseFunc(parseAccess, &.{ .NOT, .minus });
+const parseUnary = preUnaryParseFunc(parseVAIF, &.{ .NOT, .minus });
 
-fn parseValue(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.Allocator) !core.results.ParseResult(*Expr) {
-    if (tokens.matchAny(&.{ .string, .literal, .number })) |t| {
+// Parse variable, access, indexing, function call or value
+fn parseVAIF(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.Allocator) std.mem.Allocator.Error!core.results.ParseResult(*Expr) {
+    var left = if (tokens.matchAny(&.{.literal})) |t| blk: {
+        const varr: *Expr = try allocator.create(Expr);
+        varr.* = .{
+            .loc = t.loc,
+            .class = .{ .variable = .{
+                .name = try t.dupe(allocator),
+            } },
+        };
+        break :blk varr;
+    } else return try parseValue(tokens, allocator);
+
+    while (true) {
+        if (tokens.match(.dot)) {
+            if (tokens.matchAny(&.{.literal})) |t| {
+                const expr = try allocator.create(Expr);
+                expr.* = .{
+                    .loc = .merge(&.{ left.loc, t.loc }),
+                    .class = .{ .access = .{
+                        .base = left,
+                        .property = try t.dupe(allocator),
+                    } },
+                };
+                left = expr;
+            } else return .ERR(.{
+                .unexpected_token = .{
+                    .found = tokens.next(),
+                    .expected = &.{.literal},
+                },
+            });
+        }
+        // else if (tokens.match(.left_bracket)) {} TODO: indexing
+        // else if (tokens.match(.left_paren)) {} TODO: function call
+        else break;
+    }
+    return .OK(left);
+}
+
+fn parseValue(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.Allocator) std.mem.Allocator.Error!core.results.ParseResult(*Expr) {
+    if (tokens.matchAny(&.{ .string, .number })) |t| {
         const expr = try allocator.create(Expr);
         expr.* = .{
             .loc = t.loc,

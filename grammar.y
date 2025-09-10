@@ -1,13 +1,10 @@
 program <- statement ( ';' statement )* ';'?
-statement <- show / rename / evaluate / update / add / remove / replace
+statement <- show / rename / evaluate
 
 # === statements ===
 show <- 'SHOW' search of in? where?
 rename <- 'RENAME' member 'FOR' ( literal / string ) of in? where?
 evaluate <- 'EVAL' expr of in? where?
-add <- 'ADD' asset in? where? having
-remove <- 'REMOVE' asset in? where? having?
-replace <- 'REPLACE' asset 'FOR' asset in? where? having?
 
 # === clauses ===
 of <- 'OF' asset ( ',' asset )*
@@ -24,17 +21,18 @@ search <- 'refs' / ( 'direct' / 'indirect' )? 'uses'
 
 # === expressions ===
 expr <- assignment
-assignment <- ternary ( '=' assigment )?
+assignment <- access '=' assignment / ternary
 ternary <- or ( '?' or ':' ternary )?
 or <- and ( 'OR' and )*
 and <- equality ( 'AND' equality )*
 equality <- comparison ( ( '==' / '!=' ) comparison )*
 comparison <- term ( ( '>=' / '>' / '<=' / '<' ) term )*
 term <- factor ( ( '+' / '-' ) factor )*
-factor <- unary ( ( '*' / '/' ) unary )*
+factor <- coalesce ( ( '*' / '/' ) coalesce )*
+coalesce <- unary ( '??' unary )*
 unary <- ( '-' / '!' ) unary / access
-access <- value ( '.' value )*
-value <- string / number / literal / '(' expr ')'
+access <- literal ( '.' literal / '[' expr ']' / '(' ( expr ( ',' expr )* )? ')' )* / value 
+value <- string / number / '(' expr ')'
 
 # === words ===
 string <- '"' [^"]* '"'

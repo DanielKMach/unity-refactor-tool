@@ -12,7 +12,6 @@ pub fn evaluate(expr: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
         .literal => |lit| .OK(switch (lit.token.value) {
             .number => |num| .{ .number = num },
             .string => |str| .{ .string = str },
-            .literal => |varr| env.context.get(varr) orelse .nil,
             else => unreachable,
         }),
         .unary => |un| switch (un.op.value) {
@@ -35,11 +34,13 @@ pub fn evaluate(expr: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
             .OR => logicalOr(bin.left, bin.right, env),
             .AND => logicalAnd(bin.left, bin.right, env),
             .question_question => nullCoalesce(bin.left, bin.right, env),
-            .dot => access(bin.left, bin.right, env),
             else => unreachable,
         },
         .ternary => |tern| ternary(tern.left, tern.middle, tern.right, env),
         .grouping => |group| evaluate(group.expr, env),
+        .variable => |varr| .OK(env.context.get(varr.name.value.literal) orelse .nil),
+        .access => |acc| access(acc.base, acc.property.value.literal, env),
+        .assignment => |as| assign(as.target, as.value, env),
     };
 }
 
@@ -143,7 +144,7 @@ pub fn equals(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResul
         .string => |a_string| .OK(.{ .number = if (std.mem.eql(u8, a_string, b.string)) 1 else 0 }),
         .nil => .OK(.{ .number = 1 }),
         .object => |a_object| .OK(.{ .number = if (a_object.node == b.object.node) 1 else 0 }),
-        else => unreachable, // TODO: Handle array
+        .array => @panic("TODO: Handle array"),
     };
 }
 
@@ -162,7 +163,7 @@ pub fn notEquals(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeRe
         .string => |a_string| .OK(.{ .number = if (!std.mem.eql(u8, a_string, b.string)) 1 else 0 }),
         .nil => .OK(.{ .number = 0 }),
         .object => |a_object| .OK(.{ .number = if (a_object.node != b.object.node) 1 else 0 }),
-        else => unreachable, // TODO: Handle array
+        .array => @panic("TODO: Handle array"),
     };
 }
 
@@ -265,13 +266,43 @@ pub fn ternary(condition: *Expr, then: *Expr, otherwise: *Expr, env: Expr.RunEnv
     return evaluate(target, env);
 }
 
-pub fn access(object: *Expr, key: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
-    const obj_res = try validateType(object, &.{.object}, env);
+pub fn access(base: *Expr, key: []const u8, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
+    const obj_res = try validateType(base, &.{.object}, env);
     const obj = obj_res.isOk() orelse return .ERR(obj_res.err);
 
-    const key_value = key.class.literal.token.value.literal;
+    return .OK(obj.object.get(key) orelse .nil);
+}
 
-    return .OK(obj.object.get(key_value) orelse .nil);
+pub fn assign(access_expr: *Expr, value: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
+    const result = try evaluate(value, env);
+    const val = result.isOk() orelse return .ERR(result.err);
+
+    switch (access_expr.class) {
+        .access => |acc| {
+            const key = acc.property.value.literal;
+            _ = key;
+
+            const obj_res = try validateType(acc.base, &.{.object}, env);
+            const obj = obj_res.isOk() orelse return .ERR(obj_res.err);
+            _ = obj;
+
+            @panic("TODO");
+            // obj.object.set(key, val);
+        },
+        .variable => |varr| {
+            const key = varr.name.value.literal;
+            if (env.vars.has(key)) {
+                try env.vars.set(key, val);
+            } else {
+                @panic("TODO");
+                // env.context.set(key, val);
+            }
+        },
+        // .indexing => {} TODO
+        else => unreachable,
+    }
+
+    return .OK(val);
 }
 
 fn isTrythy(value: Value) bool {
@@ -280,7 +311,7 @@ fn isTrythy(value: Value) bool {
         .string => |str| str.len > 0,
         .nil => false,
         .object => true, // should objects always eval to true?
-        else => unreachable, // TODO: Handle array
+        .array => @panic("TODO: Handle array"),
     };
 }
 
