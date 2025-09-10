@@ -10,6 +10,9 @@ const YamlPair = ly.yaml_node_pair_t;
 const YamlNode = ly.yaml_node_t;
 const YamlDocument = ly.yaml_document_t;
 
+const LibyamlError = error{LibyamlError};
+const SetError = std.mem.Allocator.Error || LibyamlError;
+
 node: *YamlNode,
 document: *YamlDocument,
 
@@ -45,21 +48,101 @@ pub fn get(self: Object, key: []const u8) ?Value {
     }
 }
 
-fn getNode(self: Object, key: []const u8) ?*YamlNode {
+pub fn set(self: Object, key: []const u8, value: Value) SetError!void {
+    const allocator = std.heap.c_allocator;
+    const value_node_id: c_int = switch (value) {
+        .string => |str| blk: {
+            const buf = try allocator.dupe(u8, str);
+            break :blk ly.yaml_document_add_scalar(
+                self.document,
+                null, // No tag
+                @ptrCast(buf),
+                @intCast(buf.len),
+                ly.YAML_DOUBLE_QUOTED_SCALAR_STYLE,
+            );
+        },
+        .number => |num| blk: {
+            const buf = try std.fmt.allocPrint(allocator, "{d}", .{num});
+            break :blk ly.yaml_document_add_scalar(
+                self.document,
+                null, // No tag
+                @ptrCast(buf),
+                @intCast(buf.len),
+                ly.YAML_PLAIN_SCALAR_STYLE,
+            );
+        },
+        .nil => blk: {
+            const buf = try allocator.alloc(u8, 0);
+            break :blk ly.yaml_document_add_scalar(
+                self.document,
+                null, // No tag
+                @ptrCast(buf),
+                @intCast(buf.len),
+                ly.YAML_PLAIN_SCALAR_STYLE,
+            );
+        },
+        .object => |obj| blk: {
+            const nodes = startTopSlice(YamlNode, self.document.nodes);
+            const i = indexOfPtr(YamlNode, nodes, obj.node) orelse @panic("Object node not in document");
+            break :blk @intCast(i + 1);
+        },
+        .array => @panic("TODO: Handle arrays"),
+    };
+
+    const pair = self.getPair(key);
+    if (pair) |p| {
+        p.value = value_node_id;
+    } else {
+        const nodes = startTopSlice(YamlNode, self.document.nodes);
+
+        const key_node_id = blk: {
+            const duped = try allocator.dupe(u8, key);
+            break :blk ly.yaml_document_add_scalar(
+                self.document,
+                null, // No tag
+                @ptrCast(duped),
+                @intCast(duped.len),
+                ly.YAML_PLAIN_SCALAR_STYLE,
+            );
+        };
+
+        const i: c_int = @intCast(indexOfPtr(YamlNode, nodes, self.node) orelse unreachable);
+        const result = ly.yaml_document_append_mapping_pair(self.document, i + 1, key_node_id, value_node_id);
+        if (result == 0) return error.LibyamlError;
+    }
+}
+
+fn getPair(self: Object, key: []const u8) ?*YamlPair {
     std.debug.assert(self.node.type == ly.YAML_MAPPING_NODE);
     const nodes = startTopSlice(YamlNode, self.document.nodes);
     const pairs = startTopSlice(YamlPair, self.node.data.mapping.pairs);
 
-    for (pairs) |pair| {
+    for (pairs) |*pair| {
         // I dont know why but whoever wrote libyaml decided to make these 1-based indexes
         const knode = &nodes[@intCast(pair.key - 1)];
-        const vnode = &nodes[@intCast(pair.value - 1)];
         std.debug.assert(knode.type == ly.YAML_SCALAR_NODE);
         if (std.mem.eql(u8, valueLengthSlice(u8, knode.data.scalar), key)) {
-            return vnode;
+            return pair;
         }
     }
     return null;
+}
+
+fn getNode(self: Object, key: []const u8) ?*YamlNode {
+    std.debug.assert(self.node.type == ly.YAML_MAPPING_NODE);
+    const target_pair = self.getPair(key) orelse return null;
+    const nodes = startTopSlice(YamlNode, self.document.nodes);
+
+    return &nodes[@intCast(target_pair.value - 1)];
+}
+
+fn indexOfPtr(comptime T: type, slice: []T, value: *T) ?usize {
+    const start = @intFromPtr(slice.ptr);
+    const target = @intFromPtr(value);
+    if (target < start) return null;
+    const index = (target - start) / @sizeOf(T);
+    if (index >= slice.len) return null;
+    return index;
 }
 
 fn valueLengthSlice(comptime T: type, buf: anytype) []T {

@@ -280,22 +280,18 @@ pub fn assign(access_expr: *Expr, value: *Expr, env: Expr.RunEnv) anyerror!Runti
     switch (access_expr.class) {
         .access => |acc| {
             const key = acc.property.value.literal;
-            _ = key;
 
             const obj_res = try validateType(acc.base, &.{.object}, env);
             const obj = obj_res.isOk() orelse return .ERR(obj_res.err);
-            _ = obj;
 
-            @panic("TODO");
-            // obj.object.set(key, val);
+            try obj.object.set(key, val);
         },
         .variable => |varr| {
             const key = varr.name.value.literal;
             if (env.vars.has(key)) {
                 try env.vars.set(key, val);
             } else {
-                @panic("TODO");
-                // env.context.set(key, val);
+                try env.context.set(key, val);
             }
         },
         // .indexing => {} TODO

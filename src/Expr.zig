@@ -52,7 +52,7 @@ pub fn evaluateAuto(self: *Expr, env: RunEnv) anyerror!core.results.RuntimeResul
 
 pub fn parse(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.Allocator) std.mem.Allocator.Error!core.results.ParseResult(*Expr) {
     const result = try parseAssignment(tokens, allocator);
-    if (result == .ok) log.debug("{f}", .{result.ok});
+    if (result == .ok) log.info("Parsed expression {f}", .{result.ok});
     return result;
 }
 
@@ -196,7 +196,7 @@ fn parseAssignment(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std
         .ok => |expr| expr,
         .err => |err| return .ERR(err),
     };
-    if (tokens.matchAny(&.{.equal})) |t| {
+    if (tokens.match(.equal)) {
         switch (left.class) {
             .variable, .access => {},
             else => @panic("TODO: Invalid assignment target"),
@@ -206,13 +206,11 @@ fn parseAssignment(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std
             .err => |err| return .ERR(err),
         };
         const expr = try allocator.create(Expr);
-        const loc: Location = .merge(&.{ left.loc, right.loc });
         expr.* = .{
-            .loc = loc,
-            .class = .{ .binary = .{
-                .left = left,
-                .op = try t.dupe(allocator),
-                .right = right,
+            .loc = .merge(&.{ left.loc, right.loc }),
+            .class = .{ .assignment = .{
+                .target = left,
+                .value = right,
             } },
         };
         left = expr;
