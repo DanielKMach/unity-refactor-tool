@@ -8,7 +8,7 @@ const RuntimeResult = core.results.RuntimeResult;
 const RuntimeError = core.results.RuntimeError;
 
 pub fn evaluate(expr: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
-    return switch (expr.class) {
+    return switch (expr.*) {
         .literal => |lit| .OK(switch (lit.token.value) {
             .number => |num| .{ .number = num },
             .string => |str| .{ .string = str },
@@ -104,7 +104,7 @@ pub fn divide(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResul
     const b = resB.isOk() orelse return .ERR(resB.err);
 
     if (b.number == 0) return .ERR(.{
-        .division_by_zero = .{ .location = Location.merge(&.{ left.loc, right.loc }) },
+        .division_by_zero = .{ .location = Location.merge(&.{ left.loc(), right.loc() }) },
     });
     return .OK(.{ .number = a.number / b.number });
 }
@@ -117,7 +117,7 @@ pub fn mod(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(V
     const b = resB.isOk() orelse return .ERR(resB.err);
 
     if (b.number == 0) return .ERR(.{
-        .division_by_zero = .{ .location = Location.merge(&.{ left.loc, right.loc }) },
+        .division_by_zero = .{ .location = Location.merge(&.{ left.loc(), right.loc() }) },
     });
     return .OK(.{ .number = @mod(a.number, b.number) });
 }
@@ -277,7 +277,7 @@ pub fn assign(access_expr: *Expr, value: *Expr, env: Expr.RunEnv) anyerror!Runti
     const result = try evaluate(value, env);
     const val = result.isOk() orelse return .ERR(result.err);
 
-    switch (access_expr.class) {
+    switch (access_expr.*) {
         .access => |acc| {
             const key = acc.property.value.literal;
 
@@ -320,7 +320,7 @@ fn validateType(expr: *Expr, comptime types: []const Value.Type, env: Expr.RunEn
     return .ERR(.{
         .unexpected_type = .{
             .found = value,
-            .location = expr.loc,
+            .location = expr.loc(),
             .expected = types,
         },
     });

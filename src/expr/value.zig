@@ -2,7 +2,7 @@ const std = @import("std");
 
 pub const Value = union(enum) {
     pub const Type = @typeInfo(Value).@"union".tag_type orelse unreachable;
-    pub const Object = @import("Object.zig");
+    pub const Object = @import("value/Object.zig");
 
     nil,
     string: []const u8,
