@@ -8,7 +8,7 @@ const Location = core.Token.Location;
 const ParseFn = fn (*core.parsing.Tokenizer.TokenIterator, std.mem.Allocator) std.mem.Allocator.Error!core.results.ParseResult(*Expr);
 
 pub fn parse(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.Allocator) std.mem.Allocator.Error!core.results.ParseResult(*Expr) {
-    const result = try assigment(tokens, allocator);
+    const result = try assignment(tokens, allocator);
     if (result == .ok) log.info("Parsed expression {f}", .{result.ok});
     return result;
 }
@@ -98,7 +98,7 @@ fn genUnaryFunc(next_call: *const ParseFn, expected_tokens: []const core.Token.T
     }).parse;
 }
 
-fn assigment(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.Allocator) !core.results.ParseResult(*Expr) {
+fn assignment(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.Allocator) !core.results.ParseResult(*Expr) {
     var left = switch (try ternary(tokens, allocator)) {
         .ok => |expr| expr,
         .err => |err| return .ERR(err),
@@ -108,7 +108,7 @@ fn assigment(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.A
             .variable, .access => {},
             else => @panic("TODO: Invalid assignment target"),
         }
-        const right = switch (try assigment(tokens, allocator)) {
+        const right = switch (try assignment(tokens, allocator)) {
             .ok => |expr| expr,
             .err => |err| return .ERR(err),
         };
