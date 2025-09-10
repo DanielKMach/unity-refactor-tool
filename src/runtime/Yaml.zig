@@ -1,19 +1,13 @@
 const std = @import("std");
-const libyaml = @import("libyaml");
+const ly = @import("libyaml");
 const log = std.log.scoped(.yaml);
 
 const This = @This();
 
-const Parser = libyaml.yaml_parser_t;
-const Emitter = libyaml.yaml_emitter_t;
-const Event = libyaml.yaml_event_t;
-const parser_init = libyaml.yaml_parser_initialize;
-const parser_parse = libyaml.yaml_parser_parse;
-const parser_deinit = libyaml.yaml_parser_delete;
-const emitter_init = libyaml.yaml_emitter_initialize;
-const emitter_emit = libyaml.yaml_emitter_emit;
-const emitter_deinit = libyaml.yaml_emitter_delete;
-const event_deinit = libyaml.yaml_event_delete;
+pub const Parser = ly.yaml_parser_t;
+pub const Emitter = ly.yaml_emitter_t;
+pub const Event = ly.yaml_event_t;
+pub const Document = ly.yaml_document_t;
 
 const c_alloc = std.heap.raw_c_allocator;
 
@@ -52,13 +46,13 @@ pub fn rename(self: *This, old_scalar: []const u8, new_scalar: []const u8) Updat
     while (!done) {
         event = try events.addOne(self.allocator);
         try parse(parser, event);
-        if (event.type == libyaml.YAML_MAPPING_START_EVENT) {
+        if (event.type == ly.YAML_MAPPING_START_EVENT) {
             level += 1;
-        } else if (event.type == libyaml.YAML_MAPPING_END_EVENT) {
+        } else if (event.type == ly.YAML_MAPPING_END_EVENT) {
             level -= 1;
         }
 
-        if (level == 2 and event.type == libyaml.YAML_SCALAR_EVENT and std.mem.eql(u8, event.data.scalar.value[0..event.data.scalar.length], old_scalar)) {
+        if (level == 2 and event.type == ly.YAML_SCALAR_EVENT and std.mem.eql(u8, event.data.scalar.value[0..event.data.scalar.length], old_scalar)) {
             const len = new_scalar.len;
             const buf = try c_alloc.dupeZ(u8, new_scalar);
             c_alloc.free(event.data.scalar.value[0..event.data.scalar.length]);
@@ -68,10 +62,10 @@ pub fn rename(self: *This, old_scalar: []const u8, new_scalar: []const u8) Updat
 
         try emit(emitter, event);
 
-        done = event.type == libyaml.YAML_STREAM_END_EVENT;
+        done = event.type == ly.YAML_STREAM_END_EVENT;
     }
 
-    _ = libyaml.yaml_emitter_flush(emitter);
+    _ = ly.yaml_emitter_flush(emitter);
 }
 
 pub fn getAlloc(self: *This, path: []const []const u8, allocator: std.mem.Allocator) ParseError!?[]u8 {
@@ -84,9 +78,9 @@ pub fn getAlloc(self: *This, path: []const []const u8, allocator: std.mem.Alloca
 
     var event: Event = undefined;
     try parse(parser, &event);
-    defer event_deinit(&event);
+    defer ly.event_deinit(&event);
 
-    if (event.type != libyaml.YAML_SCALAR_EVENT) {
+    if (event.type != ly.YAML_SCALAR_EVENT) {
         return null;
     }
 
@@ -103,9 +97,9 @@ pub fn get(self: *This, path: []const []const u8, buf: []u8) ParseError!?[]u8 {
 
     var event: Event = undefined;
     try parse(parser, &event);
-    defer event_deinit(&event);
+    defer ly.yaml_event_delete(&event);
 
-    if (event.type != libyaml.YAML_SCALAR_EVENT) {
+    if (event.type != ly.YAML_SCALAR_EVENT) {
         return null;
     }
 
@@ -114,19 +108,23 @@ pub fn get(self: *This, path: []const []const u8, buf: []u8) ParseError!?[]u8 {
     return buf[0..length];
 }
 
-pub fn loadDocument(self: *This) ParseError!libyaml.yaml_document_t {
+pub fn loadDocument(self: *This, document: *Document) ParseError!void {
     const parser = try self.getParser();
     defer self.closeParser(parser);
 
-    var document: libyaml.yaml_document_t = undefined;
-    const result = libyaml.yaml_parser_load(parser, &document);
-    if (result == 0) return error.LibyamlError;
-
-    return document;
+    if (ly.yaml_parser_load(parser, document) == 0) return error.LibyamlError;
 }
 
-pub fn deleteDocument(document: *libyaml.yaml_document_t) void {
-    libyaml.yaml_document_delete(@ptrCast(document));
+pub fn dumpDocument(self: *This, document: *Document) UpdateError!void {
+    const emitter = try self.getEmitter();
+    defer self.closeEmitter(emitter);
+
+    if (ly.yaml_emitter_dump(emitter, document) == 0) return error.LibyamlError;
+    if (ly.yaml_emitter_flush(emitter) == 0) return error.LibyamlError;
+}
+
+pub fn deleteDocument(document: *Document) void {
+    ly.yaml_document_delete(@ptrCast(document));
 }
 
 fn runTo(parser: *Parser, key: []const u8) ParseError!bool {
@@ -135,19 +133,19 @@ fn runTo(parser: *Parser, key: []const u8) ParseError!bool {
 
     while (true) {
         try parse(parser, &event);
-        defer event_deinit(&event);
+        defer ly.yaml_event_delete(&event);
 
-        if (event.type == libyaml.YAML_STREAM_END_EVENT) {
+        if (event.type == ly.YAML_STREAM_END_EVENT) {
             break;
         }
 
-        if (event.type == libyaml.YAML_MAPPING_START_EVENT) {
+        if (event.type == ly.YAML_MAPPING_START_EVENT) {
             level += 1;
-        } else if (event.type == libyaml.YAML_MAPPING_END_EVENT) {
+        } else if (event.type == ly.YAML_MAPPING_END_EVENT) {
             level -= 1;
         }
 
-        if (level == 1 and event.type == libyaml.YAML_SCALAR_EVENT and std.mem.eql(u8, event.data.scalar.value[0..event.data.scalar.length], key)) {
+        if (level == 1 and event.type == ly.YAML_SCALAR_EVENT and std.mem.eql(u8, event.data.scalar.value[0..event.data.scalar.length], key)) {
             return true;
         }
     }
@@ -156,13 +154,13 @@ fn runTo(parser: *Parser, key: []const u8) ParseError!bool {
 }
 
 fn parse(parser: *Parser, event: *Event) LibyamlError!void {
-    if (libyaml.yaml_parser_parse(parser, event) == 0) {
+    if (ly.yaml_parser_parse(parser, event) == 0) {
         return error.LibyamlError;
     }
 }
 
 fn emit(emitter: *Emitter, event: *Event) LibyamlError!void {
-    if (libyaml.yaml_emitter_emit(emitter, event) == 0) {
+    if (ly.yaml_emitter_emit(emitter, event) == 0) {
         return error.LibyamlError;
     }
 }
@@ -171,19 +169,19 @@ fn getParser(self: *This) ParseError!*Parser {
     const parser = try self.allocator.create(Parser);
     errdefer self.allocator.destroy(parser);
 
-    const result = parser_init(parser);
+    const result = ly.yaml_parser_initialize(parser);
     if (result == 0) return error.LibyamlError;
 
     switch (self.in) {
-        .string => |str| libyaml.yaml_parser_set_input_string(parser, str.ptr, str.len),
-        .reader => |reader| libyaml.yaml_parser_set_input(parser, &readHandler, @ptrCast(reader)),
+        .string => |str| ly.yaml_parser_set_input_string(parser, str.ptr, str.len),
+        .reader => |reader| ly.yaml_parser_set_input(parser, &readHandler, @ptrCast(reader)),
     }
 
     return parser;
 }
 
 fn closeParser(self: *This, parser: *Parser) void {
-    parser_deinit(parser);
+    ly.yaml_parser_delete(parser);
     self.allocator.destroy(parser);
 }
 
@@ -191,15 +189,15 @@ fn getEmitter(self: *This) UpdateError!*Emitter {
     const emitter = try self.allocator.create(Emitter);
     errdefer self.allocator.destroy(emitter);
 
-    const result = emitter_init(emitter);
+    const result = ly.yaml_emitter_initialize(emitter);
     if (result == 0) return error.LibyamlError;
 
-    libyaml.yaml_emitter_set_encoding(emitter, libyaml.YAML_UTF8_ENCODING);
-    libyaml.yaml_emitter_set_width(emitter, std.math.maxInt(c_int));
+    ly.yaml_emitter_set_encoding(emitter, ly.YAML_UTF8_ENCODING);
+    ly.yaml_emitter_set_width(emitter, std.math.maxInt(c_int));
 
     if (self.out) |*out| switch (out.*) {
-        .string => |str| libyaml.yaml_emitter_set_output_string(emitter, str.ptr, str.len, &str.len),
-        .writer => |writer| libyaml.yaml_emitter_set_output(emitter, &writeHandler, @ptrCast(writer)),
+        .string => |str| ly.yaml_emitter_set_output_string(emitter, str.ptr, str.len, &str.len),
+        .writer => |writer| ly.yaml_emitter_set_output(emitter, &writeHandler, @ptrCast(writer)),
     } else {
         return error.NoOutput;
     }
@@ -208,7 +206,7 @@ fn getEmitter(self: *This) UpdateError!*Emitter {
 }
 
 fn closeEmitter(self: *This, emitter: *Emitter) void {
-    emitter_deinit(emitter);
+    ly.yaml_emitter_delete(emitter);
     self.allocator.destroy(emitter);
 }
 
