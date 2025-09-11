@@ -254,6 +254,10 @@ pub fn printParseError(parse_error: urt.results.ParseError, source: urt.Source, 
             try ansi.print(e, "Missing clause '{s}'\r\n", .{err.clause});
             try printLineHighlight(err.placement.loc, source, fw);
         },
+        .invalid_assignment_target => |err| {
+            try ansi.print(e, "Invalid assignment target\r\n", .{});
+            try printLineHighlight(err.location, source, fw);
+        },
         .multiple => |errs| {
             for (errs) |err| {
                 try printParseError(err, source, fw);

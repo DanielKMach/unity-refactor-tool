@@ -70,6 +70,11 @@ pub const ParseError = union(enum) {
         placement: Token,
     },
 
+    // Expression related errors
+    invalid_assignment_target: struct {
+        location: core.Token.Location,
+    },
+
     // Generic errors
     multiple: []const ParseError,
     unknown: void,

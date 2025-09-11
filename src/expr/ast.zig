@@ -106,7 +106,9 @@ fn assignment(tokens: *core.parsing.Tokenizer.TokenIterator, allocator: std.mem.
     if (tokens.match(.equal)) {
         switch (left.*) {
             .variable, .access => {},
-            else => @panic("TODO: Invalid assignment target"),
+            else => return .ERR(.{ .invalid_assignment_target = .{
+                .location = left.loc(),
+            } }),
         }
         const right = switch (try assignment(tokens, allocator)) {
             .ok => |expr| expr,
