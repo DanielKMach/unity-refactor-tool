@@ -51,7 +51,7 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
                         .cwd = self.cwd,
                         .out = &self.out.interface,
                         .allocator = self.allocator,
-                    });
+                    }, source);
                 }
                 return false;
             }
@@ -86,10 +86,11 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
         switch (mode) {
             .args => {
                 const source = try urt.Source.anonymous(arg, self.allocator);
-                defer source.deinit();
+                errdefer source.deinit();
                 if (try self.parse(source, &parser)) |script| {
                     try scripts.append(self.allocator, .{
                         .script = script,
+                        .source = source,
                     });
                     continue;
                 }
@@ -112,6 +113,7 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
                 if (try self.parse(source, &parser)) |script| {
                     try scripts.append(self.allocator, .{
                         .script = script,
+                        .source = source,
                         .dir = dir,
                     });
                     continue;
@@ -128,7 +130,7 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
             .cwd = script.dir orelse self.cwd,
             .out = &fwriter.interface,
             .allocator = self.allocator,
-        })) {
+        }, script.source)) {
             return false;
         }
     }
@@ -179,10 +181,10 @@ pub fn parse(self: This, source: urt.Source, parser: *urt.parsing.Parser) !?urt.
     return result.ok;
 }
 
-pub fn run(self: This, script: urt.runtime.Script, config: urt.runtime.Script.RunConfig) !bool {
+pub fn run(self: This, script: urt.runtime.Script, config: urt.runtime.Script.RunConfig, source: urt.Source) !bool {
     const result = try script.run(config);
     if (result.isErr()) |err| {
-        try printRuntimeError(err, self.out);
+        try printRuntimeError(err, source, self.out);
         return false;
     }
     return true;
@@ -192,7 +194,7 @@ pub fn parseAndRun(self: This, source: urt.Source, parser: *urt.parsing.Parser, 
     const script = try self.parse(source, parser);
     if (script) |s| {
         defer s.deinit();
-        return try self.run(s, config);
+        return try self.run(s, config, source);
     }
     return false;
 }
@@ -215,12 +217,12 @@ pub fn printParseError(parse_error: urt.results.ParseError, source: urt.Source, 
             {
                 ansi.begin(e);
                 defer ansi.end(e);
-                try out.print("Unexpected token '{s}'", .{@tagName(err.found.value)});
+                try out.print("Unexpected {f}", .{err.found.value});
                 if (err.expected.len > 0) try out.print(", expected ", .{});
                 for (err.expected, 0..) |expected_type, i| {
                     if (i > 0 and i != err.expected.len - 1) try out.print(", ", .{});
                     if (i != 0 and i == err.expected.len - 1) try out.print(" or ", .{});
-                    try out.print("{s}", .{@tagName(expected_type)});
+                    try out.print("{f}", .{expected_type});
                 }
                 try out.print("\r\n", .{});
             }
@@ -252,6 +254,10 @@ pub fn printParseError(parse_error: urt.results.ParseError, source: urt.Source, 
             try ansi.print(e, "Missing clause '{s}'\r\n", .{err.clause});
             try printLineHighlight(err.placement.loc, source, fw);
         },
+        .invalid_assignment_target => |err| {
+            try ansi.print(e, "Invalid assignment target\r\n", .{});
+            try printLineHighlight(err.location, source, fw);
+        },
         .multiple => |errs| {
             for (errs) |err| {
                 try printParseError(err, source, fw);
@@ -262,7 +268,7 @@ pub fn printParseError(parse_error: urt.results.ParseError, source: urt.Source, 
     try out.flush();
 }
 
-pub fn printRuntimeError(runtime_error: urt.results.RuntimeError, fw: *std.fs.File.Writer) !void {
+pub fn printRuntimeError(runtime_error: urt.results.RuntimeError, source: urt.Source, fw: *std.fs.File.Writer) !void {
     const ansi = ANSI.init(fw);
     const out = &fw.interface;
 
@@ -274,6 +280,31 @@ pub fn printRuntimeError(runtime_error: urt.results.RuntimeError, fw: *std.fs.Fi
         },
         .invalid_path => |_| {
             try ansi.print(e, "Invalid path\r\n", .{});
+        },
+        .division_by_zero => |err| {
+            try ansi.print(e, "Division by zero\r\n", .{});
+            try printLineHighlight(err.location, source, fw);
+        },
+        .type_mismatch => |err| {
+            try ansi.print(e, "Found {s} as lhs\r\n", .{@tagName(err.left)});
+            try printLineHighlight(err.left_loc, source, fw);
+            try ansi.print(e, "And {s} as rhs\r\n", .{@tagName(err.right)});
+            try printLineHighlight(err.right_loc, source, fw);
+        },
+        .unexpected_type => |err| {
+            {
+                ansi.begin(e);
+                defer ansi.end(e);
+                try out.print("Unexpected type {s}", .{@tagName(err.found)});
+                if (err.expected.len > 0) try out.print(", expected ", .{});
+                for (err.expected, 0..) |expected_type, i| {
+                    if (i > 0 and i != err.expected.len - 1) try out.print(", ", .{});
+                    if (i != 0 and i == err.expected.len - 1) try out.print(" or ", .{});
+                    try out.print("{s}", .{@tagName(expected_type)});
+                }
+                try out.print("\r\n", .{});
+            }
+            try printLineHighlight(err.location, source, fw);
         },
     }
 
@@ -358,10 +389,12 @@ pub fn openURL(url: [:0]const u8) void {
 
 pub const LocalizedScript = struct {
     script: urt.runtime.Script,
+    source: urt.Source,
     dir: ?std.fs.Dir = null,
 
     pub fn cleanup(self: *LocalizedScript) void {
         self.script.deinit();
+        self.source.deinit();
         if (self.dir) |*d| d.close();
     }
 };

@@ -29,6 +29,19 @@ pub const operator_list: []const struct { []const u8, Value } = &.{
     .{ "-", .minus },
     .{ "*", .star },
     .{ "/", .slash },
+    .{ "%", .percentage },
+    .{ "=", .equal },
+    .{ ">", .greater },
+    .{ "<", .less },
+    .{ "(", .left_paren },
+    .{ ")", .right_paren },
+    .{ ">=", .greater_equal },
+    .{ "<=", .less_equal },
+    .{ "!=", .bang_equal },
+    .{ "==", .equal_equal },
+    .{ "??", .question_question },
+    .{ "?", .question },
+    .{ ":", .colon },
 };
 
 /// The type of the token.
@@ -48,10 +61,33 @@ pub fn is(self: Token, t: Type) bool {
     return self.value == t;
 }
 
-pub const Type = @typeInfo(Value).@"union".tag_type orelse unreachable;
+/// Duplicates the token, the caller owns the returned token.
+///
+/// Safe to call but unnecessary if token is not a string or literal
+pub fn dupe(self: Token, allocator: std.mem.Allocator) std.mem.Allocator.Error!Token {
+    const new_value: Value = switch (self.value) {
+        .string => |s| .{ .string = try allocator.dupe(u8, s) },
+        .literal => |l| .{ .literal = try allocator.dupe(u8, l) },
+        else => self.value,
+    };
+    return Token{
+        .value = new_value,
+        .loc = self.loc,
+    };
+}
 
-/// The type of tokens that can be recognized by the tokenizer.
-pub const Value = union(enum) {
+/// Free token if duped.
+///
+/// Unnecessary to call if token is not a string or literal.
+pub fn cleanup(self: Token, allocator: std.mem.Allocator) void {
+    switch (self.value) {
+        .string => |s| allocator.free(s),
+        .literal => |l| allocator.free(l),
+        else => {},
+    }
+}
+
+pub const Type = enum {
     // Keywords for statements
     SHOW,
     RENAME,
@@ -84,15 +120,117 @@ pub const Value = union(enum) {
     minus, // '-'
     star, // '*'
     slash, // '/'
+    percentage, // '%'
+    equal, // '='
+    greater, // '>'
+    greater_equal, // '>='
+    less, // '<'
+    less_equal, // '<='
+    bang_equal, // '!='
+    equal_equal, // '=='
+    question_question, // '??'
+    question, // '?'
+    colon, // ':'
+    left_paren, // '('
+    right_paren, // ')'
 
     /// A number literal.
-    number: f32,
+    number,
 
     /// A string literal.
-    string: []const u8,
+    string,
 
     /// Any alphanumeric literal, such as identifiers, component names, etc.
+    literal,
+
+    pub fn format(self: Type, writer: *std.Io.Writer) std.Io.Writer.Error!void {
+        inline for (operator_list) |op| {
+            if (self == op[1]) {
+                return writer.print("'{s}'", .{op[0]});
+            }
+        }
+        inline for (keyword_list) |kw| {
+            if (self == kw[1]) {
+                return writer.print("'{s}'", .{kw[0]});
+            }
+        }
+        return writer.print("{t}", .{self});
+    }
+
+    pub fn raw(self: Type, writer: *std.Io.Writer) std.Io.Writer.Error!void {
+        inline for (operator_list) |op| {
+            if (self == op[1]) {
+                return writer.print("{s}", .{op[0]});
+            }
+        }
+        inline for (keyword_list) |kw| {
+            if (self == kw[1]) {
+                return writer.print("{s}", .{kw[0]});
+            }
+        }
+        return writer.print("{t}", .{self});
+    }
+};
+
+/// The type of tokens that can be recognized by the tokenizer.
+pub const Value = union(Type) {
+    SHOW,
+    RENAME,
+    EVAL,
+    UPDATE,
+    OF,
+    IN,
+    WHERE,
+    AND,
+    OR,
+    NOT,
+    GUID,
+    DIRECT,
+    INDIRECT,
+    REFS,
+    USES,
+    FOR,
+    dot,
+    comma,
+    eos,
+    plus,
+    minus,
+    star,
+    slash,
+    percentage,
+    equal,
+    greater,
+    greater_equal,
+    less,
+    less_equal,
+    bang_equal,
+    equal_equal,
+    question_question,
+    question,
+    colon,
+    left_paren,
+    right_paren,
+    number: f32,
+    string: []const u8,
     literal: []const u8,
+
+    pub fn format(self: Value, writer: *std.Io.Writer) std.Io.Writer.Error!void {
+        switch (self) {
+            .number => |n| try writer.print("number '{d}'", .{n}),
+            .string => |s| try writer.print("string '{s}'", .{s}),
+            .literal => |l| try writer.print("literal '{s}'", .{l}),
+            else => try @as(Type, self).format(writer),
+        }
+    }
+
+    pub fn raw(self: Value, writer: *std.Io.Writer) std.Io.Writer.Error!void {
+        switch (self) {
+            .number => |n| try writer.print("{d}", .{n}),
+            .string => |s| try writer.print("'{s}'", .{s}),
+            .literal => |l| try writer.print("`{s}`", .{l}),
+            else => try @as(Type, self).raw(writer),
+        }
+    }
 };
 
 pub const Location = struct {
@@ -116,5 +254,16 @@ pub const Location = struct {
 
     pub fn lexeme(self: Location, string: []const u8) []const u8 {
         return string[self.index .. self.index + self.len];
+    }
+
+    pub fn merge(locations: []const Location) Location {
+        std.debug.assert(locations.len > 0);
+        var min = locations[0].index;
+        var max = locations[0].index + locations[0].len;
+        for (locations[1..]) |loc| {
+            min = @min(min, loc.index);
+            max = @max(max, loc.index + loc.len);
+        }
+        return Location{ .index = min, .len = max - min };
     }
 };
