@@ -23,8 +23,8 @@ pub fn build(b: *std.Build) void {
     options.addOption(bool, "keep_temp", keep_temp);
     const config = options.createModule();
 
-    const mod = b.addModule("urt", .{
-        .root_source_file = b.path("src/root.zig"),
+    const mod = b.addModule("usrl", .{
+        .root_source_file = b.path("lib/root.zig"),
         .target = target,
         .optimize = optimize,
     });
@@ -42,7 +42,7 @@ pub fn build(b: *std.Build) void {
             .optimize = optimize,
         }),
     });
-    exe.root_module.addImport("urt", mod);
+    exe.root_module.addImport("usrl", mod);
     exe.root_module.addImport("libyaml", libyaml);
     exe.root_module.addImport("config", config);
 
@@ -67,7 +67,7 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
-    tests.root_module.addImport("urt", mod);
+    tests.root_module.addImport("usrl", mod);
 
     const run_tests = b.addRunArtifact(tests);
     run_tests.setCwd(b.path("tests"));

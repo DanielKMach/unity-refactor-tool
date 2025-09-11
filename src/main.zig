@@ -1,6 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
-const urt = @import("urt");
+const usrl = @import("usrl");
 const CLI = @import("CLI.zig");
 
 const log = std.log.scoped(.main);
@@ -10,10 +10,10 @@ pub const std_options: std.Options = .{
 };
 
 pub fn main() !void {
-    defer urt.profiling.finalize();
+    defer usrl.profiling.finalize();
 
-    urt.profiling.begin(main);
-    defer urt.profiling.stop();
+    usrl.profiling.begin(main);
+    defer usrl.profiling.stop();
 
     const start = std.time.milliTimestamp();
 

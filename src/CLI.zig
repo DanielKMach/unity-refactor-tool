@@ -1,6 +1,6 @@
 const builtin = @import("builtin");
 const std = @import("std");
-const urt = @import("urt");
+const usrl = @import("usrl");
 
 const This = @This();
 const log = std.log.scoped(.cli);
@@ -24,7 +24,7 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
     defer if (output) |o| o.close();
     const ansi = ANSI.init(self.out);
 
-    var parser = urt.parsing.Parser{
+    var parser = usrl.parsing.Parser{
         .allocator = self.allocator,
     };
     var scripts = try std.ArrayList(LocalizedScript).initCapacity(self.allocator, 1);
@@ -44,7 +44,7 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
                 try printHelp(&self.out.interface);
                 return true;
             } else if (std.mem.eql(u8, arg, "--")) {
-                const source = try urt.Source.fromStdin(self.allocator);
+                const source = try usrl.Source.fromStdin(self.allocator);
                 defer source.deinit();
                 if (try self.parse(source, &parser)) |script| {
                     return try self.run(script, .{
@@ -85,7 +85,7 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
         }
         switch (mode) {
             .args => {
-                const source = try urt.Source.anonymous(arg, self.allocator);
+                const source = try usrl.Source.anonymous(arg, self.allocator);
                 errdefer source.deinit();
                 if (try self.parse(source, &parser)) |script| {
                     try scripts.append(self.allocator, .{
@@ -98,13 +98,13 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
             },
             .file => {
                 var dir: std.fs.Dir = undefined;
-                var source: urt.Source = undefined;
+                var source: usrl.Source = undefined;
 
                 if (std.fs.path.isAbsolute(arg)) {
-                    source = try urt.Source.fromPathAbsolute(arg, self.allocator);
+                    source = try usrl.Source.fromPathAbsolute(arg, self.allocator);
                     dir = try std.fs.openDirAbsolute(std.fs.path.dirname(arg).?, .{ .iterate = true });
                 } else {
-                    source = try urt.Source.fromPath(self.cwd, arg, self.allocator);
+                    source = try usrl.Source.fromPath(self.cwd, arg, self.allocator);
                     const abs_path = try self.cwd.realpathAlloc(self.allocator, arg);
                     defer self.allocator.free(abs_path);
                     dir = try std.fs.openDirAbsolute(std.fs.path.dirname(abs_path).?, .{ .iterate = true });
@@ -141,7 +141,7 @@ pub fn startInteractiveMode(self: This) !bool {
     const ansi = ANSI.init(self.out);
     const writer = &self.out.interface;
     const reader = &self.in.interface;
-    var parser = urt.parsing.Parser{
+    var parser = usrl.parsing.Parser{
         .allocator = self.allocator,
     };
 
@@ -159,7 +159,7 @@ pub fn startInteractiveMode(self: This) !bool {
             continue; // skip empty lines
         }
 
-        const source = try urt.Source.anonymous(query, self.allocator);
+        const source = try usrl.Source.anonymous(query, self.allocator);
         defer source.deinit();
 
         _ = try self.parseAndRun(source, &parser, .{
@@ -172,7 +172,7 @@ pub fn startInteractiveMode(self: This) !bool {
     return true;
 }
 
-pub fn parse(self: This, source: urt.Source, parser: *urt.parsing.Parser) !?urt.runtime.Script {
+pub fn parse(self: This, source: usrl.Source, parser: *usrl.parsing.Parser) !?usrl.runtime.Script {
     const result = try parser.parse(source);
     if (result.isErr()) |err| {
         try printParseError(err, source, self.out);
@@ -181,7 +181,7 @@ pub fn parse(self: This, source: urt.Source, parser: *urt.parsing.Parser) !?urt.
     return result.ok;
 }
 
-pub fn run(self: This, script: urt.runtime.Script, config: urt.runtime.Script.RunConfig, source: urt.Source) !bool {
+pub fn run(self: This, script: usrl.runtime.Script, config: usrl.runtime.Script.RunConfig, source: usrl.Source) !bool {
     const result = try script.run(config);
     if (result.isErr()) |err| {
         try printRuntimeError(err, source, self.out);
@@ -190,7 +190,7 @@ pub fn run(self: This, script: urt.runtime.Script, config: urt.runtime.Script.Ru
     return true;
 }
 
-pub fn parseAndRun(self: This, source: urt.Source, parser: *urt.parsing.Parser, config: urt.runtime.Script.RunConfig) !bool {
+pub fn parseAndRun(self: This, source: usrl.Source, parser: *usrl.parsing.Parser, config: usrl.runtime.Script.RunConfig) !bool {
     const script = try self.parse(source, parser);
     if (script) |s| {
         defer s.deinit();
@@ -199,7 +199,7 @@ pub fn parseAndRun(self: This, source: urt.Source, parser: *urt.parsing.Parser, 
     return false;
 }
 
-pub fn printParseError(parse_error: urt.results.ParseError, source: urt.Source, fw: *std.fs.File.Writer) !void {
+pub fn printParseError(parse_error: usrl.results.ParseError, source: usrl.Source, fw: *std.fs.File.Writer) !void {
     var ansi = ANSI.init(fw);
     var out = &fw.interface;
 
@@ -268,7 +268,7 @@ pub fn printParseError(parse_error: urt.results.ParseError, source: urt.Source, 
     try out.flush();
 }
 
-pub fn printRuntimeError(runtime_error: urt.results.RuntimeError, source: urt.Source, fw: *std.fs.File.Writer) !void {
+pub fn printRuntimeError(runtime_error: usrl.results.RuntimeError, source: usrl.Source, fw: *std.fs.File.Writer) !void {
     const ansi = ANSI.init(fw);
     const out = &fw.interface;
 
@@ -311,7 +311,7 @@ pub fn printRuntimeError(runtime_error: urt.results.RuntimeError, source: urt.So
     try out.flush();
 }
 
-pub fn printLineHighlight(loc: urt.Token.Location, source: urt.Source, out: *std.fs.File.Writer) !void {
+pub fn printLineHighlight(loc: usrl.Token.Location, source: usrl.Source, out: *std.fs.File.Writer) !void {
     const line_index = source.lineIndex(loc.index) orelse return error.InvalidLocation;
     if (line_index != source.lineIndex(loc.index + @max(loc.len, 1) - 1)) return error.InvalidLocation;
     const line = source.line(line_index) orelse return error.InvalidLocation;
@@ -388,8 +388,8 @@ pub fn openURL(url: [:0]const u8) void {
 }
 
 pub const LocalizedScript = struct {
-    script: urt.runtime.Script,
-    source: urt.Source,
+    script: usrl.runtime.Script,
+    source: usrl.Source,
     dir: ?std.fs.Dir = null,
 
     pub fn cleanup(self: *LocalizedScript) void {
