@@ -1,7 +1,5 @@
 const std = @import("std");
 const core = @import("core");
-const parsing = core.parsing;
-const results = core.results;
 const log = std.log.scoped(.usql_tokenizer);
 
 const This = @This();
@@ -71,7 +69,7 @@ fn sliceForward(self: This, start_offset: isize, len: usize) []const u8 {
     return self.source[start .. start + len];
 }
 
-pub fn token(self: *This) results.ParseResult(?Token) {
+pub fn token(self: *This, diag: *core.ParseDiagnostics) core.ParseError!?Token {
     var start = self.index;
     while (self.match(whitespace ++ "#")) {
         if (self.at(self.index - 1) == '#') {
@@ -82,9 +80,9 @@ pub fn token(self: *This) results.ParseResult(?Token) {
     }
     if (self.peek() == null) {
         if (start < self.source.len) {
-            return .OK(.new(.eos, .init(start, 0)));
+            return .new(.eos, .init(start, 0));
         }
-        return .OK(null);
+        return null;
     }
 
     start = self.index;
@@ -93,27 +91,27 @@ pub fn token(self: *This) results.ParseResult(?Token) {
         const word = self.slice(start, 0);
         for (Token.keyword_list) |kw| {
             if (std.ascii.eqlIgnoreCase(word, kw[0])) {
-                return .OK(.new(kw[1], .fromSlice(self.source, word)));
+                return .new(kw[1], .fromSlice(self.source, word));
             }
         } else {
-            return .OK(.new(.{ .literal = word }, .fromSlice(self.source, word)));
+            return .new(.{ .literal = word }, .fromSlice(self.source, word));
         }
     } else if (self.match("\"'")) { // strings
         while (self.next()) |c| {
             if (c == self.at(start)) {
                 const str = self.slice(start + 1, -1);
-                return .OK(.new(.{ .string = str }, .init(start, str.len + 2)));
+                return .new(.{ .string = str }, .init(start, str.len + 2));
             }
         } else {
-            return .ERR(.{ .never_closed_string = .{ .location = .init(start, 1) } });
+            return diag.push(.{ .never_closed_string = .{ .location = .init(start, 1) } });
         }
     } else if (self.match(digit)) {
         while (self.match(digit ++ ".")) {}
         const number_literal = self.slice(start, 0);
         const number = std.fmt.parseFloat(f32, number_literal) catch {
-            return .ERR(.{ .invalid_number = .{ .location = .fromSlice(self.source, number_literal) } });
+            return diag.push(.{ .invalid_number = .{ .location = .fromSlice(self.source, number_literal) } });
         };
-        return .OK(.new(.{ .number = number }, .fromSlice(self.source, number_literal)));
+        return .new(.{ .number = number }, .fromSlice(self.source, number_literal));
     } else { // operators
         var best_match: ?@typeInfo(@TypeOf(Token.operator_list)).pointer.child = null;
         for (Token.operator_list) |op| {
@@ -124,9 +122,9 @@ pub fn token(self: *This) results.ParseResult(?Token) {
         }
         if (best_match) |operator| {
             defer self.index += operator[0].len;
-            return .OK(.new(operator[1], .init(self.index, operator[0].len)));
+            return .new(operator[1], .init(self.index, operator[0].len));
         } else {
-            return .ERR(.{ .unexpected_character = .{ .location = .init(self.index, 1) } });
+            return diag.push(.{ .unexpected_character = .{ .location = .init(self.index, 1) } });
         }
     }
 }
@@ -134,7 +132,7 @@ pub fn token(self: *This) results.ParseResult(?Token) {
 /// Tokenizes the given expression into a slice of tokens.
 ///
 /// The slice is owned by the caller.
-pub fn tokenize(expression: []const u8, allocator: std.mem.Allocator) !results.ParseResult([]Token) {
+pub fn tokenize(expression: []const u8, allocator: std.mem.Allocator, diag: *core.ParseDiagnostics) core.ParseAllocError![]Token {
     core.profiling.begin(tokenize);
     defer core.profiling.stop();
 
@@ -142,11 +140,8 @@ pub fn tokenize(expression: []const u8, allocator: std.mem.Allocator) !results.P
     defer list.deinit(allocator);
 
     var tokenizer = This.init(expression);
-    while (true) {
-        switch (tokenizer.token()) {
-            .ok => |t| try list.append(allocator, t orelse break),
-            .err => |err| return .ERR(err),
-        }
+    while (try tokenizer.token(diag)) |tkn| {
+        try list.append(allocator, tkn);
     }
 
     if (!list.items[list.items.len - 1].is(.eos)) {
@@ -157,7 +152,7 @@ pub fn tokenize(expression: []const u8, allocator: std.mem.Allocator) !results.P
         log.info("Token({s}, <{s}>)", .{ @tagName(tkn.value), tkn.loc.lexeme(expression) });
     }
 
-    return .OK(try list.toOwnedSlice(allocator));
+    return try list.toOwnedSlice(allocator);
 }
 
 /// A token

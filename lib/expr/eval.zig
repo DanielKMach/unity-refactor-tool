@@ -4,16 +4,14 @@ const core = @import("core");
 const Expr = core.Expr;
 const Value = core.Expr.Value;
 const Location = core.Token.Location;
-const RuntimeResult = core.results.RuntimeResult;
-const RuntimeError = core.results.RuntimeError;
 
-pub fn evaluate(expr: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
+pub fn evaluate(expr: *Expr, env: Expr.EvalEnv) anyerror!Value {
     return switch (expr.*) {
-        .literal => |lit| .OK(switch (lit.token.value) {
+        .literal => |lit| switch (lit.token.value) {
             .number => |num| .{ .number = num },
             .string => |str| .{ .string = str },
             else => unreachable,
-        }),
+        },
         .unary => |un| switch (un.op.value) {
             .minus => negate(un.operand, env),
             .NOT => logicalNot(un.operand, env),
@@ -38,20 +36,18 @@ pub fn evaluate(expr: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
         },
         .ternary => |tern| ternary(tern.left, tern.middle, tern.right, env),
         .grouping => |group| evaluate(group.expr, env),
-        .variable => |varr| .OK(env.context.get(varr.name.value.literal) orelse .nil),
+        .variable => |varr| env.context.get(varr.name.value.literal) orelse .nil,
         .access => |acc| access(acc.base, acc.property.value.literal, env),
         .assignment => |as| assign(as.target, as.value, env),
     };
 }
 
-pub fn addOrConcat(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
-    const resA = try validateType(left, &.{ .string, .number }, env);
-    const a = resA.isOk() orelse return .ERR(resA.err);
+pub fn addOrConcat(left: *Expr, right: *Expr, env: Expr.EvalEnv) anyerror!Value {
+    const a = try validate(left, &.{ .string, .number }, env);
 
-    const resB = try validateType(right, &.{ .string, .number }, env);
-    const b = resB.isOk() orelse return .ERR(resB.err);
+    const b = try validate(right, &.{ .string, .number }, env);
 
-    return .OK(switch (a) {
+    return switch (a) {
         .string => |str_a| switch (b) {
             .string => |str_b| .{ .string = try std.fmt.allocPrint(env.allocator, "{s}{s}", .{ str_a, str_b }) },
             .number => |num_b| .{ .string = try std.fmt.allocPrint(env.allocator, "{s}{d}", .{ str_a, num_b }) },
@@ -63,227 +59,168 @@ pub fn addOrConcat(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!Runtime
             else => unreachable,
         },
         else => unreachable,
-    });
+    };
 }
 
-pub fn add(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
-    const resA = try validateType(left, &.{.number}, env);
-    const a = resA.isOk() orelse return .ERR(resA.err);
+pub fn add(left: *Expr, right: *Expr, env: Expr.EvalEnv) anyerror!Value {
+    const a = try validate(left, &.{.number}, env);
 
-    const resB = try validateType(right, &.{.number}, env);
-    const b = resB.isOk() orelse return .ERR(resB.err);
+    const b = try validate(right, &.{.number}, env);
 
-    return .OK(.{ .number = a.number + b.number });
+    return .{ .number = a.number + b.number };
 }
 
-pub fn subtract(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
-    const resA = try validateType(left, &.{.number}, env);
-    const a = resA.isOk() orelse return .ERR(resA.err);
+pub fn subtract(left: *Expr, right: *Expr, env: Expr.EvalEnv) anyerror!Value {
+    const a = try validate(left, &.{.number}, env);
 
-    const resB = try validateType(right, &.{.number}, env);
-    const b = resB.isOk() orelse return .ERR(resB.err);
+    const b = try validate(right, &.{.number}, env);
 
-    return .OK(.{ .number = a.number - b.number });
+    return .{ .number = a.number - b.number };
 }
 
-pub fn multiply(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
-    const resA = try validateType(left, &.{.number}, env);
-    const a = resA.isOk() orelse return .ERR(resA.err);
+pub fn multiply(left: *Expr, right: *Expr, env: Expr.EvalEnv) anyerror!Value {
+    const a = try validate(left, &.{.number}, env);
 
-    const resB = try validateType(right, &.{.number}, env);
-    const b = resB.isOk() orelse return .ERR(resB.err);
+    const b = try validate(right, &.{.number}, env);
 
-    return .OK(.{ .number = a.number * b.number });
+    return .{ .number = a.number * b.number };
 }
 
-pub fn divide(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
-    const resA = try validateType(left, &.{.number}, env);
-    const a = resA.isOk() orelse return .ERR(resA.err);
+pub fn divide(left: *Expr, right: *Expr, env: Expr.EvalEnv) anyerror!Value {
+    const a = try validate(left, &.{.number}, env);
 
-    const resB = try validateType(right, &.{.number}, env);
-    const b = resB.isOk() orelse return .ERR(resB.err);
+    const b = try validate(right, &.{.number}, env);
 
-    if (b.number == 0) return .ERR(.{
-        .division_by_zero = .{ .location = Location.merge(&.{ left.loc(), right.loc() }) },
-    });
-    return .OK(.{ .number = a.number / b.number });
+    if (b.number == 0) return env.err(.{ .division_by_zero = .{
+        .location = Location.merge(&.{ left.loc(), right.loc() }),
+    } });
+    return .{ .number = a.number / b.number };
 }
 
-pub fn mod(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
-    const resA = try validateType(left, &.{.number}, env);
-    const a = resA.isOk() orelse return .ERR(resA.err);
+pub fn mod(left: *Expr, right: *Expr, env: Expr.EvalEnv) anyerror!Value {
+    const a = try validate(left, &.{.number}, env);
 
-    const resB = try validateType(right, &.{.number}, env);
-    const b = resB.isOk() orelse return .ERR(resB.err);
+    const b = try validate(right, &.{.number}, env);
 
-    if (b.number == 0) return .ERR(.{
-        .division_by_zero = .{ .location = Location.merge(&.{ left.loc(), right.loc() }) },
-    });
-    return .OK(.{ .number = @mod(a.number, b.number) });
+    if (b.number == 0) return env.err(.{ .division_by_zero = .{
+        .location = Location.merge(&.{ left.loc(), right.loc() }),
+    } });
+    return .{ .number = @mod(a.number, b.number) };
 }
 
-pub fn negate(expr: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
-    const res = try validateType(expr, &.{.number}, env);
-    const value = res.isOk() orelse return .ERR(res.err);
-    return .OK(.{ .number = -value.number });
+pub fn negate(expr: *Expr, env: Expr.EvalEnv) anyerror!Value {
+    const value = try validate(expr, &.{.number}, env);
+    return .{ .number = -value.number };
 }
 
-pub fn equals(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
-    const resA = try evaluate(left, env);
-    const a = resA.isOk() orelse return .ERR(resA.err);
-
-    const resB = try evaluate(right, env);
-    const b = resB.isOk() orelse return .ERR(resB.err);
-
+pub fn equals(left: *Expr, right: *Expr, env: Expr.EvalEnv) anyerror!Value {
+    const a = try evaluate(left, env);
+    const b = try evaluate(right, env);
     if (@as(Value.Type, a) != @as(Value.Type, b)) {
-        return .OK(.{ .number = 0 });
+        return .{ .number = 0 };
     }
 
     return switch (a) {
-        .number => |a_number| .OK(.{ .number = if (a_number == b.number) 1 else 0 }),
-        .string => |a_string| .OK(.{ .number = if (std.mem.eql(u8, a_string, b.string)) 1 else 0 }),
-        .nil => .OK(.{ .number = 1 }),
-        .object => |a_object| .OK(.{ .number = if (a_object.node == b.object.node) 1 else 0 }),
+        .number => |a_number| .{ .number = if (a_number == b.number) 1 else 0 },
+        .string => |a_string| .{ .number = if (std.mem.eql(u8, a_string, b.string)) 1 else 0 },
+        .nil => .{ .number = 1 },
+        .object => |a_object| .{ .number = if (a_object.node == b.object.node) 1 else 0 },
         .array => @panic("TODO: Handle array"),
     };
 }
 
-pub fn notEquals(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
-    const resA = try evaluate(left, env);
-    const a = resA.isOk() orelse return .ERR(resA.err);
-
-    const resB = try evaluate(right, env);
-    const b = resB.isOk() orelse return .ERR(resB.err);
-
-    if (@as(Value.Type, a) != @as(Value.Type, b)) {
-        return .OK(.{ .number = 1 });
-    }
-    return switch (a) {
-        .number => |a_number| .OK(.{ .number = if (a_number != b.number) 1 else 0 }),
-        .string => |a_string| .OK(.{ .number = if (!std.mem.eql(u8, a_string, b.string)) 1 else 0 }),
-        .nil => .OK(.{ .number = 0 }),
-        .object => |a_object| .OK(.{ .number = if (a_object.node != b.object.node) 1 else 0 }),
-        .array => @panic("TODO: Handle array"),
-    };
+pub fn notEquals(left: *Expr, right: *Expr, env: Expr.EvalEnv) anyerror!Value {
+    const eqls = try equals(left, right, env);
+    return .{ .number = if (eqls.number == 0) 1 else 0 };
 }
 
-pub fn lessThan(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
-    const resA = try validateType(left, &.{.number}, env);
-    const a = resA.isOk() orelse return .ERR(resA.err);
+pub fn lessThan(left: *Expr, right: *Expr, env: Expr.EvalEnv) anyerror!Value {
+    const a = try validate(left, &.{.number}, env);
 
-    const resB = try validateType(right, &.{.number}, env);
-    const b = resB.isOk() orelse return .ERR(resB.err);
+    const b = try validate(right, &.{.number}, env);
 
-    return .OK(.{ .number = if (a.number < b.number) 1 else 0 });
+    return .{ .number = if (a.number < b.number) 1 else 0 };
 }
 
-pub fn greaterThan(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
-    const resA = try validateType(left, &.{.number}, env);
-    const a = resA.isOk() orelse return .ERR(resA.err);
+pub fn greaterThan(left: *Expr, right: *Expr, env: Expr.EvalEnv) anyerror!Value {
+    const a = try validate(left, &.{.number}, env);
 
-    const resB = try validateType(right, &.{.number}, env);
-    const b = resB.isOk() orelse return .ERR(resB.err);
+    const b = try validate(right, &.{.number}, env);
 
-    return .OK(.{ .number = if (a.number > b.number) 1 else 0 });
+    return .{ .number = if (a.number > b.number) 1 else 0 };
 }
 
-pub fn lessThanOrEqual(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
-    const resA = try validateType(left, &.{.number}, env);
-    const a = resA.isOk() orelse return .ERR(resA.err);
+pub fn lessThanOrEqual(left: *Expr, right: *Expr, env: Expr.EvalEnv) anyerror!Value {
+    const a = try validate(left, &.{.number}, env);
 
-    const resB = try validateType(right, &.{.number}, env);
-    const b = resB.isOk() orelse return .ERR(resB.err);
+    const b = try validate(right, &.{.number}, env);
 
-    return .OK(.{ .number = if (a.number <= b.number) 1 else 0 });
+    return .{ .number = if (a.number <= b.number) 1 else 0 };
 }
 
-pub fn greaterThanOrEqual(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
-    const resA = try validateType(left, &.{.number}, env);
-    const a = resA.isOk() orelse return .ERR(resA.err);
+pub fn greaterThanOrEqual(left: *Expr, right: *Expr, env: Expr.EvalEnv) anyerror!Value {
+    const a = try validate(left, &.{.number}, env);
 
-    const resB = try validateType(right, &.{.number}, env);
-    const b = resB.isOk() orelse return .ERR(resB.err);
+    const b = try validate(right, &.{.number}, env);
 
-    return .OK(.{ .number = if (a.number >= b.number) 1 else 0 });
+    return .{ .number = if (a.number >= b.number) 1 else 0 };
 }
 
-pub fn logicalAnd(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
-    const resA = try evaluate(left, env);
-    const a = resA.isOk() orelse return .ERR(resA.err);
-
-    const resB = try evaluate(right, env);
-    const b = resB.isOk() orelse return .ERR(resB.err);
-
-    return .OK(.{ .number = if (isTrythy(a) and isTrythy(b)) 1 else 0 });
+pub fn logicalAnd(left: *Expr, right: *Expr, env: Expr.EvalEnv) anyerror!Value {
+    const a = try evaluate(left, env);
+    const b = try evaluate(right, env);
+    return .{ .number = if (isTrythy(a) and isTrythy(b)) 1 else 0 };
 }
 
-pub fn logicalOr(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
-    const resA = try evaluate(left, env);
-    const a = resA.isOk() orelse return .ERR(resA.err);
-
-    const resB = try evaluate(right, env);
-    const b = resB.isOk() orelse return .ERR(resB.err);
-
-    return .OK(.{ .number = if (isTrythy(a) or isTrythy(b)) 1 else 0 });
+pub fn logicalOr(left: *Expr, right: *Expr, env: Expr.EvalEnv) anyerror!Value {
+    const a = try evaluate(left, env);
+    const b = try evaluate(right, env);
+    return .{ .number = if (isTrythy(a) or isTrythy(b)) 1 else 0 };
 }
 
-pub fn logicalNot(expr: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
-    const res = try evaluate(expr, env);
-    const value = res.isOk() orelse return .ERR(res.err);
-    defer value.cleanup(env.allocator);
-    return .OK(.{ .number = if (isTrythy(value)) 0 else 1 });
+pub fn logicalNot(expr: *Expr, env: Expr.EvalEnv) anyerror!Value {
+    const value = try evaluate(expr, env);
+    return .{ .number = if (isTrythy(value)) 0 else 1 };
 }
 
-pub fn nullCoalesce(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
-    const resA = try evaluate(left, env);
-    const a = resA.isOk() orelse return .ERR(resA.err);
-    if (a != .nil) return .OK(a);
+pub fn nullCoalesce(left: *Expr, right: *Expr, env: Expr.EvalEnv) anyerror!Value {
+    const a = try evaluate(left, env);
+    if (a != .nil) return a;
 
-    const resB = try evaluate(right, env);
-    const b = resB.isOk() orelse return .ERR(resB.err);
-    return .OK(b);
+    const b = try evaluate(right, env);
+    return b;
 }
 
-pub fn concat(left: *Expr, right: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
-    const resA = try validateType(left, &.{.string}, env);
-    const a = resA.isOk() orelse return .ERR(resA.err);
-
-    const resB = try validateType(right, &.{.string}, env);
-    const b = resB.isOk() orelse return .ERR(resB.err);
+pub fn concat(left: *Expr, right: *Expr, env: Expr.EvalEnv) anyerror!Value {
+    const a = try validate(left, &.{.string}, env);
+    const b = try validate(right, &.{.string}, env);
 
     const combined = try env.allocator.alloc(u8, a.string.len + b.string.len);
     @memcpy(combined[0..a.string.len], a.string);
     @memcpy(combined[a.string.len..], b.string);
 
-    return .OK(.{ .string = combined });
+    return .{ .string = combined };
 }
 
-pub fn ternary(condition: *Expr, then: *Expr, otherwise: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
-    const cond_res = try evaluate(condition, env);
-    const cond_value = cond_res.isOk() orelse return .ERR(cond_res.err);
+pub fn ternary(condition: *Expr, then: *Expr, otherwise: *Expr, env: Expr.EvalEnv) anyerror!Value {
+    const cond = try evaluate(condition, env);
 
-    const target = if (isTrythy(cond_value)) then else otherwise;
+    const target = if (isTrythy(cond)) then else otherwise;
     return evaluate(target, env);
 }
 
-pub fn access(base: *Expr, key: []const u8, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
-    const obj_res = try validateType(base, &.{.object}, env);
-    const obj = obj_res.isOk() orelse return .ERR(obj_res.err);
+pub fn access(base: *Expr, key: []const u8, env: Expr.EvalEnv) anyerror!Value {
+    const obj = try validate(base, &.{.object}, env);
 
-    return .OK(obj.object.get(key) orelse .nil);
+    return obj.object.get(key) orelse .nil;
 }
 
-pub fn assign(access_expr: *Expr, value: *Expr, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
-    const result = try evaluate(value, env);
-    const val = result.isOk() orelse return .ERR(result.err);
-
+pub fn assign(access_expr: *Expr, value: *Expr, env: Expr.EvalEnv) anyerror!Value {
+    const val = try evaluate(value, env);
     switch (access_expr.*) {
         .access => |acc| {
             const key = acc.property.value.literal;
-
-            const obj_res = try validateType(acc.base, &.{.object}, env);
-            const obj = obj_res.isOk() orelse return .ERR(obj_res.err);
-
+            const obj = try validate(acc.base, &.{.object}, env);
             try obj.object.set(key, val);
         },
         .variable => |varr| {
@@ -298,7 +235,7 @@ pub fn assign(access_expr: *Expr, value: *Expr, env: Expr.RunEnv) anyerror!Runti
         else => unreachable,
     }
 
-    return .OK(val);
+    return val;
 }
 
 fn isTrythy(value: Value) bool {
@@ -311,13 +248,12 @@ fn isTrythy(value: Value) bool {
     };
 }
 
-fn validateType(expr: *Expr, comptime types: []const Value.Type, env: Expr.RunEnv) anyerror!RuntimeResult(Value) {
-    const result = try evaluate(expr, env);
-    const value = result.isOk() orelse return .ERR(result.err);
+fn validate(expr: *Expr, comptime types: []const Value.Type, env: Expr.EvalEnv) anyerror!Value {
+    const value = try evaluate(expr, env);
     inline for (types) |t| {
-        if (value == t) return .OK(value);
+        if (value == t) return value;
     }
-    return .ERR(.{
+    return env.err(.{
         .unexpected_type = .{
             .found = value,
             .location = expr.loc(),

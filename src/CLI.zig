@@ -24,7 +24,7 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
     defer if (output) |o| o.close();
     const ansi = ANSI.init(self.out);
 
-    var parser = usrl.parsing.Parser{
+    const parser = usrl.Parser{
         .allocator = self.allocator,
     };
     var scripts = try std.ArrayList(LocalizedScript).initCapacity(self.allocator, 1);
@@ -46,7 +46,7 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
             } else if (std.mem.eql(u8, arg, "--")) {
                 const source = try usrl.Source.fromStdin(self.allocator);
                 defer source.deinit();
-                if (try self.parse(source, &parser)) |script| {
+                if (try self.parse(source, parser)) |script| {
                     return try self.run(script, .{
                         .cwd = self.cwd,
                         .out = &self.out.interface,
@@ -87,7 +87,7 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
             .args => {
                 const source = try usrl.Source.anonymous(arg, self.allocator);
                 errdefer source.deinit();
-                if (try self.parse(source, &parser)) |script| {
+                if (try self.parse(source, parser)) |script| {
                     try scripts.append(self.allocator, .{
                         .script = script,
                         .source = source,
@@ -110,7 +110,7 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
                     dir = try std.fs.openDirAbsolute(std.fs.path.dirname(abs_path).?, .{ .iterate = true });
                 }
 
-                if (try self.parse(source, &parser)) |script| {
+                if (try self.parse(source, parser)) |script| {
                     try scripts.append(self.allocator, .{
                         .script = script,
                         .source = source,
@@ -141,7 +141,7 @@ pub fn startInteractiveMode(self: This) !bool {
     const ansi = ANSI.init(self.out);
     const writer = &self.out.interface;
     const reader = &self.in.interface;
-    var parser = usrl.parsing.Parser{
+    const parser = usrl.Parser{
         .allocator = self.allocator,
     };
 
@@ -162,7 +162,7 @@ pub fn startInteractiveMode(self: This) !bool {
         const source = try usrl.Source.anonymous(query, self.allocator);
         defer source.deinit();
 
-        _ = try self.parseAndRun(source, &parser, .{
+        _ = try self.parseAndRun(source, parser, .{
             .allocator = self.allocator,
             .cwd = self.cwd,
             .out = &self.out.interface,
@@ -172,25 +172,29 @@ pub fn startInteractiveMode(self: This) !bool {
     return true;
 }
 
-pub fn parse(self: This, source: usrl.Source, parser: *usrl.parsing.Parser) !?usrl.runtime.Script {
+pub fn parse(self: This, source: usrl.Source, parser: usrl.Parser) !?usrl.Script {
     const result = try parser.parse(source);
-    if (result.isErr()) |err| {
-        try printParseError(err, source, self.out);
-        return null;
+    switch (result) {
+        .ok => |script| return script,
+        .err => |problems| for (problems) |p| {
+            try printParseProblem(p, source, self.out);
+        },
     }
-    return result.ok;
+    return null;
 }
 
-pub fn run(self: This, script: usrl.runtime.Script, config: usrl.runtime.Script.RunConfig, source: usrl.Source) !bool {
+pub fn run(self: This, script: usrl.Script, config: usrl.Script.RunConfig, source: usrl.Source) !bool {
     const result = try script.run(config);
-    if (result.isErr()) |err| {
-        try printRuntimeError(err, source, self.out);
-        return false;
+    switch (result) {
+        .ok => return true,
+        .err => |problems| for (problems) |p| {
+            try printRuntimeProblem(p, source, self.out);
+        },
     }
-    return true;
+    return false;
 }
 
-pub fn parseAndRun(self: This, source: usrl.Source, parser: *usrl.parsing.Parser, config: usrl.runtime.Script.RunConfig) !bool {
+pub fn parseAndRun(self: This, source: usrl.Source, parser: usrl.Parser, config: usrl.Script.RunConfig) !bool {
     const script = try self.parse(source, parser);
     if (script) |s| {
         defer s.deinit();
@@ -199,7 +203,7 @@ pub fn parseAndRun(self: This, source: usrl.Source, parser: *usrl.parsing.Parser
     return false;
 }
 
-pub fn printParseError(parse_error: usrl.results.ParseError, source: usrl.Source, fw: *std.fs.File.Writer) !void {
+pub fn printParseProblem(parse_error: usrl.ParseProblem, source: usrl.Source, fw: *std.fs.File.Writer) !void {
     var ansi = ANSI.init(fw);
     var out = &fw.interface;
 
@@ -260,7 +264,7 @@ pub fn printParseError(parse_error: usrl.results.ParseError, source: usrl.Source
         },
         .multiple => |errs| {
             for (errs) |err| {
-                try printParseError(err, source, fw);
+                try printParseProblem(err, source, fw);
             }
         },
     }
@@ -268,7 +272,7 @@ pub fn printParseError(parse_error: usrl.results.ParseError, source: usrl.Source
     try out.flush();
 }
 
-pub fn printRuntimeError(runtime_error: usrl.results.RuntimeError, source: usrl.Source, fw: *std.fs.File.Writer) !void {
+pub fn printRuntimeProblem(runtime_error: usrl.RuntimeProblem, source: usrl.Source, fw: *std.fs.File.Writer) !void {
     const ansi = ANSI.init(fw);
     const out = &fw.interface;
 
@@ -388,7 +392,7 @@ pub fn openURL(url: [:0]const u8) void {
 }
 
 pub const LocalizedScript = struct {
-    script: usrl.runtime.Script,
+    script: usrl.Script,
     source: usrl.Source,
     dir: ?std.fs.Dir = null,
 

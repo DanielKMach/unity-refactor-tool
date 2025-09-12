@@ -9,13 +9,13 @@ const GUID = core.runtime.GUID;
 
 targets: []AssetTarget,
 
-pub fn parse(tokens: *Tokenizer.TokenIterator, env: core.parsing.ParsetimeEnv) anyerror!results.ParseResult(This) {
+pub fn parse(tokens: *Tokenizer.TokenIterator, env: core.Stmt.ParsingEnv) core.Stmt.ParseError!This {
     core.profiling.begin(parse);
     defer core.profiling.stop();
 
-    if (!tokens.match(.OF)) return .ERR(.unknown);
+    if (!tokens.match(.OF)) return error.TokenMismatch;
 
-    var targets = try std.ArrayList(AssetTarget).initCapacity(env.allocator, 1);
+    var targets = std.ArrayList(AssetTarget).empty;
     defer targets.deinit(env.allocator);
 
     while (true) {
@@ -26,29 +26,23 @@ pub fn parse(tokens: *Tokenizer.TokenIterator, env: core.parsing.ParsetimeEnv) a
                         .guid = try env.allocator.dupe(u8, guid_str),
                     });
                 } else {
-                    return .ERR(.{
-                        .invalid_guid = .{
-                            .token = tokens.peek(0),
-                        },
-                    });
+                    return env.err(.{ .invalid_guid = .{
+                        .token = tokens.peek(0),
+                    } });
                 },
-                else => return .ERR(.{
-                    .unexpected_token = .{
-                        .found = tokens.peek(0),
-                        .expected = &.{.string},
-                    },
-                }),
+                else => return env.err(.{ .unexpected_token = .{
+                    .found = tokens.peek(0),
+                    .expected = &.{.string},
+                } }),
             },
             .literal => |lit| if (isCSharpIdentifier(lit)) {
                 try targets.append(env.allocator, .{
                     .name = try env.allocator.dupe(u8, lit),
                 });
             } else {
-                return .ERR(.{
-                    .invalid_csharp_identifier = .{
-                        .token = tokens.peek(0),
-                    },
-                });
+                return env.err(.{ .invalid_csharp_identifier = .{
+                    .token = tokens.peek(0),
+                } });
             },
             .string => |str| if (isCSharpIdentifier(str)) {
                 try targets.append(env.allocator, .{
@@ -59,20 +53,16 @@ pub fn parse(tokens: *Tokenizer.TokenIterator, env: core.parsing.ParsetimeEnv) a
                     .path = try env.allocator.dupe(u8, str),
                 });
             },
-            else => return .ERR(.{
-                .unexpected_token = .{
-                    .found = tokens.peek(0),
-                    .expected = &.{ .GUID, .literal, .string },
-                },
-            }),
+            else => return env.err(.{ .unexpected_token = .{
+                .found = tokens.peek(0),
+                .expected = &.{ .GUID, .literal, .string },
+            } }),
         }
 
         if (!tokens.match(.comma)) break;
     }
 
-    return .OK(.{
-        .targets = try targets.toOwnedSlice(env.allocator),
-    });
+    return .{ .targets = try targets.toOwnedSlice(env.allocator) };
 }
 
 pub fn cleanup(self: This, allocator: std.mem.Allocator) void {
@@ -86,40 +76,38 @@ pub fn cleanup(self: This, allocator: std.mem.Allocator) void {
     allocator.free(self.targets);
 }
 
-pub fn getGUID(self: This, dir: std.fs.Dir, allocator: std.mem.Allocator) !results.RuntimeResult([]GUID) {
+pub fn getGUID(self: This, env: core.Stmt.RuntimeEnv) core.Stmt.RuntimeError![]GUID {
     core.profiling.begin(getGUID);
     defer core.profiling.stop();
 
-    var guids = try std.ArrayList(GUID).initCapacity(allocator, self.targets.len);
-    errdefer {
-        for (guids.items) |guid| guid.deinit(allocator);
-        guids.deinit(allocator);
-    }
+    var guids = std.ArrayList(GUID).empty;
+    defer guids.deinit(env.allocator);
+    errdefer for (guids.items) |guid| guid.deinit(env.allocator);
 
     for (self.targets) |target| {
-        try guids.append(allocator, switch (target) {
-            .guid => |guid| try GUID.init(guid, null, allocator),
+        try guids.append(env.allocator, switch (target) {
+            .guid => |guid| try GUID.init(guid, null, env.allocator),
             .name => |comp| blk: {
-                const path = try searchComponent(comp, dir, allocator) orelse {
-                    return .ERR(.{ .invalid_asset = .{ .path = comp } });
+                const path = try searchComponent(comp, env.cwd, env.allocator) orelse {
+                    return env.err(.{ .invalid_asset = .{ .path = comp } });
                 };
-                defer allocator.free(path);
+                defer env.allocator.free(path);
 
-                break :blk GUID.fromFile(path, allocator) catch {
-                    return .ERR(.{ .invalid_asset = .{ .path = comp } });
+                break :blk GUID.fromFile(path, env.allocator) catch {
+                    return env.err(.{ .invalid_asset = .{ .path = comp } });
                 };
             },
             .path => |path| blk: {
-                const abs_path = try dir.realpathAlloc(allocator, path);
-                defer allocator.free(abs_path);
+                const abs_path = try env.cwd.realpathAlloc(env.allocator, path);
+                defer env.allocator.free(abs_path);
 
-                break :blk GUID.fromFile(abs_path, allocator) catch {
-                    return .ERR(.{ .invalid_asset = .{ .path = path } });
+                break :blk GUID.fromFile(abs_path, env.allocator) catch {
+                    return env.err(.{ .invalid_asset = .{ .path = path } });
                 };
             },
         });
     }
-    return .OK(try guids.toOwnedSlice(allocator));
+    return try guids.toOwnedSlice(env.allocator);
 }
 
 fn isCSharpIdentifier(str: []const u8) bool {
