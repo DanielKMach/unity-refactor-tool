@@ -2,11 +2,11 @@ const std = @import("std");
 const core = @import("core");
 
 fn ParseFn(comptime T: type) type {
-    return fn (*core.Token.Iterator, Stmt.ParsingEnv) Stmt.ParseError!T;
+    return fn (*core.Token.Iterator, Stmt.ParseEnv) Stmt.ParseError!T;
 }
 
 fn RunFn(comptime T: type) type {
-    return fn (T, Stmt.RuntimeEnv) Stmt.RuntimeError!void;
+    return fn (T, Stmt.RunEnv) Stmt.RunError!void;
 }
 
 fn CleanupFn(comptime T: type) type {
@@ -16,30 +16,30 @@ fn CleanupFn(comptime T: type) type {
 pub const Stmt = union(enum) {
     pub const clse = @import("stmt/clse.zig");
 
-    pub const ParsingEnv = struct {
+    pub const ParseEnv = struct {
         allocator: std.mem.Allocator,
         diag: *core.ParseDiagnostics,
 
-        pub fn err(self: ParsingEnv, e: core.ParseProblem) core.ParseDiagnostics.Error {
+        pub fn err(self: ParseEnv, e: core.ParseProblem) core.ParseDiagnostics.Error {
             return self.diag.push(e);
         }
     };
 
-    pub const ParseError = error{ USRLParseError, TokenMismatch } || std.mem.Allocator.Error;
+    pub const ParseError = core.ParseAllocError || error{TokenMismatch};
 
-    pub const RuntimeEnv = struct {
+    pub const RunEnv = struct {
         allocator: std.mem.Allocator,
         transaction: *core.Transaction,
         diag: *core.RuntimeDiagnostics,
         out: *std.Io.Writer,
         cwd: std.fs.Dir,
 
-        pub fn err(self: RuntimeEnv, e: core.RuntimeProblem) core.RuntimeDiagnostics.Error {
+        pub fn err(self: RunEnv, e: core.RuntimeProblem) core.RuntimeDiagnostics.Error {
             return self.diag.push(e);
         }
     };
 
-    pub const RuntimeError = anyerror;
+    pub const RunError = anyerror;
 
     pub const Show = @import("stmt/Show.zig");
     pub const Rename = @import("stmt/Rename.zig");
@@ -79,7 +79,7 @@ pub const Stmt = union(enum) {
         @compileError("Invalid type for Statement, received: " ++ @typeName(@TypeOf(stmt)));
     }
 
-    pub fn parse(tokens: *core.Token.Iterator, env: ParsingEnv) core.ParseAllocError!Stmt {
+    pub fn parse(tokens: *core.Token.Iterator, env: ParseEnv) core.ParseAllocError!Stmt {
         inline for (fields) |fld| {
             if (fld.type.parse(tokens, env)) |stmt| {
                 return init(stmt);
@@ -94,7 +94,7 @@ pub const Stmt = union(enum) {
         } });
     }
 
-    pub fn run(this: Stmt, env: RuntimeEnv) RuntimeError!void {
+    pub fn run(this: Stmt, env: RunEnv) RunError!void {
         switch (this) {
             inline else => |active| try active.run(env),
         }

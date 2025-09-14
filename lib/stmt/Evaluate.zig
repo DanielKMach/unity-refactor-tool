@@ -17,7 +17,7 @@ expr: *Expr,
 of: clse.Of,
 in: ?clse.In,
 
-pub fn parse(tokens: *TokenIterator, env: Stmt.ParsingEnv) Stmt.ParseError!This {
+pub fn parse(tokens: *TokenIterator, env: Stmt.ParseEnv) Stmt.ParseError!This {
     core.profiling.begin(parse);
     defer core.profiling.stop();
 
@@ -47,7 +47,7 @@ pub fn cleanup(self: This, allocator: std.mem.Allocator) void {
     self.expr.cleanup(allocator);
 }
 
-pub fn run(self: This, env: core.Stmt.RuntimeEnv) core.Stmt.RuntimeError!void {
+pub fn run(self: This, env: core.Stmt.RunEnv) core.Stmt.RunError!void {
     core.profiling.begin(run);
     defer core.profiling.stop();
 
@@ -75,7 +75,7 @@ pub fn run(self: This, env: core.Stmt.RuntimeEnv) core.Stmt.RuntimeError!void {
     try env.out.flush();
 }
 
-pub fn searchAndPrint(self: This, assets: []const []const u8, guid: []const GUID, env: core.Stmt.RuntimeEnv) core.Stmt.RuntimeError!void {
+pub fn searchAndPrint(self: This, assets: []const []const u8, guid: []const GUID, env: core.Stmt.RunEnv) core.Stmt.RunError!void {
     core.profiling.begin(searchAndPrint);
     defer core.profiling.stop();
 
@@ -95,7 +95,7 @@ pub fn searchAndPrint(self: This, assets: []const []const u8, guid: []const GUID
     }
 }
 
-pub fn scanAndPrint(self: This, file: std.fs.File, file_path: []const u8, guid: []const GUID, env: core.Stmt.RuntimeEnv) !void {
+pub fn scanAndPrint(self: This, file: std.fs.File, file_path: []const u8, guid: []const GUID, env: core.Stmt.RunEnv) !void {
     core.profiling.begin(scanAndPrint);
     defer core.profiling.stop();
 

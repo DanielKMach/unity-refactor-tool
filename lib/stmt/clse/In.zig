@@ -16,7 +16,7 @@ pub const default: This = .{
     .path = .new(.{ .string = "." }, .{ .index = 0, .len = 1 }),
 };
 
-pub fn parse(tokens: *TokenIterator, env: Stmt.ParsingEnv) Stmt.ParseError!This {
+pub fn parse(tokens: *TokenIterator, env: Stmt.ParseEnv) Stmt.ParseError!This {
     core.profiling.begin(parse);
     defer core.profiling.stop();
 
@@ -32,7 +32,7 @@ pub fn cleanup(self: This, allocator: std.mem.Allocator) void {
     self.path.cleanup(allocator);
 }
 
-pub fn dir(self: This, env: Stmt.RuntimeEnv) core.Stmt.RuntimeError!std.fs.Dir {
+pub fn dir(self: This, env: Stmt.RunEnv) Stmt.RunError!std.fs.Dir {
     return switch (self.path.value) {
         .literal => |lit| openDir(lit, false, self.path, env),
         .string => |str| openDir(str, true, self.path, env),
@@ -40,7 +40,7 @@ pub fn dir(self: This, env: Stmt.RuntimeEnv) core.Stmt.RuntimeError!std.fs.Dir {
     };
 }
 
-fn openDir(path: []const u8, possibly_abs: bool, token: core.Token, env: Stmt.RuntimeEnv) Stmt.RuntimeError!std.fs.Dir {
+fn openDir(path: []const u8, possibly_abs: bool, token: core.Token, env: Stmt.RunEnv) Stmt.RunError!std.fs.Dir {
     _ = token;
     return if (possibly_abs and std.fs.path.isAbsolute(path))
         std.fs.openDirAbsolute(path, open_options) catch |err| switch (err) {

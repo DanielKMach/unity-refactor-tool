@@ -9,7 +9,7 @@ const GUID = core.runtime.GUID;
 
 targets: []AssetTarget,
 
-pub fn parse(tokens: *TokenIterator, env: Stmt.ParsingEnv) Stmt.ParseError!This {
+pub fn parse(tokens: *TokenIterator, env: Stmt.ParseEnv) Stmt.ParseError!This {
     core.profiling.begin(parse);
     defer core.profiling.stop();
 
@@ -66,7 +66,7 @@ pub fn cleanup(self: This, allocator: std.mem.Allocator) void {
     allocator.free(self.targets);
 }
 
-pub fn getGUID(self: This, env: Stmt.RuntimeEnv) Stmt.RuntimeError![]GUID {
+pub fn getGUID(self: This, env: Stmt.RunEnv) Stmt.RunError![]GUID {
     core.profiling.begin(getGUID);
     defer core.profiling.stop();
 

@@ -5,10 +5,10 @@ pub const Of = @import("clse/Of.zig");
 pub const In = @import("clse/In.zig");
 
 fn ParseFn(comptime T: type) type {
-    return fn (*core.Token.Iterator, core.Stmt.ParsingEnv) core.Stmt.ParseError!T;
+    return fn (*core.Token.Iterator, core.Stmt.ParseEnv) core.Stmt.ParseError!T;
 }
 
-pub fn parse(comptime T: type, tokens: *core.Token.Iterator, env: core.Stmt.ParsingEnv) core.ParseAllocError!T {
+pub fn parse(comptime T: type, tokens: *core.Token.Iterator, env: core.Stmt.ParseEnv) core.ParseAllocError!T {
     const info = @typeInfo(T);
     if (info != .@"struct") @compileError("expected a struct type, got " ++ @tagName(info));
 

@@ -24,7 +24,7 @@ mode: SearchMode,
 of: clse.Of,
 in: ?clse.In,
 
-pub fn parse(tokens: *TokenIterator, env: Stmt.ParsingEnv) Stmt.ParseError!This {
+pub fn parse(tokens: *TokenIterator, env: Stmt.ParseEnv) Stmt.ParseError!This {
     core.profiling.begin(parse);
     defer core.profiling.stop();
 
@@ -60,7 +60,7 @@ pub fn cleanup(self: This, allocator: std.mem.Allocator) void {
     if (self.in) |in| in.cleanup(allocator);
 }
 
-pub fn run(self: This, env: core.Stmt.RuntimeEnv) core.Stmt.RuntimeError!void {
+pub fn run(self: This, env: Stmt.RunEnv) Stmt.RunError!void {
     var fileCount: usize = 0;
     var loops: usize = 0;
 
@@ -76,7 +76,7 @@ pub fn run(self: This, env: core.Stmt.RuntimeEnv) core.Stmt.RuntimeError!void {
     try env.out.flush();
 }
 
-pub fn search(self: This, count: ?*usize, times: ?*usize, env: core.Stmt.RuntimeEnv) ![][]u8 {
+pub fn search(self: This, count: ?*usize, times: ?*usize, env: Stmt.RunEnv) ![][]u8 {
     core.profiling.begin(search);
     defer core.profiling.stop();
 

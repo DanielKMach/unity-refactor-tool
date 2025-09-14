@@ -14,7 +14,7 @@ pub fn run(self: This, options: RunConfig) !core.Result(void, []core.RuntimeProb
     var diag = core.RuntimeDiagnostics.init(options.allocator);
     defer diag.deinit();
 
-    const env = core.Stmt.RuntimeEnv{
+    const env = core.Stmt.RunEnv{
         .diag = &diag,
         .transaction = &transaction,
         .allocator = options.allocator,
@@ -34,7 +34,7 @@ pub fn run(self: This, options: RunConfig) !core.Result(void, []core.RuntimeProb
     return .OK(void{});
 }
 
-pub fn runEnv(self: This, env: core.Stmt.RuntimeEnv) anyerror!void {
+pub fn runEnv(self: This, env: core.Stmt.RunEnv) anyerror!void {
     core.profiling.begin(run);
     defer core.profiling.stop();
 

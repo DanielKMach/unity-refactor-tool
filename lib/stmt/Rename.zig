@@ -17,7 +17,7 @@ new_name: Token,
 of: clse.Of,
 in: ?clse.In,
 
-pub fn parse(tokens: *TokenIterator, env: Stmt.ParsingEnv) Stmt.ParseError!This {
+pub fn parse(tokens: *TokenIterator, env: Stmt.ParseEnv) Stmt.ParseError!This {
     core.profiling.begin(parse);
     defer core.profiling.stop();
 
@@ -52,7 +52,7 @@ pub fn cleanup(self: This, allocator: std.mem.Allocator) void {
     self.new_name.cleanup(allocator);
 }
 
-pub fn run(self: This, env: core.Stmt.RuntimeEnv) Stmt.RuntimeError!void {
+pub fn run(self: This, env: Stmt.RunEnv) Stmt.RunError!void {
     core.profiling.begin(run);
     defer core.profiling.stop();
 
@@ -73,7 +73,7 @@ pub fn run(self: This, env: core.Stmt.RuntimeEnv) Stmt.RuntimeError!void {
     try self.updateAll(targets, guids, env);
 }
 
-pub fn updateAll(self: This, asset_paths: []const []const u8, guids: []const GUID, env: Stmt.RuntimeEnv) !void {
+pub fn updateAll(self: This, asset_paths: []const []const u8, guids: []const GUID, env: Stmt.RunEnv) !void {
     core.profiling.begin(updateAll);
     defer core.profiling.stop();
 

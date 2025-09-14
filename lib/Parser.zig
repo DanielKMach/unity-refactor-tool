@@ -14,7 +14,7 @@ pub fn parse(self: Parser, source: core.Source) std.mem.Allocator.Error!core.Res
     var diag = core.ParseDiagnostics.init(self.allocator);
     defer diag.deinit();
 
-    const env = core.Stmt.ParsingEnv{
+    const env = core.Stmt.ParseEnv{
         .allocator = self.allocator,
         .diag = &diag,
     };
@@ -28,7 +28,7 @@ pub fn parse(self: Parser, source: core.Source) std.mem.Allocator.Error!core.Res
     return .OK(script);
 }
 
-pub fn parseEnv(self: Parser, source: core.Source, env: core.Stmt.ParsingEnv) core.ParseAllocError!core.Script {
+pub fn parseEnv(self: Parser, source: core.Source, env: core.Stmt.ParseEnv) core.ParseAllocError!core.Script {
     core.profiling.begin(parse);
     defer core.profiling.stop();
 
