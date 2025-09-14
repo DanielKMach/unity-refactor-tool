@@ -35,7 +35,7 @@ pub fn parseEnv(self: Parser, source: core.Source, env: core.Stmt.ParsingEnv) co
     const tokens = try Tokenizer.tokenize(source.source, env.allocator, env.diag);
     defer self.allocator.free(tokens);
 
-    var iterator = Tokenizer.TokenIterator.init(tokens);
+    var iterator = core.Token.Iterator.init(tokens);
 
     var statements = std.ArrayList(core.Stmt).empty;
     defer statements.deinit(self.allocator);

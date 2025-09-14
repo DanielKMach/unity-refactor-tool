@@ -2,7 +2,7 @@ const std = @import("std");
 const core = @import("core");
 
 fn ParseFn(comptime T: type) type {
-    return fn (*core.parsing.Tokenizer.TokenIterator, Stmt.ParsingEnv) Stmt.ParseError!T;
+    return fn (*core.Token.Iterator, Stmt.ParsingEnv) Stmt.ParseError!T;
 }
 
 fn RunFn(comptime T: type) type {
@@ -79,7 +79,7 @@ pub const Stmt = union(enum) {
         @compileError("Invalid type for Statement, received: " ++ @typeName(@TypeOf(stmt)));
     }
 
-    pub fn parse(tokens: *core.parsing.Tokenizer.TokenIterator, env: ParsingEnv) core.ParseAllocError!Stmt {
+    pub fn parse(tokens: *core.Token.Iterator, env: ParsingEnv) core.ParseAllocError!Stmt {
         inline for (fields) |fld| {
             if (fld.type.parse(tokens, env)) |stmt| {
                 return init(stmt);

@@ -3,7 +3,7 @@ const core = @import("core");
 
 const This = @This();
 const Stmt = core.Stmt;
-const TokenIterator = core.parsing.Tokenizer.TokenIterator;
+const TokenIterator = core.Token.Iterator;
 const Yaml = core.runtime.Yaml;
 const GUID = core.runtime.GUID;
 

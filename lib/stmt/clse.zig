@@ -5,10 +5,10 @@ pub const AssetTarget = @import("clse/AssetTarget.zig");
 pub const InTarget = @import("clse/InTarget.zig");
 
 fn ParseFn(comptime T: type) type {
-    return fn (*core.parsing.Tokenizer.TokenIterator, core.Stmt.ParsingEnv) core.Stmt.ParseError!T;
+    return fn (*core.Token.Iterator, core.Stmt.ParsingEnv) core.Stmt.ParseError!T;
 }
 
-pub fn parse(comptime T: type, tokens: *core.parsing.Tokenizer.TokenIterator, env: core.Stmt.ParsingEnv) core.ParseAllocError!T {
+pub fn parse(comptime T: type, tokens: *core.Token.Iterator, env: core.Stmt.ParsingEnv) core.ParseAllocError!T {
     const info = @typeInfo(T);
     if (info != .@"struct") @compileError("expected a struct type, got " ++ @tagName(info));
 

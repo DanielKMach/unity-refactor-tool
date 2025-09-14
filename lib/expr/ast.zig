@@ -3,7 +3,7 @@ const core = @import("core");
 const log = std.log.scoped(.ast_parser);
 
 const Expr = core.Expr;
-const TokenIterator = core.parsing.Tokenizer.TokenIterator;
+const TokenIterator = core.Token.Iterator;
 
 const ParseFn = fn (*TokenIterator, Expr.ParseEnv) core.ParseAllocError!*Expr;
 
