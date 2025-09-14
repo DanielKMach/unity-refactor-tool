@@ -3,7 +3,7 @@ const core = @import("core");
 
 const Parser = @This();
 
-const Tokenizer = core.parsing.Tokenizer;
+const Tokenizer = core.Tokenizer;
 
 allocator: std.mem.Allocator,
 

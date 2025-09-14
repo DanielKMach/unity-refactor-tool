@@ -1,6 +1,5 @@
 const std = @import("std");
 
-pub const parsing = @import("parsing.zig");
 pub const Stmt = @import("stmt.zig").Stmt;
 pub const Expr = @import("expr.zig").Expr;
 pub const runtime = @import("runtime.zig");
@@ -9,6 +8,7 @@ pub const util = @import("util.zig");
 
 pub const Source = @import("Source.zig");
 pub const Token = @import("Token.zig");
+pub const Tokenizer = @import("Tokenizer.zig");
 pub const Diagnostics = @import("diag.zig").Diagnostics;
 pub const Script = @import("Script.zig");
 pub const Transaction = @import("Transaction.zig");
