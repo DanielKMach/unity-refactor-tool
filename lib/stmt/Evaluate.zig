@@ -14,8 +14,8 @@ const GUID = core.runtime.GUID;
 const Expr = core.Expr;
 
 expr: *Expr,
-of: clse.AssetTarget,
-in: ?clse.InTarget,
+of: clse.Of,
+in: ?clse.In,
 
 pub fn parse(tokens: *TokenIterator, env: Stmt.ParsingEnv) Stmt.ParseError!This {
     core.profiling.begin(parse);
@@ -29,8 +29,8 @@ pub fn parse(tokens: *TokenIterator, env: Stmt.ParsingEnv) Stmt.ParseError!This 
     });
 
     const Clauses = struct {
-        OF: clse.AssetTarget,
-        IN: ?clse.InTarget = null,
+        OF: clse.Of,
+        IN: ?clse.In = null,
     };
     const clauses = try clse.parse(Clauses, tokens, env);
 

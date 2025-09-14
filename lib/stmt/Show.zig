@@ -21,8 +21,8 @@ const uses_files = &.{ ".prefab", ".unity" };
 const refs_files = &.{ ".prefab", ".unity", ".asset", ".mat" };
 
 mode: SearchMode,
-of: clse.AssetTarget,
-in: ?clse.InTarget,
+of: clse.Of,
+in: ?clse.In,
 
 pub fn parse(tokens: *TokenIterator, env: Stmt.ParsingEnv) Stmt.ParseError!This {
     core.profiling.begin(parse);
@@ -43,8 +43,8 @@ pub fn parse(tokens: *TokenIterator, env: Stmt.ParsingEnv) Stmt.ParseError!This 
     };
 
     const Clauses = struct {
-        OF: clse.AssetTarget,
-        IN: ?clse.InTarget = null,
+        OF: clse.Of,
+        IN: ?clse.In = null,
     };
     const clauses = try clse.parse(Clauses, tokens, env);
 
@@ -80,7 +80,7 @@ pub fn search(self: This, count: ?*usize, times: ?*usize, env: core.Stmt.Runtime
     core.profiling.begin(search);
     defer core.profiling.stop();
 
-    const in = self.in orelse clse.InTarget.default;
+    const in = self.in orelse clse.In.default;
     const of = self.of;
 
     var guids = std.ArrayList(GUID).empty;

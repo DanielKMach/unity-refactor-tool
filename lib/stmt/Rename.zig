@@ -14,8 +14,8 @@ const Token = core.Token;
 
 old_name: Token,
 new_name: Token,
-of: clse.AssetTarget,
-in: ?clse.InTarget,
+of: clse.Of,
+in: ?clse.In,
 
 pub fn parse(tokens: *TokenIterator, env: Stmt.ParsingEnv) Stmt.ParseError!This {
     core.profiling.begin(parse);
@@ -32,8 +32,8 @@ pub fn parse(tokens: *TokenIterator, env: Stmt.ParsingEnv) Stmt.ParseError!This 
     errdefer new_name.cleanup(env.allocator);
 
     const Clauses = struct {
-        OF: clse.AssetTarget,
-        IN: ?clse.InTarget = null,
+        OF: clse.Of,
+        IN: ?clse.In = null,
     };
     const clauses = try clse.parse(Clauses, tokens, env);
 

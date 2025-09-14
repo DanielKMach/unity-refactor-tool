@@ -1,8 +1,8 @@
 const std = @import("std");
 const core = @import("core");
 
-pub const AssetTarget = @import("clse/AssetTarget.zig");
-pub const InTarget = @import("clse/InTarget.zig");
+pub const Of = @import("clse/Of.zig");
+pub const In = @import("clse/In.zig");
 
 fn ParseFn(comptime T: type) type {
     return fn (*core.Token.Iterator, core.Stmt.ParsingEnv) core.Stmt.ParseError!T;
