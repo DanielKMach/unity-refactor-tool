@@ -192,7 +192,7 @@ pub const TokenIterator = struct {
     /// Returns the token `steps` steps ahead of the current index.
     ///
     /// To peek the next token, use `peek(1)`.
-    /// To peek the current token, use `peek(0)`.
+    /// To peek the previous token, use `peek(0)`.
     ///
     /// If out of bounds, returns the last token (usually end-of-statement)
     pub fn peek(self: TokenIterator, steps: usize) Token {
@@ -205,21 +205,48 @@ pub const TokenIterator = struct {
         return self.tokens[i];
     }
 
-    /// Checks if the next token matches the given type.
-    /// If so, it consumes the token.
-    pub fn match(self: *TokenIterator, t: Token.Type) bool {
+    /// Checks if the next token matches the expected type.
+    /// If so, consumes and returns the token.
+    pub fn consume(self: *TokenIterator, t: Token.Type) ?Token {
         if (self.peek(1).is(t)) {
-            _ = self.next();
-            return true;
-        }
-        return false;
-    }
-
-    pub fn matchAny(self: *TokenIterator, types: []const Token.Type) ?Token {
-        for (types) |t| {
-            if (self.match(t)) return self.peek(0);
+            return self.next();
         }
         return null;
+    }
+
+    /// Checks if the next token matches any of the expected types.
+    /// If so, consumes and returns the token
+    pub fn consumeAny(self: *TokenIterator, types: []const Token.Type) ?Token {
+        for (types) |t| {
+            if (self.consume(t)) |mat| return mat;
+        }
+        return null;
+    }
+
+    /// Consumes and returns the next token if it matches the expected type.
+    /// Otherwise, returns a parse error via the given diagnostics.
+    pub fn grab(self: *TokenIterator, expected: Token.Type, diag: *core.ParseDiagnostics) core.ParseDiagnostics.Error!Token {
+        if (self.consume(expected)) |t| return t;
+        return diag.push(.{ .unexpected_token = .{
+            .found = self.peek(1),
+            .expected = &.{expected},
+        } });
+    }
+
+    /// Consumes and returns the next token if it matches any of the expected types.
+    /// Otherwise, returns a parse error via the given diagnostics.
+    pub fn grabAny(self: *TokenIterator, expected: []const Token.Type, diag: *core.ParseDiagnostics) core.ParseDiagnostics.Error!Token {
+        if (self.consumeAny(expected)) |t| return t;
+        return diag.push(.{ .unexpected_token = .{
+            .found = self.peek(1),
+            .expected = expected,
+        } });
+    }
+
+    /// Returns whether the next token matches the expected type.
+    /// If so, consumes the token.
+    pub fn match(self: *TokenIterator, expected: Token.Type) bool {
+        return self.consume(expected) != null;
     }
 
     /// Returns the amount of tokens left to iterate.

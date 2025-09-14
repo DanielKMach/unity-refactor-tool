@@ -1,15 +1,15 @@
 const std = @import("std");
 const core = @import("core");
-const results = core.results;
 
 const This = @This();
-const Tokenizer = core.parsing.Tokenizer;
+const Stmt = core.Stmt;
+const TokenIterator = core.parsing.Tokenizer.TokenIterator;
 const Yaml = core.runtime.Yaml;
 const GUID = core.runtime.GUID;
 
 targets: []AssetTarget,
 
-pub fn parse(tokens: *Tokenizer.TokenIterator, env: core.Stmt.ParsingEnv) core.Stmt.ParseError!This {
+pub fn parse(tokens: *TokenIterator, env: Stmt.ParsingEnv) Stmt.ParseError!This {
     core.profiling.begin(parse);
     defer core.profiling.stop();
 
@@ -17,46 +17,38 @@ pub fn parse(tokens: *Tokenizer.TokenIterator, env: core.Stmt.ParsingEnv) core.S
 
     var targets = std.ArrayList(AssetTarget).empty;
     defer targets.deinit(env.allocator);
+    errdefer for (targets.items) |target| switch (target) {
+        .guid => |guid| guid.cleanup(env.allocator),
+        .name => |name| name.cleanup(env.allocator),
+        .path => |path| path.cleanup(env.allocator),
+    };
 
     while (true) {
-        switch (tokens.next().value) {
-            .GUID => switch (tokens.next().value) {
-                .string => |guid_str| if (GUID.isGUID(guid_str)) {
+        const tkn = try tokens.grabAny(&.{ .GUID, .literal, .string }, env.diag);
+        switch (tkn.value) {
+            .GUID => {
+                const guid_tkn = try tokens.grab(.string, env.diag);
+                if (GUID.isGUID(guid_tkn.value.string)) {
                     try targets.append(env.allocator, .{
-                        .guid = try env.allocator.dupe(u8, guid_str),
+                        .guid = try guid_tkn.dupe(env.allocator),
                     });
-                } else {
-                    return env.err(.{ .invalid_guid = .{
-                        .token = tokens.peek(0),
-                    } });
-                },
-                else => return env.err(.{ .unexpected_token = .{
-                    .found = tokens.peek(0),
-                    .expected = &.{.string},
-                } }),
-            },
-            .literal => |lit| if (isCSharpIdentifier(lit)) {
-                try targets.append(env.allocator, .{
-                    .name = try env.allocator.dupe(u8, lit),
-                });
-            } else {
-                return env.err(.{ .invalid_csharp_identifier = .{
-                    .token = tokens.peek(0),
+                } else return env.err(.{ .invalid_guid = .{
+                    .token = guid_tkn,
                 } });
             },
-            .string => |str| if (isCSharpIdentifier(str)) {
-                try targets.append(env.allocator, .{
-                    .name = try env.allocator.dupe(u8, str),
-                });
-            } else {
-                try targets.append(env.allocator, .{
-                    .path = try env.allocator.dupe(u8, str),
-                });
+            .literal => |lit| {
+                if (isCSharpIdentifier(lit)) {
+                    try targets.append(env.allocator, .{
+                        .name = try tkn.dupe(env.allocator),
+                    });
+                } else return env.err(.{ .invalid_csharp_identifier = .{
+                    .token = tkn,
+                } });
             },
-            else => return env.err(.{ .unexpected_token = .{
-                .found = tokens.peek(0),
-                .expected = &.{ .GUID, .literal, .string },
-            } }),
+            .string => try targets.append(env.allocator, .{
+                .path = try tkn.dupe(env.allocator),
+            }),
+            else => unreachable,
         }
 
         if (!tokens.match(.comma)) break;
@@ -66,17 +58,15 @@ pub fn parse(tokens: *Tokenizer.TokenIterator, env: core.Stmt.ParsingEnv) core.S
 }
 
 pub fn cleanup(self: This, allocator: std.mem.Allocator) void {
-    for (self.targets) |target| {
-        switch (target) {
-            .guid => |guid| allocator.free(guid),
-            .name => |name| allocator.free(name),
-            .path => |path| allocator.free(path),
-        }
-    }
+    for (self.targets) |target| switch (target) {
+        .guid => |guid| guid.cleanup(allocator),
+        .name => |name| name.cleanup(allocator),
+        .path => |path| path.cleanup(allocator),
+    };
     allocator.free(self.targets);
 }
 
-pub fn getGUID(self: This, env: core.Stmt.RuntimeEnv) core.Stmt.RuntimeError![]GUID {
+pub fn getGUID(self: This, env: Stmt.RuntimeEnv) Stmt.RuntimeError![]GUID {
     core.profiling.begin(getGUID);
     defer core.profiling.stop();
 
@@ -86,23 +76,29 @@ pub fn getGUID(self: This, env: core.Stmt.RuntimeEnv) core.Stmt.RuntimeError![]G
 
     for (self.targets) |target| {
         try guids.append(env.allocator, switch (target) {
-            .guid => |guid| try GUID.init(guid, null, env.allocator),
-            .name => |comp| blk: {
-                const path = try searchComponent(comp, env.cwd, env.allocator) orelse {
-                    return env.err(.{ .invalid_asset = .{ .path = comp } });
+            .guid => |guid| try GUID.init(guid.value.string, null, env.allocator),
+            .name => |name| blk: {
+                const path = try searchComponent(name.value.literal, env.cwd, env.allocator) orelse {
+                    return env.err(.{ .invalid_asset = .{ .path = name.value.literal } });
                 };
                 defer env.allocator.free(path);
 
-                break :blk GUID.fromFile(path, env.allocator) catch {
-                    return env.err(.{ .invalid_asset = .{ .path = comp } });
+                break :blk GUID.fromFile(path, env.allocator) catch |err| switch (err) {
+                    error.InvalidMetaFile, error.FileNotFound => {
+                        return env.err(.{ .invalid_asset = .{ .path = path } });
+                    },
+                    else => |e| return e,
                 };
             },
             .path => |path| blk: {
-                const abs_path = try env.cwd.realpathAlloc(env.allocator, path);
+                const abs_path = try env.cwd.realpathAlloc(env.allocator, path.value.string);
                 defer env.allocator.free(abs_path);
 
-                break :blk GUID.fromFile(abs_path, env.allocator) catch {
-                    return env.err(.{ .invalid_asset = .{ .path = path } });
+                break :blk GUID.fromFile(abs_path, env.allocator) catch |err| switch (err) {
+                    error.InvalidMetaFile, error.FileNotFound => {
+                        return env.err(.{ .invalid_asset = .{ .path = abs_path } });
+                    },
+                    else => |e| return e,
                 };
             },
         });
@@ -141,7 +137,7 @@ fn searchComponent(name: []const u8, dir: std.fs.Dir, allocator: std.mem.Allocat
 }
 
 const AssetTarget = union(enum) {
-    path: []const u8,
-    name: []const u8,
-    guid: []const u8,
+    path: core.Token,
+    name: core.Token,
+    guid: core.Token,
 };

@@ -3,13 +3,12 @@ const core = @import("core");
 const log = std.log.scoped(.show_statement);
 
 const This = @This();
-
-const Tokenizer = core.parsing.Tokenizer;
+const Stmt = core.Stmt;
+const clse = core.Stmt.clse;
+const TokenIterator = core.parsing.Tokenizer.TokenIterator;
 const Yaml = core.runtime.Yaml;
 const ComponentIterator = core.runtime.ComponentIterator;
 const Scanner = core.runtime.Scanner;
-const InTarget = core.Stmt.clse.InTarget;
-const AssetTarget = core.Stmt.clse.AssetTarget;
 const GUID = core.runtime.GUID;
 
 pub const SearchMode = enum {
@@ -22,45 +21,32 @@ const uses_files = &.{ ".prefab", ".unity" };
 const refs_files = &.{ ".prefab", ".unity", ".asset", ".mat" };
 
 mode: SearchMode,
-of: AssetTarget,
-in: ?InTarget,
+of: clse.AssetTarget,
+in: ?clse.InTarget,
 
-pub fn parse(tokens: *Tokenizer.TokenIterator, env: core.Stmt.ParsingEnv) core.Stmt.ParseError!This {
+pub fn parse(tokens: *TokenIterator, env: Stmt.ParsingEnv) Stmt.ParseError!This {
     core.profiling.begin(parse);
     defer core.profiling.stop();
 
     if (!tokens.match(.SHOW)) return error.TokenMismatch;
 
-    var direct: ?bool = null;
-    var mode: SearchMode = undefined;
+    const direct = if (tokens.consumeAny(&.{ .DIRECT, .INDIRECT })) |t| blk: {
+        break :blk t.is(.DIRECT);
+    } else null;
 
-    if (tokens.matchAny(&.{ .DIRECT, .INDIRECT })) |t| {
-        direct = (t.value == .DIRECT);
-    }
-
-    if (tokens.matchAny(&.{ .USES, .REFS })) |t| {
-        if (t.value == .USES) {
-            mode = if (direct orelse true) .direct_uses else .indirect_uses;
-        } else if (direct == null) {
-            mode = .refs;
-        } else {
-            return env.err(.{ .unexpected_token = .{
-                .found = tokens.peek(0),
-                .expected = &.{.USES},
-            } });
-        }
-    } else {
-        return env.err(.{ .unexpected_token = .{
-            .found = tokens.next(),
-            .expected = &.{ .USES, .REFS },
-        } });
-    }
+    const mode: SearchMode = if (direct) |d| blk: {
+        _ = try tokens.grab(.USES, env.diag);
+        break :blk if (d) .direct_uses else .indirect_uses;
+    } else blk: {
+        const t = try tokens.grabAny(&.{ .USES, .REFS }, env.diag);
+        break :blk if (t.is(.USES)) .indirect_uses else .refs;
+    };
 
     const Clauses = struct {
-        OF: AssetTarget,
-        IN: ?InTarget = null,
+        OF: clse.AssetTarget,
+        IN: ?clse.InTarget = null,
     };
-    const clauses = try core.Stmt.clse.parse(Clauses, tokens, env);
+    const clauses = try clse.parse(Clauses, tokens, env);
 
     return .{
         .mode = mode,
@@ -94,7 +80,7 @@ pub fn search(self: This, count: ?*usize, times: ?*usize, env: core.Stmt.Runtime
     core.profiling.begin(search);
     defer core.profiling.stop();
 
-    const in = self.in orelse InTarget.default;
+    const in = self.in orelse clse.InTarget.default;
     const of = self.of;
 
     var guids = std.ArrayList(GUID).empty;
@@ -102,7 +88,7 @@ pub fn search(self: This, count: ?*usize, times: ?*usize, env: core.Stmt.Runtime
     defer for (guids.items) |g| g.deinit(env.allocator);
     var searched: usize = 0;
 
-    var dir = try in.openDir(env, .{ .iterate = true, .access_sub_paths = true });
+    var dir = try in.dir(env);
     defer dir.close();
 
     var scanner = Scanner(Search).init(dir, env.allocator);

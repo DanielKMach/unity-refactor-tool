@@ -61,6 +61,15 @@ pub fn is(self: Token, t: Type) bool {
     return self.value == t;
 }
 
+/// Returns the value of the token if a string or literal.
+pub fn asSlice(self: Token) []const u8 {
+    switch (self.value) {
+        .string => |s| return s,
+        .literal => |l| return l,
+        else => @panic("Token.asSlice called on non-string/literal token"),
+    }
+}
+
 /// Duplicates the token, the caller owns the returned token.
 ///
 /// Safe to call but unnecessary if token is not a string or literal

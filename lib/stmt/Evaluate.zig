@@ -4,22 +4,20 @@ const ly = @import("libyaml");
 const log = std.log.scoped(.evaluate_statement);
 
 const This = @This();
-const Tokenizer = core.parsing.Tokenizer;
+const Stmt = core.Stmt;
+const clse = core.Stmt.clse;
+const TokenIterator = core.parsing.Tokenizer.TokenIterator;
 const Scanner = core.runtime.Scanner;
 const ComponentIterator = core.runtime.ComponentIterator;
 const Yaml = core.runtime.Yaml;
-const InTarget = core.Stmt.clse.InTarget;
-const AssetTarget = core.Stmt.clse.AssetTarget;
 const GUID = core.runtime.GUID;
 const Expr = core.Expr;
 
-const files = &.{ ".prefab", ".unity", ".asset" };
-
 expr: *Expr,
-of: AssetTarget,
-in: ?InTarget,
+of: clse.AssetTarget,
+in: ?clse.InTarget,
 
-pub fn parse(tokens: *Tokenizer.TokenIterator, env: core.Stmt.ParsingEnv) core.Stmt.ParseError!This {
+pub fn parse(tokens: *TokenIterator, env: Stmt.ParsingEnv) Stmt.ParseError!This {
     core.profiling.begin(parse);
     defer core.profiling.stop();
 
@@ -31,10 +29,10 @@ pub fn parse(tokens: *Tokenizer.TokenIterator, env: core.Stmt.ParsingEnv) core.S
     });
 
     const Clauses = struct {
-        OF: AssetTarget,
-        IN: ?InTarget = null,
+        OF: clse.AssetTarget,
+        IN: ?clse.InTarget = null,
     };
-    const clauses = try core.Stmt.clse.parse(Clauses, tokens, env);
+    const clauses = try clse.parse(Clauses, tokens, env);
 
     return .{
         .expr = expr,
@@ -53,20 +51,14 @@ pub fn run(self: This, env: core.Stmt.RuntimeEnv) core.Stmt.RuntimeError!void {
     core.profiling.begin(run);
     defer core.profiling.stop();
 
-    const in = self.in orelse InTarget.default;
-    const of = self.of;
-
-    var dir = try in.openDir(env, .{ .iterate = true, .access_sub_paths = true });
-    defer dir.close();
-
-    const guid = try of.getGUID(env);
+    const guid = try self.of.getGUID(env);
     defer env.allocator.free(guid);
     defer for (guid) |g| g.deinit(env.allocator);
 
-    const show = core.Stmt.Show{
+    const show = Stmt.Show{
         .mode = .indirect_uses,
-        .of = of,
-        .in = in,
+        .of = self.of,
+        .in = self.in,
     };
 
     log.info("Searching for references...", .{});

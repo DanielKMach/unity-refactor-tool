@@ -3,60 +3,39 @@ const core = @import("core");
 const log = std.log.scoped(.rename_statement);
 
 const This = @This();
-const Tokenizer = core.parsing.Tokenizer;
+const Stmt = core.Stmt;
+const clse = core.Stmt.clse;
+const TokenIterator = core.parsing.Tokenizer.TokenIterator;
 const Scanner = core.runtime.Scanner;
 const ComponentIterator = core.runtime.ComponentIterator;
 const Yaml = core.runtime.Yaml;
-const InTarget = core.Stmt.clse.InTarget;
-const AssetTarget = core.Stmt.clse.AssetTarget;
 const GUID = core.runtime.GUID;
+const Token = core.Token;
 
-const files = &.{ ".prefab", ".unity", ".asset" };
+old_name: Token,
+new_name: Token,
+of: clse.AssetTarget,
+in: ?clse.InTarget,
 
-old_name: []const u8,
-new_name: []const u8,
-of: AssetTarget,
-in: ?InTarget,
-
-pub fn parse(tokens: *Tokenizer.TokenIterator, env: core.Stmt.ParsingEnv) core.Stmt.ParseError!This {
+pub fn parse(tokens: *TokenIterator, env: Stmt.ParsingEnv) Stmt.ParseError!This {
     core.profiling.begin(parse);
     defer core.profiling.stop();
 
     if (!tokens.match(.RENAME)) return error.TokenMismatch;
 
-    var old_name: []const u8 = undefined;
-    var new_name: []const u8 = undefined;
+    const old_name = try (try tokens.grabAny(&.{ .string, .literal }, env.diag)).dupe(env.allocator);
+    errdefer old_name.cleanup(env.allocator);
 
-    switch (tokens.next().value) {
-        .string => |str| old_name = try env.allocator.dupe(u8, str),
-        .literal => |lit| old_name = try env.allocator.dupe(u8, lit),
-        else => return env.err(.{ .unexpected_token = .{
-            .found = tokens.peek(0),
-            .expected = &.{ .literal, .string },
-        } }),
-    }
-    errdefer env.allocator.free(old_name);
+    _ = try tokens.grab(.FOR, env.diag);
 
-    if (!tokens.match(.FOR)) return env.err(.{ .unexpected_token = .{
-        .found = tokens.peek(1),
-        .expected = &.{.FOR},
-    } });
-
-    switch (tokens.next().value) {
-        .string => |str| new_name = try env.allocator.dupe(u8, str),
-        .literal => |lit| new_name = try env.allocator.dupe(u8, lit),
-        else => return env.err(.{ .unexpected_token = .{
-            .found = tokens.peek(0),
-            .expected = &.{ .literal, .string },
-        } }),
-    }
-    errdefer env.allocator.free(new_name);
+    const new_name = try (try tokens.grabAny(&.{ .string, .literal }, env.diag)).dupe(env.allocator);
+    errdefer new_name.cleanup(env.allocator);
 
     const Clauses = struct {
-        OF: AssetTarget,
-        IN: ?InTarget = null,
+        OF: clse.AssetTarget,
+        IN: ?clse.InTarget = null,
     };
-    const clauses = try core.Stmt.clse.parse(Clauses, tokens, env);
+    const clauses = try clse.parse(Clauses, tokens, env);
 
     return .{
         .old_name = old_name,
@@ -69,28 +48,22 @@ pub fn parse(tokens: *Tokenizer.TokenIterator, env: core.Stmt.ParsingEnv) core.S
 pub fn cleanup(self: This, allocator: std.mem.Allocator) void {
     self.of.cleanup(allocator);
     if (self.in) |in| in.cleanup(allocator);
-    allocator.free(self.old_name);
-    allocator.free(self.new_name);
+    self.old_name.cleanup(allocator);
+    self.new_name.cleanup(allocator);
 }
 
-pub fn run(self: This, env: core.Stmt.RuntimeEnv) core.Stmt.RuntimeError!void {
+pub fn run(self: This, env: core.Stmt.RuntimeEnv) Stmt.RuntimeError!void {
     core.profiling.begin(run);
     defer core.profiling.stop();
 
-    const in = self.in orelse InTarget.default;
-    const of = self.of;
-
-    var dir = try in.openDir(env, .{ .iterate = true, .access_sub_paths = true });
-    defer dir.close();
-
-    const guids = try of.getGUID(env);
+    const guids = try self.of.getGUID(env);
     defer env.allocator.free(guids);
     defer for (guids) |g| g.deinit(env.allocator);
 
     const show = core.Stmt.Show{
         .mode = .indirect_uses,
-        .of = of,
-        .in = in,
+        .of = self.of,
+        .in = self.in,
     };
 
     const targets = try show.search(null, null, env);
@@ -100,7 +73,7 @@ pub fn run(self: This, env: core.Stmt.RuntimeEnv) core.Stmt.RuntimeError!void {
     try self.updateAll(targets, guids, env);
 }
 
-pub fn updateAll(self: This, asset_paths: []const []const u8, guids: []const GUID, env: core.Stmt.RuntimeEnv) !void {
+pub fn updateAll(self: This, asset_paths: []const []const u8, guids: []const GUID, env: Stmt.RuntimeEnv) !void {
     core.profiling.begin(updateAll);
     defer core.profiling.stop();
 
@@ -172,7 +145,7 @@ pub fn computeChanges(self: This, iterator: *ComponentIterator, guid: []const GU
         var out = buf[0..];
 
         yaml.out = .{ .string = &out };
-        try yaml.rename(self.old_name, self.new_name);
+        try yaml.rename(self.old_name.asSlice(), self.new_name.asSlice());
 
         const doc = try allocator.dupe(u8, out);
         errdefer allocator.free(doc);

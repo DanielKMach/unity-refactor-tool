@@ -1,42 +1,55 @@
 const std = @import("std");
 const core = @import("core");
-const results = core.results;
 
 const This = @This();
-const Tokenizer = core.parsing.Tokenizer;
+const Stmt = core.Stmt;
+const TokenIterator = core.parsing.Tokenizer.TokenIterator;
 
-dir: []const u8,
+const open_options = std.fs.Dir.OpenOptions{
+    .iterate = true,
+    .access_sub_paths = true,
+};
 
-pub const default: This = .{ .dir = "." };
+path: core.Token,
 
-pub fn parse(tokens: *Tokenizer.TokenIterator, env: core.Stmt.ParsingEnv) core.Stmt.ParseError!This {
+pub const default: This = .{
+    .path = .new(.{ .string = "." }, .{ .index = 0, .len = 1 }),
+};
+
+pub fn parse(tokens: *TokenIterator, env: Stmt.ParsingEnv) Stmt.ParseError!This {
     core.profiling.begin(parse);
     defer core.profiling.stop();
 
     if (!tokens.match(.IN)) return error.TokenMismatch;
 
-    var dir: []const u8 = undefined;
-    switch (tokens.next().value) {
-        .string => |str| dir = try env.allocator.dupe(u8, str),
-        .literal => |lit| dir = try env.allocator.dupe(u8, lit),
-        else => return env.err(.{ .unexpected_token = .{
-            .found = tokens.peek(0),
-            .expected = &.{ .string, .literal },
-        } }),
-    }
+    const path = try (try tokens.grabAny(&.{ .string, .literal }, env.diag)).dupe(env.allocator);
+    errdefer path.cleanup(env.allocator);
 
-    return .{ .dir = dir };
+    return .{ .path = path };
 }
 
 pub fn cleanup(self: This, allocator: std.mem.Allocator) void {
-    allocator.free(self.dir);
+    self.path.cleanup(allocator);
 }
 
-pub fn openDir(self: This, env: core.Stmt.RuntimeEnv, options: std.fs.Dir.OpenOptions) core.Stmt.RuntimeError!std.fs.Dir {
-    return env.cwd.openDir(self.dir, options) catch |err| switch (err) {
-        error.FileNotFound => env.err(.{ .invalid_path = .{
-            .path = self.dir,
-        } }),
-        else => |e| e,
+pub fn dir(self: This, env: Stmt.RuntimeEnv) core.Stmt.RuntimeError!std.fs.Dir {
+    return switch (self.path.value) {
+        .literal => |lit| openDir(lit, false, self.path, env),
+        .string => |str| openDir(str, true, self.path, env),
+        else => unreachable,
     };
+}
+
+fn openDir(path: []const u8, possibly_abs: bool, token: core.Token, env: Stmt.RuntimeEnv) Stmt.RuntimeError!std.fs.Dir {
+    _ = token;
+    return if (possibly_abs and std.fs.path.isAbsolute(path))
+        std.fs.openDirAbsolute(path, open_options) catch |err| switch (err) {
+            error.FileNotFound => env.err(.{ .invalid_path = .{ .path = path } }),
+            else => |e| e,
+        }
+    else
+        env.cwd.openDir(path, open_options) catch |err| switch (err) {
+            error.FileNotFound => env.err(.{ .invalid_path = .{ .path = path } }),
+            else => |e| e,
+        };
 }

@@ -44,12 +44,7 @@ pub fn parseEnv(self: Parser, source: core.Source, env: core.Stmt.ParsingEnv) co
     while (iterator.remaining() > 0) {
         const stmt = try core.Stmt.parse(&iterator, env);
         try statements.append(self.allocator, stmt);
-        if (!iterator.match(.eos)) {
-            return env.err(.{ .unexpected_token = .{
-                .found = iterator.next(),
-                .expected = &.{.eos},
-            } });
-        }
+        _ = try iterator.grab(.eos, env.diag);
     }
 
     return .{
