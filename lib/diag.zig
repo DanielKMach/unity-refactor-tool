@@ -9,7 +9,7 @@ pub fn Diagnostics(comptime T: type, comptime e: anytype) type {
         pub const Error = @TypeOf(e);
 
         pub const dummy: This = .{
-            .allocator = .failing,
+            .allocator = failing,
             .errors = .empty,
         };
 

@@ -78,7 +78,7 @@ pub fn getAlloc(self: *This, path: []const []const u8, allocator: std.mem.Alloca
 
     var event: Event = undefined;
     try parse(parser, &event);
-    defer ly.event_deinit(&event);
+    defer ly.yaml_event_delete(&event);
 
     if (event.type != ly.YAML_SCALAR_EVENT) {
         return null;
