@@ -176,8 +176,9 @@ pub fn parse(self: This, source: usrl.Source, parser: usrl.Parser) !?usrl.Script
     const result = try parser.parse(source);
     switch (result) {
         .ok => |script| return script,
-        .err => |problems| for (problems) |p| {
-            try printParseProblem(p, source, self.out);
+        .err => |problems| {
+            for (problems) |p| try printParseProblem(p, source, self.out);
+            parser.allocator.free(problems);
         },
     }
     return null;
@@ -187,8 +188,9 @@ pub fn run(self: This, script: usrl.Script, config: usrl.Script.RunConfig, sourc
     const result = try script.run(config);
     switch (result) {
         .ok => return true,
-        .err => |problems| for (problems) |p| {
-            try printRuntimeProblem(p, source, self.out);
+        .err => |problems| {
+            for (problems) |p| try printRuntimeProblem(p, source, self.out);
+            config.allocator.free(problems);
         },
     }
     return false;
