@@ -8,6 +8,11 @@ pub fn Diagnostics(comptime T: type, comptime e: anytype) type {
         pub const Problem = T;
         pub const Error = @TypeOf(e);
 
+        pub const dummy: This = .{
+            .allocator = .failing,
+            .errors = .empty,
+        };
+
         allocator: std.mem.Allocator,
         errors: std.ArrayList(T),
 
@@ -40,39 +45,69 @@ pub fn Diagnostics(comptime T: type, comptime e: anytype) type {
     };
 }
 
-const RuntimeErrorLog = Diagnostics(usize, error.USRLRuntimeError);
+// This eventually will be added to zig's std library
+pub const failing: std.mem.Allocator = .{
+    .ptr = undefined,
+    .vtable = &.{
+        .alloc = noAlloc,
+        .resize = unreachableResize,
+        .remap = unreachableRemap,
+        .free = unreachableFree,
+    },
+};
 
-test "usage" {
-    var error_log: RuntimeErrorLog = .init(std.testing.allocator);
-    defer error_log.deinit();
-
-    try std.testing.expectEqual(error.USRLRuntimeError, error_log.push(1));
-    try std.testing.expectEqual(error.USRLRuntimeError, error_log.push(2));
-    try std.testing.expectEqual(error.USRLRuntimeError, error_log.push(3));
-
-    const errors = try error_log.toOwnedSlice();
-    defer std.testing.allocator.free(errors);
-    try std.testing.expectEqual(3, errors.len);
-    try std.testing.expectEqual(1, errors[0]);
-    try std.testing.expectEqual(2, errors[1]);
-    try std.testing.expectEqual(3, errors[2]);
+pub fn noAlloc(
+    self: *anyopaque,
+    len: usize,
+    alignment: std.mem.Alignment,
+    ret_addr: usize,
+) ?[*]u8 {
+    _ = self;
+    _ = len;
+    _ = alignment;
+    _ = ret_addr;
+    return null;
 }
 
-fn triggerErrdefer(error_log: *RuntimeErrorLog, ptr: *bool) anyerror!void {
-    errdefer ptr.* = true;
-    return error_log.push(42);
+fn unreachableResize(
+    self: *anyopaque,
+    memory: []u8,
+    alignment: std.mem.Alignment,
+    new_len: usize,
+    ret_addr: usize,
+) bool {
+    _ = self;
+    _ = memory;
+    _ = alignment;
+    _ = new_len;
+    _ = ret_addr;
+    unreachable;
 }
 
-test triggerErrdefer {
-    var error_log: RuntimeErrorLog = .init(std.testing.allocator);
-    defer error_log.deinit();
+fn unreachableRemap(
+    self: *anyopaque,
+    memory: []u8,
+    alignment: std.mem.Alignment,
+    new_len: usize,
+    ret_addr: usize,
+) ?[*]u8 {
+    _ = self;
+    _ = memory;
+    _ = alignment;
+    _ = new_len;
+    _ = ret_addr;
+    unreachable;
+}
 
-    var errderer_triggered: bool = false;
-    try std.testing.expectError(error.USRLRuntimeError, triggerErrdefer(&error_log, &errderer_triggered));
-    try std.testing.expect(errderer_triggered);
-
-    const errors = try error_log.toOwnedSlice();
-    defer std.testing.allocator.free(errors);
-    try std.testing.expectEqual(1, errors.len);
-    try std.testing.expectEqual(42, errors[0]);
+fn unreachableFree(
+    self: *anyopaque,
+    memory: []u8,
+    alignment: std.mem.Alignment,
+    ret_addr: usize,
+) void {
+    _ = self;
+    _ = memory;
+    _ = alignment;
+    _ = ret_addr;
+    unreachable;
 }
