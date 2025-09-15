@@ -1,8 +1,8 @@
 const std = @import("std");
 const testing = std.testing;
-const urt = @import("urt");
+const usrl = @import("usrl");
 
-const ComponentIterator = urt.runtime.ComponentIterator;
+const ComponentIterator = usrl.runtime.ComponentIterator;
 
 const data1 = @import("data1/info.zig");
 const test_prefab = data1.test_prefab;

@@ -1,15 +1,15 @@
 const std = @import("std");
 const testing = std.testing;
-const urt = @import("urt");
+const usrl = @import("usrl");
 
-const Show = urt.stmt.Show;
+const Show = usrl.Stmt.Show;
 const data1 = @import("data1/info.zig");
 
 test "guid test" {
     inline for (data1.test_prefab.components) |comp| {
-        var yaml = urt.runtime.Yaml.init(.{ .string = comp.content }, null, testing.allocator);
+        var yaml = usrl.runtime.Yaml.init(.{ .string = comp.content }, null, testing.allocator);
         if (comp.guid) |g| {
-            const guid = urt.runtime.GUID{
+            const guid = usrl.runtime.GUID{
                 .value = g,
                 .source = null,
             };

@@ -1,8 +1,8 @@
 const std = @import("std");
-const urt = @import("urt");
+const usrl = @import("usrl");
 const testing = std.testing;
 
-const StringList = urt.runtime.StringList;
+const StringList = usrl.runtime.StringList;
 
 test "init and deinit" {
     var list = try StringList.init(testing.allocator);
