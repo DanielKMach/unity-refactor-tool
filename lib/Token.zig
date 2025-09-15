@@ -25,7 +25,6 @@ pub const keyword_list: []const struct { []const u8, Value } = &.{
 pub const operator_list: []const struct { []const u8, Value } = &.{
     .{ ".", .dot },
     .{ ",", .comma },
-    .{ ";", .eos },
     .{ "+", .plus },
     .{ "-", .minus },
     .{ "*", .star },
@@ -43,6 +42,7 @@ pub const operator_list: []const struct { []const u8, Value } = &.{
     .{ "??", .question_question },
     .{ "?", .question },
     .{ ":", .colon },
+    .{ ";", .semicolon },
 };
 
 /// The type of the token.
@@ -125,7 +125,6 @@ pub const Type = enum {
     // Operators
     dot, // '.'
     comma, // ','
-    eos, // ';'
     plus, // '+'
     minus, // '-'
     star, // '*'
@@ -141,6 +140,7 @@ pub const Type = enum {
     question_question, // '??'
     question, // '?'
     colon, // ':'
+    semicolon, // ';'
     left_paren, // '('
     right_paren, // ')'
 
@@ -152,6 +152,9 @@ pub const Type = enum {
 
     /// Any alphanumeric literal, such as identifiers, component names, etc.
     literal,
+
+    /// End of file, used to indicate the end of input.
+    eof,
 
     pub fn format(self: Type, writer: *std.Io.Writer) std.Io.Writer.Error!void {
         inline for (operator_list) |op| {
@@ -202,7 +205,6 @@ pub const Value = union(Type) {
     FOR,
     dot,
     comma,
-    eos,
     plus,
     minus,
     star,
@@ -218,11 +220,13 @@ pub const Value = union(Type) {
     question_question,
     question,
     colon,
+    semicolon,
     left_paren,
     right_paren,
     number: f32,
     string: []const u8,
     literal: []const u8,
+    eof,
 
     pub fn format(self: Value, writer: *std.Io.Writer) std.Io.Writer.Error!void {
         switch (self) {

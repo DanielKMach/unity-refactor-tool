@@ -44,7 +44,8 @@ pub fn parseEnv(self: Parser, source: core.Source, env: core.Stmt.ParseEnv) core
     while (iterator.remaining() > 0) {
         const stmt = try core.Stmt.parse(&iterator, env);
         try statements.append(self.allocator, stmt);
-        _ = try iterator.grab(.eos, env.diag);
+        const end = try iterator.grabAny(&.{ .semicolon, .eof }, env.diag);
+        if (end.is(.eof) or iterator.match(.eof)) break;
     }
 
     return .{

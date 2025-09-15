@@ -79,8 +79,9 @@ pub fn token(self: *This, diag: *core.ParseDiagnostics) core.ParseError!?Token {
         }
     }
     if (self.peek() == null) {
-        if (start < self.source.len) {
-            return .new(.eos, .init(start, 0));
+        if (self.index == self.source.len) {
+            self.index += 1; // ensure we don't return eof multiple times
+            return .new(.eof, .init(start, 0));
         }
         return null;
     }
@@ -142,10 +143,6 @@ pub fn tokenize(expression: []const u8, allocator: std.mem.Allocator, diag: *cor
     var tokenizer = This.init(expression);
     while (try tokenizer.token(diag)) |tkn| {
         try list.append(allocator, tkn);
-    }
-
-    if (!list.items[list.items.len - 1].is(.eos)) {
-        try list.append(allocator, Token.new(.eos, .init(expression.len, 0)));
     }
 
     for (list.items) |tkn| {
