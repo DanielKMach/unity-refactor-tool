@@ -41,15 +41,14 @@ pub fn dir(self: This, env: Stmt.RunEnv) Stmt.RunError!std.fs.Dir {
 }
 
 fn openDir(path: []const u8, possibly_abs: bool, token: core.Token, env: Stmt.RunEnv) Stmt.RunError!std.fs.Dir {
-    _ = token;
     return if (possibly_abs and std.fs.path.isAbsolute(path))
         std.fs.openDirAbsolute(path, open_options) catch |err| switch (err) {
-            error.FileNotFound => env.err(.{ .invalid_path = .{ .path = path } }),
+            error.FileNotFound => env.err(.{ .invalid_path = .{ .path = token.loc } }),
             else => |e| e,
         }
     else
         env.cwd.openDir(path, open_options) catch |err| switch (err) {
-            error.FileNotFound => env.err(.{ .invalid_path = .{ .path = path } }),
+            error.FileNotFound => env.err(.{ .invalid_path = .{ .path = token.loc } }),
             else => |e| e,
         };
 }

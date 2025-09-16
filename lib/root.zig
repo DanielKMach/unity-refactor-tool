@@ -58,8 +58,7 @@ pub const ParseProblem = union(enum) {
     },
 
     // Generic errors
-    multiple: []const ParseProblem,
-    unknown: void,
+    unexpected: anyerror,
 };
 
 pub const ParseError = error{USRLParseError};
@@ -70,10 +69,10 @@ pub const RuntimeProblem = union(enum) {
     const Type = @typeInfo(RuntimeProblem).@"union".tag_type orelse unreachable;
 
     invalid_asset: struct {
-        path: []const u8,
+        path: Token.Location,
     },
     invalid_path: struct {
-        path: []const u8,
+        path: Token.Location,
     },
     unexpected_type: struct {
         found: Expr.Value.Type,
@@ -89,6 +88,8 @@ pub const RuntimeProblem = union(enum) {
     division_by_zero: struct {
         location: Token.Location,
     },
+
+    unexpected: anyerror,
 };
 
 pub const RuntimeError = error{USRLRuntimeError};

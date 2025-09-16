@@ -7,7 +7,7 @@ const log = std.log.scoped(.script);
 allocator: std.mem.Allocator,
 statements: []core.Stmt,
 
-pub fn run(self: This, options: RunConfig) !core.Result(void, []core.RuntimeProblem) {
+pub fn run(self: This, options: RunConfig) std.mem.Allocator.Error!core.Result(void, []core.RuntimeProblem) {
     var transaction = core.Transaction.init(options.allocator);
     defer transaction.deinit();
 
@@ -24,10 +24,11 @@ pub fn run(self: This, options: RunConfig) !core.Result(void, []core.RuntimeProb
 
     self.runEnv(env) catch |err| {
         transaction.rollback();
-        return switch (err) {
-            error.USRLRuntimeError => .ERR(try diag.toOwnedSlice()),
-            else => |e| e,
-        };
+        switch (err) {
+            error.USRLRuntimeError => {},
+            else => |e| diag.push(.{ .unexpected = e }) catch {},
+        }
+        return .ERR(try diag.toOwnedSlice());
     };
 
     transaction.commit();

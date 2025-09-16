@@ -20,10 +20,11 @@ pub fn parse(self: Parser, source: core.Source) std.mem.Allocator.Error!core.Res
     };
 
     const script = self.parseEnv(source, env) catch |err| {
-        return switch (err) {
-            error.USRLParseError => .ERR(try diag.toOwnedSlice()),
-            else => |e| e,
-        };
+        switch (err) {
+            error.USRLParseError => {},
+            else => |e| diag.push(.{ .unexpected = e }) catch {},
+        }
+        return .ERR(try diag.toOwnedSlice());
     };
     return .OK(script);
 }

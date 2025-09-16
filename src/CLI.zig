@@ -27,7 +27,7 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
     const parser = usrl.Parser{
         .allocator = self.allocator,
     };
-    var scripts = try std.ArrayList(LocalizedScript).initCapacity(self.allocator, 1);
+    var scripts = std.ArrayList(LocalizedScript).empty;
     defer scripts.deinit(self.allocator);
     defer for (scripts.items) |*s| s.cleanup();
 
@@ -212,9 +212,6 @@ pub fn printParseProblem(parse_error: usrl.ParseProblem, source: usrl.Source, fw
     try ansi.print(eh, "PARSING ERROR: ", .{});
 
     switch (parse_error) {
-        .unknown => {
-            try ansi.print(e, "Unknown statement\r\n", .{});
-        },
         .never_closed_string => |err| {
             try ansi.print(e, "Never closed string at index {d}\r\n", .{err.location.index});
             try printLineHighlight(err.location, source, fw);
@@ -238,17 +235,17 @@ pub fn printParseProblem(parse_error: usrl.ParseProblem, source: usrl.Source, fw
             try ansi.print(e, "Unexpected character '{s}'\r\n", .{err.location.lexeme(source.source)});
             try printLineHighlight(err.location, source, fw);
         },
-        .invalid_csharp_identifier => |err| {
-            try ansi.print(e, "Invalid C# identifier '{s}'\r\n", .{err.token.loc.lexeme(source.source)});
-            try printLineHighlight(err.token.loc, source, fw);
-        },
-        .invalid_guid => |err| {
-            try ansi.print(e, "Invalid GUID '{s}'\r\n", .{err.token.loc.lexeme(source.source)});
-            try printLineHighlight(err.token.loc, source, fw);
-        },
         .invalid_number => |err| {
             try ansi.print(e, "Invalid number '{s}'\r\n", .{err.location.lexeme(source.source)});
             try printLineHighlight(err.location, source, fw);
+        },
+        .invalid_csharp_identifier => |err| {
+            try ansi.print(e, "Invalid C# identifier '{s}'\r\n", .{err.token.asSlice()});
+            try printLineHighlight(err.token.loc, source, fw);
+        },
+        .invalid_guid => |err| {
+            try ansi.print(e, "Invalid GUID '{s}'\r\n", .{err.token.asSlice()});
+            try printLineHighlight(err.token.loc, source, fw);
         },
         .duplicate_clause => |err| {
             try ansi.print(e, "Duplicate clause '{s}' appeared at:\r\n", .{err.clause});
@@ -264,10 +261,8 @@ pub fn printParseProblem(parse_error: usrl.ParseProblem, source: usrl.Source, fw
             try ansi.print(e, "Invalid assignment target\r\n", .{});
             try printLineHighlight(err.location, source, fw);
         },
-        .multiple => |errs| {
-            for (errs) |err| {
-                try printParseProblem(err, source, fw);
-            }
+        .unexpected => |err| {
+            try ansi.print(e, "Unexpected {t}\r\n", .{err});
         },
     }
 
@@ -281,11 +276,13 @@ pub fn printRuntimeProblem(runtime_error: usrl.RuntimeProblem, source: usrl.Sour
     try ansi.print(eh, "RUNTIME ERROR: ", .{});
 
     switch (runtime_error) {
-        .invalid_asset => |_| {
+        .invalid_asset => |err| {
             try ansi.print(e, "Invalid asset path\r\n", .{});
+            try printLineHighlight(err.path, source, fw);
         },
-        .invalid_path => |_| {
+        .invalid_path => |err| {
             try ansi.print(e, "Invalid path\r\n", .{});
+            try printLineHighlight(err.path, source, fw);
         },
         .division_by_zero => |err| {
             try ansi.print(e, "Division by zero\r\n", .{});
@@ -311,6 +308,9 @@ pub fn printRuntimeProblem(runtime_error: usrl.RuntimeProblem, source: usrl.Sour
                 try out.print("\r\n", .{});
             }
             try printLineHighlight(err.location, source, fw);
+        },
+        .unexpected => |err| {
+            try ansi.print(e, "Unexpected {t}\r\n", .{err});
         },
     }
 

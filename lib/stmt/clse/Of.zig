@@ -79,13 +79,13 @@ pub fn getGUID(self: This, env: Stmt.RunEnv) Stmt.RunError![]GUID {
             .guid => |guid| try GUID.init(guid.value.string, null, env.allocator),
             .name => |name| blk: {
                 const path = try searchComponent(name.value.literal, env.cwd, env.allocator) orelse {
-                    return env.err(.{ .invalid_asset = .{ .path = name.value.literal } });
+                    return env.err(.{ .invalid_asset = .{ .path = name.loc } });
                 };
                 defer env.allocator.free(path);
 
                 break :blk GUID.fromFile(path, env.allocator) catch |err| switch (err) {
                     error.InvalidMetaFile, error.FileNotFound => {
-                        return env.err(.{ .invalid_asset = .{ .path = path } });
+                        return env.err(.{ .invalid_asset = .{ .path = name.loc } });
                     },
                     else => |e| return e,
                 };
@@ -96,7 +96,7 @@ pub fn getGUID(self: This, env: Stmt.RunEnv) Stmt.RunError![]GUID {
 
                 break :blk GUID.fromFile(abs_path, env.allocator) catch |err| switch (err) {
                     error.InvalidMetaFile, error.FileNotFound => {
-                        return env.err(.{ .invalid_asset = .{ .path = abs_path } });
+                        return env.err(.{ .invalid_asset = .{ .path = path.loc } });
                     },
                     else => |e| return e,
                 };
