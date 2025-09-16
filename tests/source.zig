@@ -1,8 +1,8 @@
 const std = @import("std");
-const urt = @import("urt");
+const usrl = @import("usrl");
 
 test "source from file" {
-    const source = try urt.Source.fromPath(std.fs.cwd(), "data3/query.usrl", std.testing.allocator);
+    const source = try usrl.Source.fromPath(std.fs.cwd(), "data3/query.usrl", std.testing.allocator);
     defer source.deinit();
 
     try std.testing.expectEqualStrings("query.usrl", source.name.?);
@@ -10,7 +10,7 @@ test "source from file" {
 }
 
 test "anonymous source" {
-    const source = try urt.Source.anonymous("SHOW uses OF Player", std.testing.allocator);
+    const source = try usrl.Source.anonymous("SHOW uses OF Player", std.testing.allocator);
     defer source.deinit();
 
     try std.testing.expectEqual(null, source.name);
@@ -18,7 +18,7 @@ test "anonymous source" {
 }
 
 test "line retrieval" {
-    const source = try urt.Source.fromPath(std.fs.cwd(), "data3/script.usrl", std.testing.allocator);
+    const source = try usrl.Source.fromPath(std.fs.cwd(), "data3/script.usrl", std.testing.allocator);
     defer source.deinit();
 
     const line = source.line(0); // SHOW stmt
@@ -39,7 +39,7 @@ test "line retrieval" {
 }
 
 test "line number" {
-    const source = try urt.Source.fromPath(std.fs.cwd(), "data3/script.usrl", std.testing.allocator);
+    const source = try usrl.Source.fromPath(std.fs.cwd(), "data3/script.usrl", std.testing.allocator);
     defer source.deinit();
 
     const line_number_start = source.lineIndex(0); // first index

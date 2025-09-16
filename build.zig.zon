@@ -4,7 +4,8 @@
     .version = "0.0.0",
     .dependencies = .{
         .libyaml = .{
-            .path = "vendor/libyaml",
+            .url = "git+https://github.com/DanielKMach/libyaml?ref=zig-build#ae56291dff4b6c6711363397679f300db76dcce7",
+            .hash = "libyaml-0.2.5-dev-y9fK44HYBQAFwtl978qJ6z3H1Wymop1Pkl0a-g-NUV2x",
         },
     },
     .paths = .{

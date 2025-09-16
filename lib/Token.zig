@@ -1,4 +1,5 @@
 const std = @import("std");
+const core = @import("core");
 
 const Token = @This();
 
@@ -24,7 +25,6 @@ pub const keyword_list: []const struct { []const u8, Value } = &.{
 pub const operator_list: []const struct { []const u8, Value } = &.{
     .{ ".", .dot },
     .{ ",", .comma },
-    .{ ";", .eos },
     .{ "+", .plus },
     .{ "-", .minus },
     .{ "*", .star },
@@ -42,6 +42,7 @@ pub const operator_list: []const struct { []const u8, Value } = &.{
     .{ "??", .question_question },
     .{ "?", .question },
     .{ ":", .colon },
+    .{ ";", .semicolon },
 };
 
 /// The type of the token.
@@ -59,6 +60,15 @@ pub fn new(value: Value, loc: Location) Token {
 /// Checks if the token is of the given type.
 pub fn is(self: Token, t: Type) bool {
     return self.value == t;
+}
+
+/// Returns the value of the token if a string or literal.
+pub fn asSlice(self: Token) []const u8 {
+    switch (self.value) {
+        .string => |s| return s,
+        .literal => |l| return l,
+        else => @panic("Token.asSlice called on non-string/literal token"),
+    }
 }
 
 /// Duplicates the token, the caller owns the returned token.
@@ -115,7 +125,6 @@ pub const Type = enum {
     // Operators
     dot, // '.'
     comma, // ','
-    eos, // ';'
     plus, // '+'
     minus, // '-'
     star, // '*'
@@ -131,6 +140,7 @@ pub const Type = enum {
     question_question, // '??'
     question, // '?'
     colon, // ':'
+    semicolon, // ';'
     left_paren, // '('
     right_paren, // ')'
 
@@ -142,6 +152,9 @@ pub const Type = enum {
 
     /// Any alphanumeric literal, such as identifiers, component names, etc.
     literal,
+
+    /// End of file, used to indicate the end of input.
+    eof,
 
     pub fn format(self: Type, writer: *std.Io.Writer) std.Io.Writer.Error!void {
         inline for (operator_list) |op| {
@@ -192,7 +205,6 @@ pub const Value = union(Type) {
     FOR,
     dot,
     comma,
-    eos,
     plus,
     minus,
     star,
@@ -208,11 +220,13 @@ pub const Value = union(Type) {
     question_question,
     question,
     colon,
+    semicolon,
     left_paren,
     right_paren,
     number: f32,
     string: []const u8,
     literal: []const u8,
+    eof,
 
     pub fn format(self: Value, writer: *std.Io.Writer) std.Io.Writer.Error!void {
         switch (self) {
@@ -265,5 +279,110 @@ pub const Location = struct {
             max = @max(max, loc.index + loc.len);
         }
         return Location{ .index = min, .len = max - min };
+    }
+};
+
+/// A token
+/// A struct that allows iterating over tokens.
+pub const Iterator = struct {
+    /// The slice of tokens to iterate over.
+    ///
+    /// It is not recommended to modify this slice while the iterator is in use.
+    tokens: []const Token,
+
+    /// The index of the next token to yield.
+    index: usize = 0,
+
+    /// Initializes a new TokenIterator with the given slice of tokens.
+    ///
+    /// The slice is owned by the caller and *should* not be modified while the iterator is in use.
+    ///
+    /// The next `next()` call will yield the first token.
+    pub fn init(tokens: []const Token) Iterator {
+        return Iterator{
+            .tokens = tokens,
+            .index = 0,
+        };
+    }
+
+    /// Steps forward to the next token and returns it.
+    ///
+    /// If out of bounds, returns the last token (usually end-of-statement)
+    pub fn next(self: *Iterator) Token {
+        if (self.index >= self.tokens.len) {
+            return self.tokens[self.tokens.len - 1];
+        }
+        defer self.index += 1;
+        return self.tokens[self.index];
+    }
+
+    /// Returns the token `steps` steps ahead of the current index.
+    ///
+    /// To peek the next token, use `peek(1)`.
+    /// To peek the previous token, use `peek(0)`.
+    ///
+    /// If out of bounds, returns the last token (usually end-of-statement)
+    pub fn peek(self: Iterator, steps: usize) Token {
+        if (self.index == 0 and steps == 0) @panic("Cannot peek at 0 before the start of the iterator");
+        const i: usize = self.index + steps - 1;
+        if (i >= self.tokens.len) {
+            return self.tokens[self.tokens.len - 1];
+        }
+
+        return self.tokens[i];
+    }
+
+    /// Checks if the next token matches the expected type.
+    /// If so, consumes and returns the token.
+    pub fn consume(self: *Iterator, t: Type) ?Token {
+        if (self.peek(1).is(t)) {
+            return self.next();
+        }
+        return null;
+    }
+
+    /// Checks if the next token matches any of the expected types.
+    /// If so, consumes and returns the token
+    pub fn consumeAny(self: *Iterator, types: []const Type) ?Token {
+        for (types) |t| {
+            if (self.consume(t)) |mat| return mat;
+        }
+        return null;
+    }
+
+    /// Consumes and returns the next token if it matches the expected type.
+    /// Otherwise, returns a parse error via the given diagnostics.
+    pub fn grab(self: *Iterator, expected: Type, diag: *core.ParseDiagnostics) core.ParseDiagnostics.Error!Token {
+        if (self.consume(expected)) |t| return t;
+        return diag.push(.{ .unexpected_token = .{
+            .found = self.peek(1),
+            .expected = &.{expected},
+        } });
+    }
+
+    /// Consumes and returns the next token if it matches any of the expected types.
+    /// Otherwise, returns a parse error via the given diagnostics.
+    pub fn grabAny(self: *Iterator, expected: []const Type, diag: *core.ParseDiagnostics) core.ParseDiagnostics.Error!Token {
+        if (self.consumeAny(expected)) |t| return t;
+        return diag.push(.{ .unexpected_token = .{
+            .found = self.peek(1),
+            .expected = expected,
+        } });
+    }
+
+    /// Returns whether the next token matches the expected type.
+    /// If so, consumes the token.
+    pub fn match(self: *Iterator, expected: Type) bool {
+        return self.consume(expected) != null;
+    }
+
+    /// Returns the amount of tokens left to iterate.
+    pub fn remaining(self: Iterator) usize {
+        return self.tokens.len - self.index;
+    }
+
+    /// Resets the iterator to the beginning as if it was just created.
+    pub fn reset(self: *Iterator) void {
+        self.index = 0;
     }
 };

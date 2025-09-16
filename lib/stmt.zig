@@ -1,96 +1,108 @@
 const std = @import("std");
 const core = @import("core");
 
-const ParseResult = core.results.ParseResult;
-const RuntimeResult = core.results.RuntimeResult;
-
-pub const clse = @import("stmt/clse.zig");
-
-pub const Show = @import("stmt/Show.zig");
-pub const Rename = @import("stmt/Rename.zig");
-pub const Evaluate = @import("stmt/Evaluate.zig");
-
 fn ParseFn(comptime T: type) type {
-    return fn (*core.parsing.Tokenizer.TokenIterator, core.parsing.ParsetimeEnv) anyerror!ParseResult(T);
+    return fn (*core.Token.Iterator, Stmt.ParseEnv) Stmt.ParseError!T;
 }
 
 fn RunFn(comptime T: type) type {
-    return fn (T, core.runtime.RuntimeEnv) anyerror!RuntimeResult(void);
+    return fn (T, Stmt.RunEnv) Stmt.RunError!void;
 }
 
 fn CleanupFn(comptime T: type) type {
     return fn (T, std.mem.Allocator) void;
 }
 
-pub const Statement = union(enum) {
+pub const Stmt = union(enum) {
+    pub const clse = @import("stmt/clse.zig");
+
+    pub const ParseEnv = struct {
+        allocator: std.mem.Allocator,
+        diag: *core.ParseDiagnostics,
+
+        pub fn err(self: ParseEnv, e: core.ParseProblem) core.ParseDiagnostics.Error {
+            return self.diag.push(e);
+        }
+    };
+
+    pub const ParseError = core.ParseAllocError || error{TokenMismatch};
+
+    pub const RunEnv = struct {
+        allocator: std.mem.Allocator,
+        transaction: *core.Transaction,
+        diag: *core.RuntimeDiagnostics,
+        out: *std.Io.Writer,
+        cwd: std.fs.Dir,
+
+        pub fn err(self: RunEnv, e: core.RuntimeProblem) core.RuntimeDiagnostics.Error {
+            return self.diag.push(e);
+        }
+    };
+
+    pub const RunError = anyerror;
+
+    pub const Show = @import("stmt/Show.zig");
+    pub const Rename = @import("stmt/Rename.zig");
+    pub const Evaluate = @import("stmt/Evaluate.zig");
+
     show: Show,
     rename: Rename,
     evaluate: Evaluate,
 
-    const fields = @typeInfo(Statement).@"union".fields;
+    const fields = @typeInfo(Stmt).@"union".fields;
 
     comptime {
         for (fields) |f| {
-            const Stmt = f.type;
-            const info = @typeInfo(Stmt);
+            const StmtType = f.type;
+            const info = @typeInfo(StmtType);
             if (info != .@"struct") {
                 @compileError("Invalid type for field '" ++ f.name ++ "', expected a struct, got " ++ @tagName(info));
             }
-            if (!core.util.hasFn(Stmt, "parse", ParseFn(Stmt))) {
-                @compileError("Invalid parse function for field '" ++ f.name ++ "', expected signature: fn (*language.Tokenizer.TokenIterator) anyerror!results.ParseResult(" ++ @typeName(Stmt) ++ ")");
+            if (!core.util.hasFn(StmtType, "parse", ParseFn(StmtType))) {
+                @compileError("Invalid parse function for field '" ++ f.name ++ "', expected signature: " ++ @typeName(ParseFn(StmtType)));
             }
-            if (!core.util.hasFn(Stmt, "run", RunFn(Stmt))) {
-                @compileError("Invalid run function for field '" ++ f.name ++ "', expected signature: fn (" ++ @typeName(Stmt) ++ ", runtime.RuntimeEnv) anyerror!results.RuntimeResult(void)");
+            if (!core.util.hasFn(StmtType, "run", RunFn(StmtType))) {
+                @compileError("Invalid run function for field '" ++ f.name ++ "', expected signature: " ++ @typeName(RunFn(StmtType)));
             }
-            if (!core.util.hasFn(Stmt, "cleanup", CleanupFn(Stmt))) {
-                @compileError("Invalid cleanup function for field '" ++ f.name ++ "', expected signature: fn (" ++ @typeName(Stmt) ++ ", std.mem.Allocator) void");
+            if (!core.util.hasFn(StmtType, "cleanup", CleanupFn(StmtType))) {
+                @compileError("Invalid cleanup function for field '" ++ f.name ++ "', expected signature: " ++ @typeName(CleanupFn(StmtType)));
             }
         }
     }
 
-    pub fn init(stmt: anytype) !Statement {
+    pub fn init(stmt: anytype) !Stmt {
         inline for (fields) |fld| {
             if (fld.type == @TypeOf(stmt)) {
-                return @unionInit(Statement, fld.name, stmt);
+                return @unionInit(Stmt, fld.name, stmt);
             }
         }
         @compileError("Invalid type for Statement, received: " ++ @typeName(@TypeOf(stmt)));
     }
 
-    pub fn parse(tokens: *core.parsing.Tokenizer.TokenIterator, env: core.parsing.ParsetimeEnv) !ParseResult(Statement) {
+    pub fn parse(tokens: *core.Token.Iterator, env: ParseEnv) core.ParseAllocError!Stmt {
         inline for (fields) |fld| {
-            switch (try fld.type.parse(tokens, env)) {
-                .ok => |ok| return .OK(try Statement.init(ok)),
-                .err => |err| switch (err) {
-                    .unknown => {},
-                    else => |errr| return .ERR(errr),
-                },
+            if (fld.type.parse(tokens, env)) |stmt| {
+                return init(stmt);
+            } else |err| switch (err) {
+                error.TokenMismatch => {},
+                else => |e| return e,
             }
         }
-        return .ERR(.{ .unknown = void{} });
+        return env.err(.{ .unexpected_token = .{
+            .found = tokens.next(),
+            .expected = &.{ .SHOW, .RENAME, .EVAL },
+        } });
     }
 
-    pub fn run(this: Statement, env: core.runtime.RuntimeEnv) !RuntimeResult(void) {
-        const active = @tagName(this);
-        inline for (fields) |fld| {
-            if (std.mem.eql(u8, fld.name, active)) {
-                const result = try fld.type.run(@field(this, fld.name), env);
-                return switch (result) {
-                    .ok => .OK(void{}),
-                    .err => |err| .ERR(err),
-                };
-            }
+    pub fn run(this: Stmt, env: RunEnv) RunError!void {
+        switch (this) {
+            inline else => |active| try active.run(env),
         }
-        unreachable;
     }
 
-    pub fn deinit(this: Statement, allocator: std.mem.Allocator) void {
-        inline for (fields) |fld| {
-            if (std.mem.eql(u8, fld.name, @tagName(this))) {
-                fld.type.cleanup(@field(this, fld.name), allocator);
-                return;
-            }
+    pub fn deinit(this: Stmt, allocator: std.mem.Allocator) void {
+        switch (this) {
+            inline else => |active| active.cleanup(allocator),
         }
-        unreachable;
     }
 };

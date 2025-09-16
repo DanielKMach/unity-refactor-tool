@@ -1,12 +1,11 @@
 const std = @import("std");
 const testing = std.testing;
-const urt = @import("urt");
+const usrl = @import("usrl");
 
-const Token = urt.Token;
-const Tokenizer = urt.parsing.Tokenizer;
-const TokenizerResult = urt.results.ParseResult(?Token);
+const Token = usrl.Token;
+const Tokenizer = usrl.Tokenizer;
 
-fn expectTokenValues(expected: Token.Value, actual: Token.Value) !void {
+fn expectEqualValues(expected: Token.Value, actual: Token.Value) !void {
     try testing.expectEqual(@as(Token.Type, expected), @as(Token.Type, actual));
     switch (expected) {
         .string => |str| try testing.expectEqualStrings(str, actual.string),
@@ -18,20 +17,18 @@ fn expectTokenValues(expected: Token.Value, actual: Token.Value) !void {
 
 fn expectTokenizerValues(expected: []const Token.Value, tokenizer: *Tokenizer) !void {
     for (expected) |exp| {
-        const result = tokenizer.token();
-        switch (result) {
-            .ok => |t| try expectTokenValues(exp, (t orelse break).value),
-            .err => |err| {
-                std.debug.print("expected token type '{s}', found {}\n", .{ @tagName(exp), err });
-                return error.TestExpectedEqual;
-            },
-        }
+        var dummy = usrl.ParseDiagnostics.dummy;
+        const tkn = tokenizer.token(&dummy);
+        try testing.expect(tkn != error.USRLRuntimeError);
+        try testing.expect(tkn catch unreachable != null);
+        try expectEqualValues(exp, (tkn catch unreachable).?.value);
     }
 }
 
 fn expectTokenizerValuesAll(expected: []const Token.Value, tokenizer: *Tokenizer) !void {
     try expectTokenizerValues(expected, tokenizer);
-    try testing.expectEqual(TokenizerResult.OK(null), tokenizer.token());
+    var dummy = usrl.ParseDiagnostics.dummy;
+    try testing.expectEqual(null, tokenizer.token(&dummy));
 }
 
 test "expression" {
@@ -46,7 +43,7 @@ test "expression" {
         .{ .number = 1 },
         .slash,
         .{ .number = 0.5 },
-        .eos,
+        .eof,
     }, &tokenizer);
 }
 
@@ -62,7 +59,7 @@ test "tight expression" {
         .{ .number = 1 },
         .slash,
         .{ .number = 0.5 },
-        .eos,
+        .eof,
     }, &tokenizer);
 }
 
@@ -71,7 +68,7 @@ test "string literals" {
     try expectTokenizerValuesAll(&.{
         .{ .string = "hello world" },
         .{ .string = "hello world" },
-        .eos,
+        .eof,
     }, &tokenizer);
 }
 
@@ -80,7 +77,7 @@ test "tight string literals" {
     try expectTokenizerValuesAll(&.{
         .{ .string = "hello world" },
         .{ .string = "hello world" },
-        .eos,
+        .eof,
     }, &tokenizer);
 }
 
@@ -93,7 +90,7 @@ test "show statement" {
         .{ .literal = "PlayerScript" },
         .IN,
         .{ .string = "./Assets" },
-        .eos,
+        .eof,
     }, &tokenizer);
 }
 
@@ -108,7 +105,7 @@ test "rename statement" {
         .{ .literal = "PlayerScript" },
         .IN,
         .{ .string = "./Assets" },
-        .eos,
+        .eof,
     }, &tokenizer);
 }
 
@@ -125,52 +122,56 @@ test "eval statement" {
         .{ .literal = "PlayerScript" },
         .IN,
         .{ .string = "./Assets" },
-        .eos,
+        .eof,
     }, &tokenizer);
 }
 
 test "never closed string" {
     const source = "EVAL _speed + 'asdsdasd OF PlayerScript";
     var tokenizer = Tokenizer.init(source);
+    var diag = usrl.ParseDiagnostics.init(testing.allocator);
+    defer diag.deinit();
+
     try expectTokenizerValues(&.{
         .EVAL,
         .{ .literal = "_speed" },
         .plus,
     }, &tokenizer);
-    try testing.expectEqual(TokenizerResult.ERR(.{
-        .never_closed_string = .{
-            .location = .init(14, 1),
-        },
-    }), tokenizer.token());
+
+    try testing.expectError(error.USRLParseError, tokenizer.token(&diag));
+    try testing.expectEqual(usrl.ParseProblem{ .never_closed_string = .{
+        .location = usrl.Token.Location.init(14, 1),
+    } }, diag.pop());
 }
 
 test "invalid character" {
     const source = "EVAL _speed * §test OF PlayerScript";
     var tokenizer = Tokenizer.init(source);
+    var diag = usrl.ParseDiagnostics.init(testing.allocator);
+    defer diag.deinit();
+
     try expectTokenizerValues(&.{
         .EVAL,
         .{ .literal = "_speed" },
         .star,
     }, &tokenizer);
-    try testing.expectEqual(TokenizerResult.ERR(.{
-        .unexpected_character = .{
-            .location = .init(14, 1),
-        },
-    }), tokenizer.token());
+
+    try testing.expectError(error.USRLParseError, tokenizer.token(&diag));
+    try testing.expectEqual(usrl.ParseProblem{ .unexpected_character = .{
+        .location = usrl.Token.Location.init(14, 1),
+    } }, diag.pop());
 }
 
 test "comment" {
     const source = "# this is a comment";
     var tokenizer = Tokenizer.init(source);
-    try testing.expectEqual(TokenizerResult.OK(.new(.eos, .init(0, 0))), tokenizer.token());
-    try testing.expectEqual(TokenizerResult.OK(null), tokenizer.token());
+    try expectTokenizerValuesAll(&.{.eof}, &tokenizer);
 }
 
 test "comment trailing newline" {
     const source = "# this is a comment\n";
     var tokenizer = Tokenizer.init(source);
-    try testing.expectEqual(TokenizerResult.OK(.new(.eos, .init(0, 0))), tokenizer.token());
-    try testing.expectEqual(TokenizerResult.OK(null), tokenizer.token());
+    try expectTokenizerValuesAll(&.{.eof}, &tokenizer);
 }
 
 test "comments" {
@@ -181,7 +182,7 @@ test "comments" {
         .USES,
         .OF,
         .{ .literal = "Player" },
-        .eos,
+        .eof,
     }, &tokenizer);
 }
 
@@ -193,7 +194,7 @@ test "comments with carriage return" {
         .USES,
         .OF,
         .{ .literal = "Player" },
-        .eos,
+        .eof,
     }, &tokenizer);
 }
 
@@ -207,6 +208,6 @@ test "comments between statement" {
         .{ .literal = "Player" },
         .IN,
         .{ .literal = "Assets" },
-        .eos,
+        .eof,
     }, &tokenizer);
 }

@@ -12,10 +12,24 @@ pub const Expr = union(enum) {
     pub const VarMap = @import("expr/VarMap.zig");
     pub const Value = @import("expr/value.zig").Value;
 
-    pub const RunEnv = struct {
+    pub const EvalEnv = struct {
         allocator: std.mem.Allocator,
+        diag: *core.RuntimeDiagnostics,
         context: Value.Object,
         vars: *VarMap,
+
+        pub fn err(self: EvalEnv, p: core.RuntimeProblem) core.RuntimeDiagnostics.Error {
+            return self.diag.push(p);
+        }
+    };
+
+    pub const ParseEnv = struct {
+        allocator: std.mem.Allocator,
+        diag: *core.ParseDiagnostics,
+
+        pub fn err(self: ParseEnv, p: core.ParseProblem) core.ParseDiagnostics.Error {
+            return self.diag.push(p);
+        }
     };
 
     pub const Type = @typeInfo(Expr).@"union".tag_type orelse unreachable;
@@ -80,20 +94,18 @@ pub const Expr = union(enum) {
     /// Evaluates the expression in a temporary environment, duplicating the result into the original environment's allocator.
     ///
     /// Frees any temporary allocations made during evaluation.
-    pub fn evaluateAuto(self: *Expr, env: RunEnv) anyerror!core.results.RuntimeResult(Value) {
+    pub fn evaluateAuto(self: *Expr, env: EvalEnv) anyerror!Value {
         var buf: [1024 * 1024]u8 = undefined; // 1 MiB
         var stack = std.heap.FixedBufferAllocator.init(&buf);
 
-        const new_env = RunEnv{
+        const new_env = EvalEnv{
             .allocator = stack.allocator(),
+            .diag = env.diag,
             .context = env.context,
             .vars = env.vars,
         };
 
-        return switch (try eval.evaluate(self, new_env)) {
-            .ok => |value| .OK(try value.dupe(env.allocator)),
-            .err => |err| .ERR(err),
-        };
+        return try eval.evaluate(self, new_env);
     }
 
     pub fn loc(self: *Expr) Location {

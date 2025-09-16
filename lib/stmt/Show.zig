@@ -1,16 +1,14 @@
 const std = @import("std");
 const core = @import("core");
-const results = core.results;
 const log = std.log.scoped(.show_statement);
 
 const This = @This();
-const Tokenizer = core.parsing.Tokenizer;
+const Stmt = core.Stmt;
+const clse = core.Stmt.clse;
+const TokenIterator = core.Token.Iterator;
 const Yaml = core.runtime.Yaml;
 const ComponentIterator = core.runtime.ComponentIterator;
 const Scanner = core.runtime.Scanner;
-const RuntimeEnv = core.runtime.RuntimeEnv;
-const InTarget = core.stmt.clse.InTarget;
-const AssetTarget = core.stmt.clse.AssetTarget;
 const GUID = core.runtime.GUID;
 
 pub const SearchMode = enum {
@@ -23,63 +21,38 @@ const uses_files = &.{ ".prefab", ".unity" };
 const refs_files = &.{ ".prefab", ".unity", ".asset", ".mat" };
 
 mode: SearchMode,
-of: AssetTarget,
-in: ?InTarget,
+of: clse.Of,
+in: ?clse.In,
 
-pub fn parse(tokens: *Tokenizer.TokenIterator, env: core.parsing.ParsetimeEnv) anyerror!results.ParseResult(This) {
+pub fn parse(tokens: *TokenIterator, env: Stmt.ParseEnv) Stmt.ParseError!This {
     core.profiling.begin(parse);
     defer core.profiling.stop();
 
-    if (!tokens.match(.SHOW)) return .ERR(.unknown);
+    if (!tokens.match(.SHOW)) return error.TokenMismatch;
 
-    var direct: ?bool = null;
-    var mode: ?SearchMode = null;
+    const direct = if (tokens.consumeAny(&.{ .DIRECT, .INDIRECT })) |t| blk: {
+        break :blk t.is(.DIRECT);
+    } else null;
 
-    mode: switch (tokens.next().value) {
-        .DIRECT => {
-            if (direct != null) continue :mode .eos;
-            direct = true;
-            continue :mode tokens.next().value;
-        },
-        .INDIRECT => {
-            if (direct != null) continue :mode .eos;
-            direct = false;
-            continue :mode tokens.next().value;
-        },
-        .USES => {
-            mode = if (direct orelse false) .direct_uses else .indirect_uses;
-        },
-        .REFS => {
-            if (direct != null) return .ERR(.{
-                .unexpected_token = .{
-                    .found = tokens.peek(0),
-                    .expected = &.{.USES},
-                },
-            });
-            mode = .refs;
-        },
-        else => return .ERR(.{
-            .unexpected_token = .{
-                .found = tokens.peek(0),
-                .expected = &.{ .REFS, .USES },
-            },
-        }),
-    }
+    const mode: SearchMode = if (direct) |d| blk: {
+        _ = try tokens.grab(.USES, env.diag);
+        break :blk if (d) .direct_uses else .indirect_uses;
+    } else blk: {
+        const t = try tokens.grabAny(&.{ .USES, .REFS }, env.diag);
+        break :blk if (t.is(.USES)) .indirect_uses else .refs;
+    };
 
     const Clauses = struct {
-        OF: AssetTarget,
-        IN: ?InTarget = null,
+        OF: clse.Of,
+        IN: ?clse.In = null,
     };
-    const clauses = switch (try core.stmt.clse.parse(Clauses, tokens, env)) {
-        .ok => |clses| clses,
-        .err => |err| return .ERR(err),
-    };
+    const clauses = try clse.parse(Clauses, tokens, env);
 
-    return .OK(.{
-        .mode = mode.?,
+    return .{
+        .mode = mode,
         .of = clauses.OF,
         .in = clauses.IN,
-    });
+    };
 }
 
 pub fn cleanup(self: This, allocator: std.mem.Allocator) void {
@@ -87,68 +60,49 @@ pub fn cleanup(self: This, allocator: std.mem.Allocator) void {
     if (self.in) |in| in.cleanup(allocator);
 }
 
-pub fn run(self: This, data: RuntimeEnv) anyerror!results.RuntimeResult(void) {
+pub fn run(self: This, env: Stmt.RunEnv) Stmt.RunError!void {
     var fileCount: usize = 0;
     var loops: usize = 0;
 
     const start = std.time.milliTimestamp();
-    const result = try self.search(data, &fileCount, &loops);
+    const results = try self.search(&fileCount, &loops, env);
+    defer env.allocator.free(results);
+    defer for (results) |r| env.allocator.free(r);
     const time = std.time.milliTimestamp() - start;
 
-    if (result.isErr()) |err| {
-        return .ERR(err);
-    }
-
-    const references = result.ok;
-    defer {
-        for (references) |r| data.allocator.free(r);
-        data.allocator.free(references);
-    }
-
-    sort(@ptrCast(references));
-    for (references) |r| {
-        try data.out.print("{s}\r\n", .{r});
-    }
-    try data.out.print("Scanned {d} files {d} times in {d} milliseconds \r\n", .{ fileCount, loops, time });
-    try data.out.flush();
-
-    return .OK(void{});
+    sort(@ptrCast(results));
+    for (results) |path| try env.out.print("{s}\r\n", .{path});
+    try env.out.print("Scanned {d} files {d} times in {d} milliseconds \r\n", .{ fileCount, loops, time });
+    try env.out.flush();
 }
 
-pub fn search(self: This, data: RuntimeEnv, count: ?*usize, times: ?*usize) !results.RuntimeResult([][]u8) {
+pub fn search(self: This, count: ?*usize, times: ?*usize, env: Stmt.RunEnv) ![][]u8 {
     core.profiling.begin(search);
     defer core.profiling.stop();
 
-    const in = self.in orelse InTarget.default;
+    const in = self.in orelse clse.In.default;
     const of = self.of;
 
-    var guids = try std.ArrayList(GUID).initCapacity(data.allocator, 1);
-    defer guids.deinit(data.allocator);
-    defer for (guids.items) |g| g.deinit(data.allocator);
+    var guids = std.ArrayList(GUID).empty;
+    defer guids.deinit(env.allocator);
+    defer for (guids.items) |g| g.deinit(env.allocator);
     var searched: usize = 0;
 
-    var dir = in.openDir(data, .{ .iterate = true, .access_sub_paths = true }) catch {
-        return .ERR(.{
-            .invalid_path = .{ .path = in.dir },
-        });
-    };
+    var dir = try in.dir(env);
     defer dir.close();
 
-    var scanner = Scanner(Search).init(dir, data.allocator);
+    var scanner = Scanner(Search).init(dir, env.allocator);
 
     var references = try core.runtime.StringList.init(scanner.allocator.allocator());
     defer references.deinit();
     var scanned: usize = 0;
 
     {
-        const starting_targets: []GUID = switch (try of.getGUID(data.cwd, data.allocator)) {
-            .ok => |v| v,
-            .err => |err| return .ERR(err),
-        };
-        defer data.allocator.free(starting_targets);
-        errdefer for (starting_targets) |g| g.deinit(data.allocator);
+        const starting_targets = try of.getGUID(env);
+        defer env.allocator.free(starting_targets);
+        errdefer for (starting_targets) |g| g.deinit(env.allocator);
 
-        try guids.appendSlice(data.allocator, starting_targets);
+        try guids.appendSlice(env.allocator, starting_targets);
     }
 
     while (guids.items.len > searched) {
@@ -170,17 +124,17 @@ pub fn search(self: This, data: RuntimeEnv, count: ?*usize, times: ?*usize) !res
         if (self.mode == .indirect_uses) {
             for (references.ctx.items[scanned..]) |ref| {
                 if (!std.mem.endsWith(u8, ref, ".prefab")) continue;
-                const guid = try GUID.fromFile(ref, data.allocator);
-                errdefer guid.deinit(data.allocator);
+                const guid = try GUID.fromFile(ref, env.allocator);
+                errdefer guid.deinit(env.allocator);
 
-                try guids.append(data.allocator, guid);
+                try guids.append(env.allocator, guid);
             }
             scanned = references.length();
         }
         if (times) |t| t.* += 1;
     }
 
-    return .OK(@ptrCast(try references.toOwnedSlice()));
+    return try references.toOwnedSlice();
 }
 
 /// Verify if a component or prefab instance of guid `guid` is being used within the file at `path`.

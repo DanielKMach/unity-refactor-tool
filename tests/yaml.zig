@@ -1,8 +1,8 @@
 const std = @import("std");
 const testing = std.testing;
-const urt = @import("urt");
+const usrl = @import("usrl");
 
-const Yaml = urt.runtime.Yaml;
+const Yaml = usrl.runtime.Yaml;
 
 const data1 = @import("data1/info.zig");
 const data2 = @import("data2/info.zig");

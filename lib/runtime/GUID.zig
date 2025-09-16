@@ -3,9 +3,8 @@ const core = @import("core");
 
 const This = @This();
 
-const ScanError = error{
-    InvalidMetaFile,
-};
+const ScanError = error{ LibyamlError, InvalidMetaFile } || std.mem.Allocator.Error;
+const FromFileError = ScanError || std.fs.File.OpenError;
 
 /// The value of the GUID consisting of 32 hexadecimal digits.
 value: []const u8,
@@ -20,7 +19,7 @@ pub fn init(guid: []const u8, source: ?[]const u8, allocator: std.mem.Allocator)
     };
 }
 
-pub fn fromFile(path: []const u8, allocator: std.mem.Allocator) !This {
+pub fn fromFile(path: []const u8, allocator: std.mem.Allocator) FromFileError!This {
     const is_meta = std.mem.endsWith(u8, path, ".meta");
     const metafile_path = if (is_meta) path else try std.mem.concat(allocator, u8, &.{ path, ".meta" });
     defer if (!is_meta) allocator.free(metafile_path);
@@ -50,7 +49,7 @@ pub fn deinit(self: This, allocator: std.mem.Allocator) void {
 /// Returns `error.InvalidMetaFile` if it can't be found.
 ///
 /// Asserts that the buffer is at least 32 bytes long.
-pub fn scanMetafile(reader: *std.Io.Reader, buf: []u8, alloc: std.mem.Allocator) ![]u8 {
+pub fn scanMetafile(reader: *std.Io.Reader, buf: []u8, alloc: std.mem.Allocator) ScanError![]u8 {
     std.debug.assert(buf.len >= 32);
 
     var yaml = core.runtime.Yaml.init(.{ .reader = reader }, null, alloc);
@@ -58,19 +57,15 @@ pub fn scanMetafile(reader: *std.Io.Reader, buf: []u8, alloc: std.mem.Allocator)
     const nullable_guid = try yaml.get(&.{"guid"}, buf);
     const guid = nullable_guid orelse return error.InvalidMetaFile;
 
-    if (!isGUID(guid)) {
-        return error.InvalidMetaFile;
-    }
+    if (!isGUID(guid)) return error.InvalidMetaFile;
 
-    return guid;
+    return guid[0..32];
 }
 
 /// Scans the metafile for the GUID and returns it.
 /// Returns `error.InvalidMetaFile` if it can't be found.
 /// The return value is owned by the caller.
-///
-/// Asserts that the buffer is at least 32 bytes long.
-pub fn scanMetafileAlloc(reader: *std.Io.Reader, alloc: std.mem.Allocator) ![]u8 {
+pub fn scanMetafileAlloc(reader: *std.Io.Reader, alloc: std.mem.Allocator) ScanError![]u8 {
     var buf: [32]u8 = undefined;
     const guid = try scanMetafile(reader, &buf, alloc);
     return try alloc.dupe(u8, guid);

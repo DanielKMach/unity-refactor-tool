@@ -24,10 +24,10 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
     defer if (output) |o| o.close();
     const ansi = ANSI.init(self.out);
 
-    var parser = usrl.parsing.Parser{
+    const parser = usrl.Parser{
         .allocator = self.allocator,
     };
-    var scripts = try std.ArrayList(LocalizedScript).initCapacity(self.allocator, 1);
+    var scripts = std.ArrayList(LocalizedScript).empty;
     defer scripts.deinit(self.allocator);
     defer for (scripts.items) |*s| s.cleanup();
 
@@ -46,7 +46,7 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
             } else if (std.mem.eql(u8, arg, "--")) {
                 const source = try usrl.Source.fromStdin(self.allocator);
                 defer source.deinit();
-                if (try self.parse(source, &parser)) |script| {
+                if (try self.parse(source, parser)) |script| {
                     return try self.run(script, .{
                         .cwd = self.cwd,
                         .out = &self.out.interface,
@@ -87,7 +87,7 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
             .args => {
                 const source = try usrl.Source.anonymous(arg, self.allocator);
                 errdefer source.deinit();
-                if (try self.parse(source, &parser)) |script| {
+                if (try self.parse(source, parser)) |script| {
                     try scripts.append(self.allocator, .{
                         .script = script,
                         .source = source,
@@ -110,7 +110,7 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
                     dir = try std.fs.openDirAbsolute(std.fs.path.dirname(abs_path).?, .{ .iterate = true });
                 }
 
-                if (try self.parse(source, &parser)) |script| {
+                if (try self.parse(source, parser)) |script| {
                     try scripts.append(self.allocator, .{
                         .script = script,
                         .source = source,
@@ -141,7 +141,7 @@ pub fn startInteractiveMode(self: This) !bool {
     const ansi = ANSI.init(self.out);
     const writer = &self.out.interface;
     const reader = &self.in.interface;
-    var parser = usrl.parsing.Parser{
+    const parser = usrl.Parser{
         .allocator = self.allocator,
     };
 
@@ -162,7 +162,7 @@ pub fn startInteractiveMode(self: This) !bool {
         const source = try usrl.Source.anonymous(query, self.allocator);
         defer source.deinit();
 
-        _ = try self.parseAndRun(source, &parser, .{
+        _ = try self.parseAndRun(source, parser, .{
             .allocator = self.allocator,
             .cwd = self.cwd,
             .out = &self.out.interface,
@@ -172,25 +172,31 @@ pub fn startInteractiveMode(self: This) !bool {
     return true;
 }
 
-pub fn parse(self: This, source: usrl.Source, parser: *usrl.parsing.Parser) !?usrl.runtime.Script {
+pub fn parse(self: This, source: usrl.Source, parser: usrl.Parser) !?usrl.Script {
     const result = try parser.parse(source);
-    if (result.isErr()) |err| {
-        try printParseError(err, source, self.out);
-        return null;
+    switch (result) {
+        .ok => |script| return script,
+        .err => |problems| {
+            for (problems) |p| try printParseProblem(p, source, self.out);
+            parser.allocator.free(problems);
+        },
     }
-    return result.ok;
+    return null;
 }
 
-pub fn run(self: This, script: usrl.runtime.Script, config: usrl.runtime.Script.RunConfig, source: usrl.Source) !bool {
+pub fn run(self: This, script: usrl.Script, config: usrl.Script.RunConfig, source: usrl.Source) !bool {
     const result = try script.run(config);
-    if (result.isErr()) |err| {
-        try printRuntimeError(err, source, self.out);
-        return false;
+    switch (result) {
+        .ok => return true,
+        .err => |problems| {
+            for (problems) |p| try printRuntimeProblem(p, source, self.out);
+            config.allocator.free(problems);
+        },
     }
-    return true;
+    return false;
 }
 
-pub fn parseAndRun(self: This, source: usrl.Source, parser: *usrl.parsing.Parser, config: usrl.runtime.Script.RunConfig) !bool {
+pub fn parseAndRun(self: This, source: usrl.Source, parser: usrl.Parser, config: usrl.Script.RunConfig) !bool {
     const script = try self.parse(source, parser);
     if (script) |s| {
         defer s.deinit();
@@ -199,16 +205,13 @@ pub fn parseAndRun(self: This, source: usrl.Source, parser: *usrl.parsing.Parser
     return false;
 }
 
-pub fn printParseError(parse_error: usrl.results.ParseError, source: usrl.Source, fw: *std.fs.File.Writer) !void {
+pub fn printParseProblem(parse_error: usrl.ParseProblem, source: usrl.Source, fw: *std.fs.File.Writer) !void {
     var ansi = ANSI.init(fw);
     var out = &fw.interface;
 
     try ansi.print(eh, "PARSING ERROR: ", .{});
 
     switch (parse_error) {
-        .unknown => {
-            try ansi.print(e, "Unknown statement\r\n", .{});
-        },
         .never_closed_string => |err| {
             try ansi.print(e, "Never closed string at index {d}\r\n", .{err.location.index});
             try printLineHighlight(err.location, source, fw);
@@ -232,17 +235,17 @@ pub fn printParseError(parse_error: usrl.results.ParseError, source: usrl.Source
             try ansi.print(e, "Unexpected character '{s}'\r\n", .{err.location.lexeme(source.source)});
             try printLineHighlight(err.location, source, fw);
         },
-        .invalid_csharp_identifier => |err| {
-            try ansi.print(e, "Invalid C# identifier '{s}'\r\n", .{err.token.loc.lexeme(source.source)});
-            try printLineHighlight(err.token.loc, source, fw);
-        },
-        .invalid_guid => |err| {
-            try ansi.print(e, "Invalid GUID '{s}'\r\n", .{err.token.loc.lexeme(source.source)});
-            try printLineHighlight(err.token.loc, source, fw);
-        },
         .invalid_number => |err| {
             try ansi.print(e, "Invalid number '{s}'\r\n", .{err.location.lexeme(source.source)});
             try printLineHighlight(err.location, source, fw);
+        },
+        .invalid_csharp_identifier => |err| {
+            try ansi.print(e, "Invalid C# identifier '{s}'\r\n", .{err.token.asSlice()});
+            try printLineHighlight(err.token.loc, source, fw);
+        },
+        .invalid_guid => |err| {
+            try ansi.print(e, "Invalid GUID '{s}'\r\n", .{err.token.asSlice()});
+            try printLineHighlight(err.token.loc, source, fw);
         },
         .duplicate_clause => |err| {
             try ansi.print(e, "Duplicate clause '{s}' appeared at:\r\n", .{err.clause});
@@ -258,28 +261,28 @@ pub fn printParseError(parse_error: usrl.results.ParseError, source: usrl.Source
             try ansi.print(e, "Invalid assignment target\r\n", .{});
             try printLineHighlight(err.location, source, fw);
         },
-        .multiple => |errs| {
-            for (errs) |err| {
-                try printParseError(err, source, fw);
-            }
+        .unexpected => |err| {
+            try ansi.print(e, "Unexpected {t}\r\n", .{err});
         },
     }
 
     try out.flush();
 }
 
-pub fn printRuntimeError(runtime_error: usrl.results.RuntimeError, source: usrl.Source, fw: *std.fs.File.Writer) !void {
+pub fn printRuntimeProblem(runtime_error: usrl.RuntimeProblem, source: usrl.Source, fw: *std.fs.File.Writer) !void {
     const ansi = ANSI.init(fw);
     const out = &fw.interface;
 
     try ansi.print(eh, "RUNTIME ERROR: ", .{});
 
     switch (runtime_error) {
-        .invalid_asset => |_| {
+        .invalid_asset => |err| {
             try ansi.print(e, "Invalid asset path\r\n", .{});
+            try printLineHighlight(err.path, source, fw);
         },
-        .invalid_path => |_| {
+        .invalid_path => |err| {
             try ansi.print(e, "Invalid path\r\n", .{});
+            try printLineHighlight(err.path, source, fw);
         },
         .division_by_zero => |err| {
             try ansi.print(e, "Division by zero\r\n", .{});
@@ -305,6 +308,9 @@ pub fn printRuntimeError(runtime_error: usrl.results.RuntimeError, source: usrl.
                 try out.print("\r\n", .{});
             }
             try printLineHighlight(err.location, source, fw);
+        },
+        .unexpected => |err| {
+            try ansi.print(e, "Unexpected {t}\r\n", .{err});
         },
     }
 
@@ -388,7 +394,7 @@ pub fn openURL(url: [:0]const u8) void {
 }
 
 pub const LocalizedScript = struct {
-    script: usrl.runtime.Script,
+    script: usrl.Script,
     source: usrl.Source,
     dir: ?std.fs.Dir = null,
 

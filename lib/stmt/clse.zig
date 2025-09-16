@@ -1,14 +1,14 @@
 const std = @import("std");
 const core = @import("core");
 
-pub const AssetTarget = @import("clse/AssetTarget.zig");
-pub const InTarget = @import("clse/InTarget.zig");
+pub const Of = @import("clse/Of.zig");
+pub const In = @import("clse/In.zig");
 
 fn ParseFn(comptime T: type) type {
-    return fn (*core.parsing.Tokenizer.TokenIterator, core.parsing.ParsetimeEnv) anyerror!core.results.ParseResult(T);
+    return fn (*core.Token.Iterator, core.Stmt.ParseEnv) core.Stmt.ParseError!T;
 }
 
-pub fn parse(comptime T: type, tokens: *core.parsing.Tokenizer.TokenIterator, env: core.parsing.ParsetimeEnv) !core.results.ParseResult(T) {
+pub fn parse(comptime T: type, tokens: *core.Token.Iterator, env: core.Stmt.ParseEnv) core.ParseAllocError!T {
     const info = @typeInfo(T);
     if (info != .@"struct") @compileError("expected a struct type, got " ++ @tagName(info));
 
@@ -35,26 +35,21 @@ pub fn parse(comptime T: type, tokens: *core.parsing.Tokenizer.TokenIterator, en
             }
 
             const next_token = tokens.peek(1);
-            switch (try Clause.parse(tokens, env)) {
-                .ok => |value| {
-                    comptime std.debug.assert(@TypeOf(value) == Clause);
-                    if (clause_tokens[i] == null) {
-                        @field(holder, field.name) = value;
-                        clause_tokens[i] = next_token;
-                        break;
-                    }
-                    return .ERR(.{
-                        .duplicate_clause = .{
-                            .clause = field.name,
-                            .first = clause_tokens[i] orelse unreachable,
-                            .second = next_token,
-                        },
-                    });
-                },
-                .err => |err| switch (err) {
-                    .unknown => {},
-                    else => return .ERR(err),
-                },
+            if (Clause.parse(tokens, env)) |value| {
+                comptime std.debug.assert(@TypeOf(value) == Clause);
+                if (clause_tokens[i] == null) {
+                    @field(holder, field.name) = value;
+                    clause_tokens[i] = next_token;
+                    break;
+                }
+                return env.err(.{ .duplicate_clause = .{
+                    .clause = field.name,
+                    .first = clause_tokens[i] orelse unreachable,
+                    .second = next_token,
+                } });
+            } else |err| switch (err) {
+                error.TokenMismatch => {},
+                else => |e| return e,
             }
         } else {
             break;
@@ -63,14 +58,12 @@ pub fn parse(comptime T: type, tokens: *core.parsing.Tokenizer.TokenIterator, en
 
     inline for (fields, 0..) |field, i| {
         if (clause_tokens[i] == null and field.default_value_ptr == null) {
-            return .ERR(.{
-                .missing_clause = .{
-                    .clause = field.name,
-                    .placement = tokens.next(),
-                },
-            });
+            return env.err(.{ .missing_clause = .{
+                .clause = field.name,
+                .placement = tokens.next(),
+            } });
         }
     }
 
-    return .OK(holder);
+    return holder;
 }
