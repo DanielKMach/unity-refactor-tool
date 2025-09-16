@@ -150,6 +150,8 @@ pub fn scanAndPrint(self: This, file: std.fs.File, file_path: []const u8, guid: 
         return;
     }
 
+    try env.transaction.include(file_path);
+
     const temp = try env.transaction.getTemp();
     defer env.transaction.delTemp(temp);
 
