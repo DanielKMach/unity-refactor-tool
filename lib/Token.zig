@@ -153,6 +153,9 @@ pub const Type = enum {
     /// Any alphanumeric literal, such as identifiers, component names, etc.
     literal,
 
+    /// Any alphanumeric literal with a leading '$'.
+    variable,
+
     /// End of file, used to indicate the end of input.
     eof,
 
@@ -226,6 +229,7 @@ pub const Value = union(Type) {
     number: f32,
     string: []const u8,
     literal: []const u8,
+    variable: []const u8,
     eof,
 
     pub fn format(self: Value, writer: *std.Io.Writer) std.Io.Writer.Error!void {

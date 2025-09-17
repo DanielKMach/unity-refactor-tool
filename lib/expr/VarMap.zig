@@ -8,6 +8,12 @@ allocator: std.mem.Allocator,
 readonly: std.StringHashMap(Value),
 readwrite: std.StringHashMap(Value),
 
+const ReadOnlyError = error{ReadOnly};
+
+pub const GetError = error{UndefinedVariable};
+pub const SetError = std.mem.Allocator.Error || ReadOnlyError || GetError;
+pub const DefineError = std.mem.Allocator.Error || ReadOnlyError || error{AlreadyDefined};
+
 pub fn init(allocator: std.mem.Allocator) VarMap {
     return .{
         .allocator = allocator,
@@ -26,14 +32,27 @@ pub fn default(allocator: std.mem.Allocator) VarMap {
     return map;
 }
 
-pub fn get(self: *VarMap, name: []const u8) ?Value {
-    return self.readwrite.get(name) orelse self.readonly.get(name);
+pub fn get(self: *VarMap, name: []const u8) GetError!Value {
+    std.debug.assert(!self.readonly.contains(name) or !self.readwrite.contains(name));
+    return self.readwrite.get(name) orelse self.readonly.get(name) orelse error.UndefinedVariable;
 }
 
-pub fn set(self: *VarMap, name: []const u8, value: Value) std.mem.Allocator.Error!void {
+pub fn set(self: *VarMap, name: []const u8, value: Value) SetError!void {
+    if (self.readonly.contains(name)) {
+        return error.ReadOnly;
+    }
+    if (!self.readwrite.contains(name)) {
+        return error.UndefinedVariable;
+    }
     try self.readwrite.put(name, value);
 }
 
-pub fn has(self: *VarMap, name: []const u8) bool {
-    return self.readwrite.contains(name);
+pub fn define(self: *VarMap, name: []const u8, value: Value) DefineError!bool {
+    if (self.readonly.contains(name)) {
+        return error.ReadOnly;
+    }
+    if (self.readwrite.contains(name)) {
+        return error.AlreadyDefined;
+    }
+    try self.readwrite.put(name, value);
 }

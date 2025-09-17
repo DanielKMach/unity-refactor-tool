@@ -87,16 +87,24 @@ pub fn token(self: *This, diag: *core.ParseDiagnostics) core.ParseError!?Token {
     }
 
     start = self.index;
-    if (self.match(alphabetic ++ "_")) { // identifiers and keywords
+    if (self.match(alphabetic ++ "_")) { // literals/keywords
         while (self.match(alphanumeric ++ "_")) {}
         const word = self.slice(start, 0);
         for (Token.keyword_list) |kw| {
             if (std.ascii.eqlIgnoreCase(word, kw[0])) {
                 return .new(kw[1], .fromSlice(self.source, word));
             }
-        } else {
-            return .new(.{ .literal = word }, .fromSlice(self.source, word));
         }
+        return .new(.{ .literal = word }, .fromSlice(self.source, word));
+    } else if (self.match("$")) { //
+        if (!self.match(alphabetic ++ "_")) {
+            return diag.push(.{ .unexpected_character = .{
+                .location = .init(start, 1),
+            } });
+        }
+        while (self.match(alphanumeric ++ "_")) {}
+        const word = self.slice(start, 0);
+        return .new(.{ .variable = word[1..] }, .fromSlice(self.source, word));
     } else if (self.match("\"'")) { // strings
         while (self.next()) |c| {
             if (c == self.at(start)) {

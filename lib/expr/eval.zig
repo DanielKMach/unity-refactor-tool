@@ -36,7 +36,8 @@ pub fn evaluate(expr: *Expr, env: Expr.EvalEnv) anyerror!Value {
         },
         .ternary => |tern| ternary(tern.left, tern.middle, tern.right, env),
         .grouping => |group| evaluate(group.expr, env),
-        .variable => |varr| env.context.get(varr.name.value.literal) orelse env.vars.get(varr.name.value.literal) orelse .nil,
+        .property => |prop| env.context.get(prop.name.value.literal) orelse .nil,
+        .variable => |varr| env.vars.get(varr.name.value.variable) catch @panic("TODO: Handle undefined variable"),
         .access => |acc| access(acc.base, acc.property.value.literal, env),
         .assignment => |as| assign(as.target, as.value, env),
         .call => |c| call(c.callee, c.args, env),
@@ -225,13 +226,17 @@ pub fn assign(access_expr: *Expr, value: *Expr, env: Expr.EvalEnv) anyerror!Valu
             const obj = try validate(acc.base, &.{.object}, env);
             try obj.object.set(key, val);
         },
+        .property => |prop| {
+            const key = prop.name.value.literal;
+            try env.context.set(key, val);
+        },
         .variable => |varr| {
-            const key = varr.name.value.literal;
-            if (env.vars.has(key)) {
-                try env.vars.set(key, val);
-            } else {
-                try env.context.set(key, val);
-            }
+            const key = varr.name.value.variable;
+            env.vars.set(key, val) catch |err| switch (err) {
+                error.ReadOnly => @panic("TODO: Handle read-only variable"),
+                error.UndefinedVariable => @panic("TODO: Handle undefined variable"),
+                else => |e| return e,
+            };
         },
         // .indexing => {} TODO
         else => unreachable,

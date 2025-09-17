@@ -76,7 +76,7 @@ fn genUnaryFunc(next_call: *const ParseFn, expected_tokens: []const core.Token.T
 fn assignment(tokens: *TokenIterator, env: Expr.ParseEnv) core.ParseAllocError!*Expr {
     var left = try ternary(tokens, env);
     if (tokens.match(.equal)) switch (left.*) {
-        .variable, .access => {
+        .property, .variable, .access => {
             const right = try assignment(tokens, env);
             const expr = try env.allocator.create(Expr);
             expr.* = .{ .assignment = .{
@@ -104,12 +104,19 @@ const unary = genUnaryFunc(vaif, &.{ .NOT, .minus });
 
 // Parse variable, access, indexing, function call or value
 fn vaif(tokens: *TokenIterator, env: Expr.ParseEnv) core.ParseAllocError!*Expr {
-    var left = if (tokens.consume(.literal)) |t| blk: {
-        const varr: *Expr = try env.allocator.create(Expr);
-        varr.* = .{ .variable = .{
-            .name = try t.dupe(env.allocator),
-        } };
-        break :blk varr;
+    var left = if (tokens.consumeAny(&.{ .literal, .variable })) |t| blk: {
+        const varprop: *Expr = try env.allocator.create(Expr);
+        errdefer env.allocator.destroy(varprop);
+        varprop.* = switch (t.value) {
+            .literal => .{ .property = .{
+                .name = try t.dupe(env.allocator),
+            } },
+            .variable => .{ .variable = .{
+                .name = try t.dupe(env.allocator),
+            } },
+            else => unreachable,
+        };
+        break :blk varprop;
     } else return try value(tokens, env);
 
     while (true) {

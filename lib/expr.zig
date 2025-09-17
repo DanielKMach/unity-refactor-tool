@@ -65,6 +65,10 @@ pub const Expr = union(enum) {
         property: core.Token,
     };
 
+    pub const Property = struct {
+        name: core.Token,
+    };
+
     pub const Variable = struct {
         name: core.Token,
     };
@@ -86,6 +90,7 @@ pub const Expr = union(enum) {
     ternary: Ternary,
     grouping: Grouping,
     access: Access,
+    property: Property,
     variable: Variable,
     assignment: Assignment,
     call: Call,
@@ -123,6 +128,7 @@ pub const Expr = union(enum) {
             .ternary => |t| .merge(&.{ t.left.loc(), t.right.loc() }),
             .grouping => |g| g.loc,
             .access => |a| .merge(&.{ a.base.loc(), a.property.loc }),
+            .property => |p| p.name.loc,
             .variable => |v| v.name.loc,
             .assignment => |as| .merge(&.{ as.target.loc(), as.value.loc() }),
             .call => |c| .merge(&.{ c.callee.loc(), c.paren.loc }),
@@ -137,6 +143,7 @@ pub const Expr = union(enum) {
             .ternary => |t| try writer.print("(?: {f} {f} {f})", .{ t.left, t.middle, t.right }),
             .grouping => |g| try writer.print("(group {f})", .{g.expr}),
             .access => |a| try writer.print("(. {f} {f})", .{ a.base, std.fmt.alt(a.property.value, .raw) }),
+            .property => |p| try writer.print("{f}", .{std.fmt.alt(p.name.value, .raw)}),
             .variable => |v| try writer.print("{f}", .{std.fmt.alt(v.name.value, .raw)}),
             .assignment => |as| try writer.print("(= {f} {f})", .{ as.target, as.value }),
             .call => |c| {
@@ -177,9 +184,8 @@ pub const Expr = union(enum) {
                 a.base.cleanup(allocator);
                 a.property.cleanup(allocator);
             },
-            .variable => |v| {
-                v.name.cleanup(allocator);
-            },
+            .property => |p| p.name.cleanup(allocator),
+            .variable => |v| v.name.cleanup(allocator),
             .assignment => |as| {
                 as.target.cleanup(allocator);
                 as.value.cleanup(allocator);
