@@ -119,8 +119,8 @@ pub fn scanAndPrint(self: This, file: std.fs.File, file_path: []const u8, guid: 
         try yaml.loadDocument(&doc);
         defer Yaml.deleteDocument(&doc);
 
-        var vars = Expr.VarMap.default(env.allocator);
-        const root = Expr.Value.Object{
+        var vars: Expr.VarMap = try .default(env.allocator);
+        const root: Expr.Value.Object = .{
             .node = @ptrCast(doc.nodes.start),
             .document = &doc,
         };

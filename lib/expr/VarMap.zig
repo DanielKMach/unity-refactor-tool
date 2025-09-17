@@ -22,13 +22,19 @@ pub fn init(allocator: std.mem.Allocator) VarMap {
     };
 }
 
-pub fn default(allocator: std.mem.Allocator) VarMap {
+pub fn default(allocator: std.mem.Allocator) std.mem.Allocator.Error!VarMap {
     var map: VarMap = .{
         .allocator = allocator,
         .readonly = .init(allocator),
         .readwrite = .init(allocator),
     };
-    map.readonly.put("min", .{ .func = .min }) catch unreachable;
+    inline for (@typeInfo(Value.Func).@"struct".decls) |decl| {
+        const d = @field(Value.Func, decl.name);
+        if (@TypeOf(d) == Value.Func) {
+            try map.readonly.put(decl.name, .{ .func = d });
+        }
+    }
+    try map.readonly.put("pi", .{ .number = std.math.pi });
     return map;
 }
 
