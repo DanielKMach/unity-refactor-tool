@@ -75,12 +75,43 @@ fn genUnaryFunc(next_call: *const ParseFn, expected_tokens: []const core.Token.T
 
 fn assignment(tokens: *TokenIterator, env: Expr.ParseEnv) core.ParseAllocError!*Expr {
     var left = try ternary(tokens, env);
-    if (tokens.match(.equal)) switch (left.*) {
+    if (tokens.consumeAny(&.{
+        .equal,
+        .plus_equal,
+        .minus_equal,
+        .star_equal,
+        .slash_equal,
+        .colon_equal,
+    })) |t| switch (left.*) {
         .property, .variable, .access => {
-            const right = try assignment(tokens, env);
+            var op = t;
+            var right = try assignment(tokens, env);
+            switch (t.value) {
+                .equal, .colon_equal => {},
+                .plus_equal, .minus_equal, .star_equal, .slash_equal => {
+                    // Desugar `x += y` to `x = x + y`
+                    const v: core.Token.Value = switch (t.value) {
+                        .plus_equal => .plus,
+                        .minus_equal => .minus,
+                        .star_equal => .star,
+                        .slash_equal => .slash,
+                        else => unreachable,
+                    };
+                    const unroll = try env.allocator.create(Expr);
+                    unroll.* = .{ .binary = .{
+                        .left = left,
+                        .op = .new(v, t.loc),
+                        .right = right,
+                    } };
+                    right = unroll;
+                    op = .new(.equal, t.loc);
+                },
+                else => unreachable,
+            }
             const expr = try env.allocator.create(Expr);
             expr.* = .{ .assignment = .{
                 .target = left,
+                .op = try op.dupe(env.allocator),
                 .value = right,
             } };
             left = expr;

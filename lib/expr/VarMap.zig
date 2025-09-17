@@ -47,7 +47,7 @@ pub fn set(self: *VarMap, name: []const u8, value: Value) SetError!void {
     try self.readwrite.put(name, value);
 }
 
-pub fn define(self: *VarMap, name: []const u8, value: Value) DefineError!bool {
+pub fn define(self: *VarMap, name: []const u8, value: Value) DefineError!void {
     if (self.readonly.contains(name)) {
         return error.ReadOnly;
     }

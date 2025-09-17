@@ -75,6 +75,7 @@ pub const Expr = union(enum) {
 
     pub const Assignment = struct {
         target: *core.Expr,
+        op: core.Token,
         value: *core.Expr,
     };
 
@@ -145,7 +146,7 @@ pub const Expr = union(enum) {
             .access => |a| try writer.print("(. {f} {f})", .{ a.base, std.fmt.alt(a.property.value, .raw) }),
             .property => |p| try writer.print("{f}", .{std.fmt.alt(p.name.value, .raw)}),
             .variable => |v| try writer.print("{f}", .{std.fmt.alt(v.name.value, .raw)}),
-            .assignment => |as| try writer.print("(= {f} {f})", .{ as.target, as.value }),
+            .assignment => |as| try writer.print("({f} {f} {f})", .{ std.fmt.alt(as.op.value, .raw), as.target, as.value }),
             .call => |c| {
                 try writer.print("(call {f} (", .{c.callee});
                 var first = true;
@@ -188,6 +189,7 @@ pub const Expr = union(enum) {
             .variable => |v| v.name.cleanup(allocator),
             .assignment => |as| {
                 as.target.cleanup(allocator);
+                as.op.cleanup(allocator);
                 as.value.cleanup(allocator);
             },
             .call => |c| {

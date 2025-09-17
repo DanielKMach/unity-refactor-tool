@@ -31,6 +31,11 @@ pub const operator_list: []const struct { []const u8, Value } = &.{
     .{ "/", .slash },
     .{ "%", .percentage },
     .{ "=", .equal },
+    .{ "+=", .plus_equal },
+    .{ "-=", .minus_equal },
+    .{ "*=", .star_equal },
+    .{ "/=", .slash_equal },
+    .{ ":=", .colon_equal },
     .{ ">", .greater },
     .{ "<", .less },
     .{ "(", .left_paren },
@@ -131,6 +136,11 @@ pub const Type = enum {
     slash, // '/'
     percentage, // '%'
     equal, // '='
+    plus_equal, // '+='
+    minus_equal, // '-='
+    star_equal, // '*='
+    slash_equal, // '/='
+    colon_equal, // ':='
     greater, // '>'
     greater_equal, // '>='
     less, // '<'
@@ -214,6 +224,11 @@ pub const Value = union(Type) {
     slash,
     percentage,
     equal,
+    plus_equal,
+    minus_equal,
+    star_equal,
+    slash_equal,
+    colon_equal,
     greater,
     greater_equal,
     less,

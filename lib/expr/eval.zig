@@ -39,7 +39,11 @@ pub fn evaluate(expr: *Expr, env: Expr.EvalEnv) anyerror!Value {
         .property => |prop| env.context.get(prop.name.value.literal) orelse .nil,
         .variable => |varr| env.vars.get(varr.name.value.variable) catch @panic("TODO: Handle undefined variable"),
         .access => |acc| access(acc.base, acc.property.value.literal, env),
-        .assignment => |as| assign(as.target, as.value, env),
+        .assignment => |as| switch (as.op.value) {
+            .equal => assign(as.target, as.value, env),
+            .colon_equal => define(as.target, as.value, env),
+            else => unreachable,
+        },
         .call => |c| call(c.callee, c.args, env),
     };
 }
@@ -218,9 +222,25 @@ pub fn access(base: *Expr, key: []const u8, env: Expr.EvalEnv) anyerror!Value {
     return obj.object.get(key) orelse .nil;
 }
 
-pub fn assign(access_expr: *Expr, value: *Expr, env: Expr.EvalEnv) anyerror!Value {
+pub fn define(target: *Expr, init: *Expr, env: Expr.EvalEnv) anyerror!Value {
+    return switch (target.*) {
+        .variable => |varr| blk: {
+            const key = varr.name.value.variable;
+            const val = try evaluate(init, env);
+            env.vars.define(key, val) catch |err| switch (err) {
+                error.ReadOnly => @panic("TODO: Handle read-only variable"),
+                error.AlreadyDefined => @panic("TODO: Handle already defined variable"),
+                else => |e| return e,
+            };
+            break :blk val;
+        },
+        else => try assign(target, init, env),
+    };
+}
+
+pub fn assign(target: *Expr, value: *Expr, env: Expr.EvalEnv) anyerror!Value {
     const val = try evaluate(value, env);
-    switch (access_expr.*) {
+    switch (target.*) {
         .access => |acc| {
             const key = acc.property.value.literal;
             const obj = try validate(acc.base, &.{.object}, env);
