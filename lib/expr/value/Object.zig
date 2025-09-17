@@ -87,6 +87,7 @@ pub fn set(self: Object, key: []const u8, value: Value) SetError!void {
             break :blk @intCast(i + 1);
         },
         .array => @panic("TODO: Handle arrays"),
+        .func => @panic("TODO: Dont allow funcs"),
     };
 
     const pair = self.getPair(key);

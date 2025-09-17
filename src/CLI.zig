@@ -309,6 +309,15 @@ pub fn printRuntimeProblem(runtime_error: usrl.RuntimeProblem, source: usrl.Sour
             }
             try printLineHighlight(err.location, source, fw);
         },
+        .invalid_argument_count => |err| {
+            const mode_str = switch (err.mode) {
+                .exact => "exactly",
+                .at_least => "at least",
+                .at_most => "at most",
+            };
+            try ansi.print(e, "Invalid argument count: expected {s} {d}, found {d}\r\n", .{ mode_str, err.expected, err.found });
+            try printLineHighlight(err.location, source, fw);
+        },
         .unexpected => |err| {
             try ansi.print(e, "Unexpected {t}\r\n", .{err});
         },

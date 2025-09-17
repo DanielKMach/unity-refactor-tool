@@ -119,7 +119,7 @@ pub fn scanAndPrint(self: This, file: std.fs.File, file_path: []const u8, guid: 
         try yaml.loadDocument(&doc);
         defer Yaml.deleteDocument(&doc);
 
-        var vars = Expr.VarMap.init(env.allocator);
+        var vars = Expr.VarMap.default(env.allocator);
         const root = Expr.Value.Object{
             .node = @ptrCast(doc.nodes.start),
             .document = &doc,
@@ -177,5 +177,6 @@ pub fn print(path: []const u8, value: core.Expr.Value, out: *std.Io.Writer) !voi
         .number => |n| try out.print(" {d}\n", .{n}),
         .object => try out.print(" object\n", .{}),
         .array => try out.print(" array\n", .{}),
+        .func => try out.print(" func\n", .{}),
     }
 }

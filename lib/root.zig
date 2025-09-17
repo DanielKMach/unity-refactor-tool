@@ -88,6 +88,12 @@ pub const RuntimeProblem = union(enum) {
     division_by_zero: struct {
         location: Token.Location,
     },
+    invalid_argument_count: struct {
+        mode: enum { exact, at_least, at_most },
+        expected: usize,
+        found: usize,
+        location: Token.Location,
+    },
 
     unexpected: anyerror,
 };

@@ -36,9 +36,10 @@ pub fn evaluate(expr: *Expr, env: Expr.EvalEnv) anyerror!Value {
         },
         .ternary => |tern| ternary(tern.left, tern.middle, tern.right, env),
         .grouping => |group| evaluate(group.expr, env),
-        .variable => |varr| env.context.get(varr.name.value.literal) orelse .nil,
+        .variable => |varr| env.context.get(varr.name.value.literal) orelse env.vars.get(varr.name.value.literal) orelse .nil,
         .access => |acc| access(acc.base, acc.property.value.literal, env),
         .assignment => |as| assign(as.target, as.value, env),
+        .call => |c| call(c.callee, c.args, env),
     };
 }
 
@@ -126,6 +127,7 @@ pub fn equals(left: *Expr, right: *Expr, env: Expr.EvalEnv) anyerror!Value {
         .nil => .{ .number = 1 },
         .object => |a_object| .{ .number = if (a_object.node == b.object.node) 1 else 0 },
         .array => @panic("TODO: Handle array"),
+        .func => |a_func| .{ .number = if (a_func.ptr == b.func.ptr) 1 else 0 },
     };
 }
 
@@ -238,6 +240,16 @@ pub fn assign(access_expr: *Expr, value: *Expr, env: Expr.EvalEnv) anyerror!Valu
     return val;
 }
 
+pub fn call(expr: *Expr, args: []const *Expr, env: Expr.EvalEnv) anyerror!Value {
+    const callee = try validate(expr, &.{.func}, env);
+    const vargs = try env.allocator.alloc(Value, args.len);
+    defer env.allocator.free(vargs);
+    for (args, vargs) |arg, *varg| {
+        varg.* = try evaluate(arg, env);
+    }
+    return try callee.func.call(vargs, env);
+}
+
 fn isTrythy(value: Value) bool {
     return switch (value) {
         .number => |num| num != 0,
@@ -245,6 +257,7 @@ fn isTrythy(value: Value) bool {
         .nil => false,
         .object => true, // should objects always eval to true?
         .array => @panic("TODO: Handle array"),
+        .func => true, // functions should always eval to true?
     };
 }
 

@@ -74,6 +74,12 @@ pub const Expr = union(enum) {
         value: *core.Expr,
     };
 
+    pub const Call = struct {
+        callee: *core.Expr,
+        args: []const *core.Expr,
+        paren: core.Token,
+    };
+
     unary: Unary,
     literal: Literal,
     binary: Binary,
@@ -82,6 +88,7 @@ pub const Expr = union(enum) {
     access: Access,
     variable: Variable,
     assignment: Assignment,
+    call: Call,
 
     /// Parses an expression from the given token iterator.
     pub const parse = ast.parse;
@@ -118,6 +125,7 @@ pub const Expr = union(enum) {
             .access => |a| .merge(&.{ a.base.loc(), a.property.loc }),
             .variable => |v| v.name.loc,
             .assignment => |as| .merge(&.{ as.target.loc(), as.value.loc() }),
+            .call => |c| .merge(&.{ c.callee.loc(), c.paren.loc }),
         };
     }
 
@@ -131,6 +139,16 @@ pub const Expr = union(enum) {
             .access => |a| try writer.print("(. {f} {f})", .{ a.base, std.fmt.alt(a.property.value, .raw) }),
             .variable => |v| try writer.print("{f}", .{std.fmt.alt(v.name.value, .raw)}),
             .assignment => |as| try writer.print("(= {f} {f})", .{ as.target, as.value }),
+            .call => |c| {
+                try writer.print("(call {f} (", .{c.callee});
+                var first = true;
+                for (c.args) |arg| {
+                    if (!first) try writer.print(", ", .{});
+                    try writer.print("{f}", .{arg});
+                    first = false;
+                }
+                try writer.print("))", .{});
+            },
         }
     }
 
@@ -165,6 +183,14 @@ pub const Expr = union(enum) {
             .assignment => |as| {
                 as.target.cleanup(allocator);
                 as.value.cleanup(allocator);
+            },
+            .call => |c| {
+                c.callee.cleanup(allocator);
+                for (c.args) |arg| {
+                    arg.cleanup(allocator);
+                }
+                allocator.free(c.args);
+                c.paren.cleanup(allocator);
             },
         }
         self.* = undefined;

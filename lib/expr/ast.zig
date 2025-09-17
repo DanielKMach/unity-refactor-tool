@@ -123,8 +123,29 @@ fn vaif(tokens: *TokenIterator, env: Expr.ParseEnv) core.ParseAllocError!*Expr {
             left = expr;
         }
         // else if (tokens.match(.left_bracket)) {} TODO: indexing
-        // else if (tokens.match(.left_paren)) {} TODO: function call
-        else break;
+        else if (tokens.match(.left_paren)) {
+            var args = std.ArrayList(*Expr).empty;
+            defer args.deinit(env.allocator);
+            errdefer for (args.items) |arg| arg.cleanup(env.allocator);
+
+            const rp = while (true) {
+                const arg = try parse(tokens, env);
+                errdefer arg.cleanup(env.allocator);
+                try args.append(env.allocator, arg);
+                const end = try tokens.grabAny(&.{ .comma, .right_paren }, env.diag);
+                if (end.is(.right_paren)) break end;
+            };
+
+            const expr = try env.allocator.create(Expr);
+            errdefer env.allocator.destroy(expr);
+
+            expr.* = .{ .call = .{
+                .callee = left,
+                .args = try args.toOwnedSlice(env.allocator),
+                .paren = try rp.dupe(env.allocator),
+            } };
+            left = expr;
+        } else break;
     }
     return left;
 }
