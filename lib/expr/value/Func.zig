@@ -24,14 +24,14 @@ pub fn new(func: anytype) Func {
     }
 
     const params = info.params;
-    for (params, 0..) |param, i| {
-        if (i == params.len - 1 and param.type != Expr.EvalEnv) {
-            @compileError("The last parameter of 'func' must be of type " ++ @typeName(Expr.EvalEnv) ++ ".");
-        } else if (i < params.len - 1 and !(for (@typeInfo(Value).@"union".fields) |fld| {
+    for (params[0 .. params.len - 1]) |param| {
+        const valid = for (@typeInfo(Value).@"union".fields) |fld| {
             if (param.type == fld.type) break true;
-        } else param.type == Value)) {
-            @compileError("All parameters of 'func' must be of type " ++ @typeName(Value) ++ " or one of its variants. Found " ++ @typeName(param.type) ++ ".");
-        }
+        } else param.type == Value;
+        if (!valid) @compileError("All but last parameters of 'func' must be of type " ++ @typeName(Value) ++ " or one of its variants. Found " ++ @typeName(param.type) ++ ".");
+    }
+    if (params[params.len - 1].type != Expr.EvalEnv) {
+        @compileError("The last parameter of 'func' must be of type " ++ @typeName(Expr.EvalEnv) ++ ". Found " ++ @typeName(params[params.len - 1].type) ++ ".");
     }
 
     const Wrapper = struct {
