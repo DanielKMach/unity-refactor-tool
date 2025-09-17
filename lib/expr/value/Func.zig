@@ -5,12 +5,6 @@ const Func = @This();
 const Expr = core.Expr;
 const Value = Expr.Value;
 
-pub const min = Func{ .ptr = builtin.min };
-pub const max = Func{ .ptr = builtin.max };
-pub const floor = Func{ .ptr = builtin.floor };
-pub const ceil = Func{ .ptr = builtin.ceil };
-pub const sqrt = Func{ .ptr = builtin.sqrt };
-
 pub const BuiltinFn = fn (args: []const Value, env: Expr.EvalEnv) anyerror!Value;
 
 ptr: *const BuiltinFn,
@@ -19,124 +13,98 @@ pub fn call(self: Func, args: []const Value, env: Expr.EvalEnv) anyerror!Value {
     return self.ptr(args, env);
 }
 
+pub fn new(func: anytype) Func {
+    const T = @TypeOf(func);
+    if (@typeInfo(T) != .pointer or @typeInfo(@typeInfo(T).pointer.child) != .@"fn") {
+        @compileError("'func' must be a pointer to a function.");
+    }
+    const info = @typeInfo(@typeInfo(T).pointer.child).@"fn";
+    if (info.return_type != anyerror!Value) {
+        @compileError("'func' must return " ++ @typeName(anyerror!Value) ++ ".");
+    }
+
+    const params = info.params;
+    for (params, 0..) |param, i| {
+        if (i == params.len - 1 and param.type != Expr.EvalEnv) {
+            @compileError("The last parameter of 'func' must be of type " ++ @typeName(Expr.EvalEnv) ++ ".");
+        } else if (i < params.len - 1 and !(for (@typeInfo(Value).@"union".fields) |fld| {
+            if (param.type == fld.type) break true;
+        } else param.type == Value)) {
+            @compileError("All parameters of 'func' must be of type " ++ @typeName(Value) ++ " or one of its variants. Found " ++ @typeName(param.type) ++ ".");
+        }
+    }
+
+    const Wrapper = struct {
+        pub fn wrap(args: []const Value, env: Expr.EvalEnv) anyerror!Value {
+            if (args.len != params.len - 1) return env.err(.{ .invalid_argument_count = .{
+                .mode = .exact,
+                .expected = params.len - 1,
+                .found = args.len,
+                .location = undefined,
+            } });
+            var tuple: TupleFromParams(params) = undefined;
+            inline for (0..params.len) |i| {
+                tuple[i] = switch (@TypeOf(tuple[i])) {
+                    f32 => args[i].number,
+                    []const u8 => args[i].string,
+                    Value.Object => args[i].object,
+                    Value.Func => args[i].func,
+                    Value => args[i],
+                    Expr.EvalEnv => env,
+                    else => @compileError("Unsupported parameter type: " ++ @typeName(@TypeOf(tuple[i])) ++ "."),
+                };
+            }
+
+            return @call(.auto, func, tuple);
+        }
+    };
+    return .{ .ptr = Wrapper.wrap };
+}
+
+fn TupleFromParams(comptime params: []const std.builtin.Type.Fn.Param) type {
+    var fields = [_]std.builtin.Type.StructField{undefined} ** params.len;
+    for (params, 0..) |p, i| {
+        const P = p.type orelse unreachable;
+        fields[i] = .{
+            .name = &.{i + 48}, // '0', '1', '2', ...
+            .type = P,
+            .default_value_ptr = null,
+            .is_comptime = false,
+            .alignment = @alignOf(P),
+        };
+    }
+    return @Type(.{ .@"struct" = .{
+        .backing_integer = null,
+        .decls = &.{},
+        .fields = &fields,
+        .is_tuple = true,
+        .layout = .auto,
+    } });
+}
+
 /// Built-in functions.
 pub const builtin = struct {
-    comptime {
-        for (std.meta.declarations(builtin)) |decl| {
-            const d = @field(builtin, decl.name);
-            if (@typeInfo(@TypeOf(d)) == .@"fn" and @TypeOf(d) != BuiltinFn) {
-                @compileError(decl.name ++ " doesn't match the signature: " ++ @typeName(BuiltinFn));
-            }
-        }
+    pub fn min(x: f32, y: f32, _: Expr.EvalEnv) anyerror!Value {
+        return .{ .number = @min(x, y) };
     }
 
-    pub fn min(args: []const Value, env: Expr.EvalEnv) anyerror!Value {
-        if (args.len == 0) {
-            return env.err(.{ .invalid_argument_count = .{
-                .mode = .at_least,
-                .expected = 1,
-                .found = 0,
-                .location = .{ .index = 0, .len = 0 },
-            } });
-        }
-        var min_value = std.math.floatMax(f32);
-        for (args) |arg| {
-            if (arg != .number) {
-                return env.err(.{ .unexpected_type = .{
-                    .expected = &.{.number},
-                    .found = arg,
-                    .location = .{ .index = 0, .len = 0 },
-                } });
-            }
-            if (arg.number < min_value) {
-                min_value = arg.number;
-            }
-        }
-        return .{ .number = min_value };
+    pub fn max(x: f32, y: f32, _: Expr.EvalEnv) anyerror!Value {
+        return .{ .number = @max(x, y) };
     }
 
-    pub fn max(args: []const Value, env: Expr.EvalEnv) anyerror!Value {
-        if (args.len == 0) {
-            return env.err(.{ .invalid_argument_count = .{
-                .mode = .at_least,
-                .expected = 1,
-                .found = 0,
-                .location = .{ .index = 0, .len = 0 },
-            } });
-        }
-        var max_value = std.math.floatMin(f32);
-        for (args) |arg| {
-            if (arg != .number) {
-                return env.err(.{ .unexpected_type = .{
-                    .expected = &.{.number},
-                    .found = arg,
-                    .location = .{ .index = 0, .len = 0 },
-                } });
-            }
-            if (arg.number > max_value) {
-                max_value = arg.number;
-            }
-        }
-        return .{ .number = max_value };
+    pub fn floor(x: f32, _: Expr.EvalEnv) anyerror!Value {
+        return .{ .number = std.math.floor(x) };
     }
 
-    pub fn floor(args: []const Value, env: Expr.EvalEnv) anyerror!Value {
-        if (args.len != 1) {
-            return env.err(.{ .invalid_argument_count = .{
-                .mode = .exact,
-                .expected = 1,
-                .found = args.len,
-                .location = .{ .index = 0, .len = args.len },
-            } });
-        }
-        if (args[0] != .number) {
-            return env.err(.{ .unexpected_type = .{
-                .expected = &.{.number},
-                .found = args[0],
-                .location = .{ .index = 0, .len = args.len },
-            } });
-        }
-        return .{ .number = std.math.floor(args[0].number) };
+    pub fn ceil(x: f32, _: Expr.EvalEnv) anyerror!Value {
+        return .{ .number = std.math.ceil(x) };
     }
 
-    pub fn ceil(args: []const Value, env: Expr.EvalEnv) anyerror!Value {
-        if (args.len != 1) {
-            return env.err(.{ .invalid_argument_count = .{
-                .mode = .exact,
-                .expected = 1,
-                .found = args.len,
-                .location = .{ .index = 0, .len = args.len },
-            } });
-        }
-        if (args[0] != .number) {
-            return env.err(.{ .unexpected_type = .{
-                .expected = &.{.number},
-                .found = args[0],
-                .location = .{ .index = 0, .len = args.len },
-            } });
-        }
-        return .{ .number = std.math.ceil(args[0].number) };
-    }
-
-    pub fn sqrt(args: []const Value, env: Expr.EvalEnv) anyerror!Value {
-        if (args.len != 1) {
-            return env.err(.{ .invalid_argument_count = .{
-                .mode = .exact,
-                .expected = 1,
-                .found = args.len,
-                .location = .{ .index = 0, .len = args.len },
-            } });
-        }
-        if (args[0] != .number) {
-            return env.err(.{ .unexpected_type = .{
-                .expected = &.{.number},
-                .found = args[0],
-                .location = .{ .index = 0, .len = args.len },
-            } });
-        }
-        if (args[0].number < 0) {
+    pub fn sqrt(x: f32, env: Expr.EvalEnv) anyerror!Value {
+        if (x < 0) {
+            _ = env;
             @panic("sqrt of negative number");
         }
-        return .{ .number = std.math.sqrt(args[0].number) };
+        return .{ .number = std.math.sqrt(x) };
     }
 };

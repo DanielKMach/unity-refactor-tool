@@ -28,11 +28,9 @@ pub fn default(allocator: std.mem.Allocator) std.mem.Allocator.Error!VarMap {
         .readonly = .init(allocator),
         .readwrite = .init(allocator),
     };
-    inline for (@typeInfo(Value.Func).@"struct".decls) |decl| {
-        const d = @field(Value.Func, decl.name);
-        if (@TypeOf(d) == Value.Func) {
-            try map.readonly.put(decl.name, .{ .func = d });
-        }
+    inline for (@typeInfo(Value.Func.builtin).@"struct".decls) |decl| {
+        const d = @field(Value.Func.builtin, decl.name);
+        try map.readonly.put(decl.name, .{ .func = comptime .new(&d) });
     }
     try map.readonly.put("pi", .{ .number = std.math.pi });
     return map;
