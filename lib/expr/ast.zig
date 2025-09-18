@@ -166,7 +166,7 @@ fn vaif(tokens: *TokenIterator, env: Expr.ParseEnv) core.ParseAllocError!*Expr {
             defer args.deinit(env.allocator);
             errdefer for (args.items) |arg| arg.cleanup(env.allocator);
 
-            const rp = while (true) {
+            const rp = if (tokens.consume(.right_paren)) |p| p else while (true) {
                 const arg = try parse(tokens, env);
                 errdefer arg.cleanup(env.allocator);
                 try args.append(env.allocator, arg);

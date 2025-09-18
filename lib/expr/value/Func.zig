@@ -5,12 +5,12 @@ const Func = @This();
 const Expr = core.Expr;
 const Value = Expr.Value;
 
-pub const BuiltinFn = fn (args: []const Value, env: Expr.EvalEnv) anyerror!Value;
+pub const BuiltinFn = fn (call_expr: *Expr.Call, env: Expr.EvalEnv) Expr.eval.Error!Value;
 
 ptr: *const BuiltinFn,
 
-pub fn call(self: Func, args: []const Value, env: Expr.EvalEnv) anyerror!Value {
-    return self.ptr(args, env);
+pub fn call(self: Func, call_expr: *Expr.Call, env: Expr.EvalEnv) Expr.eval.Error!Value {
+    return self.ptr(call_expr, env);
 }
 
 pub fn new(func: anytype) Func {
@@ -19,8 +19,8 @@ pub fn new(func: anytype) Func {
         @compileError("'func' must be a pointer to a function.");
     }
     const info = @typeInfo(@typeInfo(T).pointer.child).@"fn";
-    if (info.return_type != anyerror!Value) {
-        @compileError("'func' must return " ++ @typeName(anyerror!Value) ++ ".");
+    if (info.return_type != Expr.eval.Error!Value) {
+        @compileError("'func' must return " ++ @typeName(Expr.eval.Error!Value) ++ ".");
     }
 
     const params = info.params;
@@ -35,30 +35,39 @@ pub fn new(func: anytype) Func {
     }
 
     const Wrapper = struct {
-        pub fn wrap(args: []const Value, env: Expr.EvalEnv) anyerror!Value {
-            if (args.len != params.len - 1) return env.err(.{ .invalid_argument_count = .{
+        pub fn wrap(call_expr: *Expr.Call, env: Expr.EvalEnv) Expr.eval.Error!Value {
+            const expr: *Expr = @fieldParentPtr("call", call_expr);
+            if (call_expr.args.len != params.len - 1) return env.err(.{ .invalid_argument_count = .{
                 .mode = .exact,
                 .expected = params.len - 1,
-                .found = args.len,
-                .location = undefined,
+                .found = call_expr.args.len,
+                .location = expr.loc(),
             } });
             var tuple: TupleFromParams(params) = undefined;
-            inline for (0..params.len) |i| {
-                tuple[i] = switch (@TypeOf(tuple[i])) {
-                    f32 => args[i].number,
-                    []const u8 => args[i].string,
-                    Value.Object => args[i].object,
-                    Value.Func => args[i].func,
-                    Value => args[i],
-                    Expr.EvalEnv => env,
+            inline for (0..params.len - 1) |i| {
+                const expected: ?Value.Type = switch (@TypeOf(tuple[i])) {
+                    f32 => .number,
+                    []const u8 => .string,
+                    Value.Object => .object,
+                    Value.Func => .func,
+                    Value => null,
                     else => @compileError("Unsupported parameter type: " ++ @typeName(@TypeOf(tuple[i])) ++ "."),
                 };
+                if (expected) |e| {
+                    const value = try Expr.eval.validate(call_expr.args[i], &.{e}, env);
+                    tuple[i] = @field(value, @tagName(e));
+                } else {
+                    tuple[i] = try Expr.eval.evaluate(call_expr.args[i], env);
+                }
             }
+            tuple[params.len - 1] = env;
 
             return @call(.auto, func, tuple);
         }
     };
-    return .{ .ptr = Wrapper.wrap };
+    return .{
+        .ptr = Wrapper.wrap,
+    };
 }
 
 fn TupleFromParams(comptime params: []const std.builtin.Type.Fn.Param) type {
@@ -84,27 +93,48 @@ fn TupleFromParams(comptime params: []const std.builtin.Type.Fn.Param) type {
 
 /// Built-in functions.
 pub const builtin = struct {
-    pub fn min(x: f32, y: f32, _: Expr.EvalEnv) anyerror!Value {
+    pub fn min(x: f32, y: f32, _: Expr.EvalEnv) Expr.eval.Error!Value {
         return .{ .number = @min(x, y) };
     }
 
-    pub fn max(x: f32, y: f32, _: Expr.EvalEnv) anyerror!Value {
+    pub fn max(x: f32, y: f32, _: Expr.EvalEnv) Expr.eval.Error!Value {
         return .{ .number = @max(x, y) };
     }
 
-    pub fn floor(x: f32, _: Expr.EvalEnv) anyerror!Value {
-        return .{ .number = std.math.floor(x) };
+    pub fn floor(x: f32, _: Expr.EvalEnv) Expr.eval.Error!Value {
+        return .{ .number = @floor(x) };
     }
 
-    pub fn ceil(x: f32, _: Expr.EvalEnv) anyerror!Value {
-        return .{ .number = std.math.ceil(x) };
+    pub fn ceil(x: f32, _: Expr.EvalEnv) Expr.eval.Error!Value {
+        return .{ .number = @ceil(x) };
     }
 
-    pub fn sqrt(x: f32, env: Expr.EvalEnv) anyerror!Value {
-        if (x < 0) {
-            _ = env;
-            @panic("sqrt of negative number");
-        }
-        return .{ .number = std.math.sqrt(x) };
+    pub fn trunc(x: f32, _: Expr.EvalEnv) Expr.eval.Error!Value {
+        return .{ .number = @trunc(x) };
+    }
+
+    pub fn round(x: f32, _: Expr.EvalEnv) Expr.eval.Error!Value {
+        return .{ .number = @round(x) };
+    }
+
+    pub fn sqrt(x: f32, _: Expr.EvalEnv) Expr.eval.Error!Value {
+        if (x < 0) @panic("sqrt of negative number");
+        return .{ .number = @sqrt(x) };
+    }
+
+    pub fn abs(x: f32, _: Expr.EvalEnv) Expr.eval.Error!Value {
+        return .{ .number = @abs(x) };
+    }
+
+    pub fn cos(x: f32, _: Expr.EvalEnv) Expr.eval.Error!Value {
+        return .{ .number = @cos(x) };
+    }
+
+    pub fn sin(x: f32, _: Expr.EvalEnv) Expr.eval.Error!Value {
+        return .{ .number = @sin(x) };
+    }
+
+    pub fn prop(key: []const u8, env: Expr.EvalEnv) Expr.eval.Error!Value {
+        return env.context.get(key) orelse .nil;
     }
 };
