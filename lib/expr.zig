@@ -107,7 +107,7 @@ pub const Expr = union(enum) {
     /// Evaluates the expression in a temporary environment, duplicating the result into the original environment's allocator.
     ///
     /// Frees any temporary allocations made during evaluation.
-    pub fn evaluateAuto(self: *Expr, env: EvalEnv) anyerror!Value {
+    pub fn evaluateAuto(self: *Expr, env: EvalEnv) eval.Error!Value {
         var buf: [1024 * 1024]u8 = undefined; // 1 MiB
         var stack = std.heap.FixedBufferAllocator.init(&buf);
 
@@ -118,7 +118,8 @@ pub const Expr = union(enum) {
             .vars = env.vars,
         };
 
-        return (try eval.evaluate(self, new_env)).value;
+        const result = try eval.evaluate(self, new_env);
+        return try result.value.dupe(env.allocator);
     }
 
     pub fn loc(self: *Expr) Location {

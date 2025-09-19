@@ -189,7 +189,7 @@ fn vaif(tokens: *TokenIterator, env: Expr.ParseEnv) core.ParseAllocError!*Expr {
 }
 
 fn value(tokens: *TokenIterator, env: Expr.ParseEnv) core.ParseAllocError!*Expr {
-    if (tokens.consumeAny(&.{ .string, .number })) |t| {
+    if (tokens.consumeAny(&.{ .string, .number, .NIL })) |t| {
         const expr = try env.allocator.create(Expr);
         expr.* = .{ .literal = .{
             .token = try t.dupe(env.allocator),
@@ -205,11 +205,9 @@ fn value(tokens: *TokenIterator, env: Expr.ParseEnv) core.ParseAllocError!*Expr 
         } };
         return expr;
     } else {
-        return env.err(.{
-            .unexpected_token = .{
-                .found = tokens.peek(1),
-                .expected = &.{ .left_paren, .literal, .string, .number },
-            },
-        });
+        return env.err(.{ .unexpected_token = .{
+            .found = tokens.peek(1),
+            .expected = &.{ .left_paren, .literal, .string, .number, .NIL },
+        } });
     }
 }

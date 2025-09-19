@@ -20,6 +20,7 @@ pub const keyword_list: []const struct { []const u8, Value } = &.{
     .{ "REFS", .REFS },
     .{ "USES", .USES },
     .{ "FOR", .FOR },
+    .{ "NIL", .NIL },
 };
 
 pub const operator_list: []const struct { []const u8, Value } = &.{
@@ -83,6 +84,7 @@ pub fn dupe(self: Token, allocator: std.mem.Allocator) std.mem.Allocator.Error!T
     const new_value: Value = switch (self.value) {
         .string => |s| .{ .string = try allocator.dupe(u8, s) },
         .literal => |l| .{ .literal = try allocator.dupe(u8, l) },
+        .variable => |v| .{ .variable = try allocator.dupe(u8, v) },
         else => self.value,
     };
     return Token{
@@ -98,6 +100,7 @@ pub fn cleanup(self: Token, allocator: std.mem.Allocator) void {
     switch (self.value) {
         .string => |s| allocator.free(s),
         .literal => |l| allocator.free(l),
+        .variable => |v| allocator.free(v),
         else => {},
     }
 }
@@ -126,6 +129,7 @@ pub const Type = enum {
     REFS,
     USES,
     FOR,
+    NIL,
 
     // Operators
     dot, // '.'
@@ -216,6 +220,7 @@ pub const Value = union(Type) {
     REFS,
     USES,
     FOR,
+    NIL,
     dot,
     comma,
     plus,
@@ -252,6 +257,7 @@ pub const Value = union(Type) {
             .number => |n| try writer.print("number '{d}'", .{n}),
             .string => |s| try writer.print("string '{s}'", .{s}),
             .literal => |l| try writer.print("literal '{s}'", .{l}),
+            .variable => |v| try writer.print("variable '${s}'", .{v}),
             else => try @as(Type, self).format(writer),
         }
     }
@@ -261,6 +267,7 @@ pub const Value = union(Type) {
             .number => |n| try writer.print("{d}", .{n}),
             .string => |s| try writer.print("'{s}'", .{s}),
             .literal => |l| try writer.print("`{s}`", .{l}),
+            .variable => |v| try writer.print("${s}", .{v}),
             else => try @as(Type, self).raw(writer),
         }
     }

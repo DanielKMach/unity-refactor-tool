@@ -96,6 +96,15 @@ pub fn token(self: *This, diag: *core.ParseDiagnostics) core.ParseError!?Token {
             }
         }
         return .new(.{ .literal = word }, .fromSlice(self.source, word));
+    } else if (self.match("`")) {
+        while (self.next()) |c| {
+            if (c == self.at(start)) {
+                const word = self.slice(start + 1, -1);
+                return .new(.{ .literal = word }, .fromSlice(self.source, word));
+            }
+        } else {
+            return diag.push(.{ .never_closed_string = .{ .location = .init(start, 1) } });
+        }
     } else if (self.match("$")) { //
         if (!self.match(alphabetic ++ "_")) {
             return diag.push(.{ .unexpected_character = .{

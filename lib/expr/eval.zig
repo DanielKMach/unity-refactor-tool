@@ -12,6 +12,7 @@ pub fn evaluate(expr: *Expr, env: Expr.EvalEnv) Error!Value.Traceable {
         .literal => |lit| switch (lit.token.value) {
             .number => |num| .{ .number = num },
             .string => |str| .{ .string = str },
+            .NIL => .nil,
             else => unreachable,
         },
         .unary => |un| switch (un.op.value) {
