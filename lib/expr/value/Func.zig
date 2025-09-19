@@ -5,12 +5,12 @@ const Func = @This();
 const Expr = core.Expr;
 const Value = Expr.Value;
 
-pub const BuiltinFn = fn (call_expr: *Expr.Call, env: Expr.EvalEnv) Expr.eval.Error!Value;
+pub const BuiltinFn = fn (*Expr.Call, []const Value.Traceable, Expr.EvalEnv) Expr.eval.Error!Value;
 
 ptr: *const BuiltinFn,
 
-pub fn call(self: Func, call_expr: *Expr.Call, env: Expr.EvalEnv) Expr.eval.Error!Value {
-    return self.ptr(call_expr, env);
+pub fn call(self: Func, call_expr: *Expr.Call, args: []const Value.Traceable, env: Expr.EvalEnv) Expr.eval.Error!Value {
+    return self.ptr(call_expr, args, env);
 }
 
 pub fn new(func: anytype) Func {
@@ -23,51 +23,44 @@ pub fn new(func: anytype) Func {
         @compileError("'func' must return " ++ @typeName(Expr.eval.Error!Value) ++ ".");
     }
 
-    const params = info.params;
-    for (params[0 .. params.len - 1]) |param| {
+    const params = info.params[0 .. info.params.len - 1];
+    for (params) |param| {
         const valid = for (@typeInfo(Value).@"union".fields) |fld| {
             if (param.type == fld.type) break true;
-        } else param.type == Value;
-        if (!valid) @compileError("All but last parameters of 'func' must be of type " ++ @typeName(Value) ++ " or one of its variants. Found " ++ @typeName(param.type) ++ ".");
+        } else param.type == Value.Traceable;
+        if (!valid) @compileError("All but last parameters of 'func' must be of type " ++ @typeName(Value.Traceable) ++ " or one of its variants. Found " ++ @typeName(param.type) ++ ".");
     }
-    if (params[params.len - 1].type != Expr.EvalEnv) {
-        @compileError("The last parameter of 'func' must be of type " ++ @typeName(Expr.EvalEnv) ++ ". Found " ++ @typeName(params[params.len - 1].type) ++ ".");
+    if (info.params[params.len].type != Expr.EvalEnv) {
+        @compileError("The last parameter of 'func' must be of type " ++ @typeName(Expr.EvalEnv) ++ ". Found " ++ @typeName(params[params.len].type) ++ ".");
     }
 
     const Wrapper = struct {
-        pub fn wrap(call_expr: *Expr.Call, env: Expr.EvalEnv) Expr.eval.Error!Value {
-            const expr: *Expr = @fieldParentPtr("call", call_expr);
-            if (call_expr.args.len != params.len - 1) return env.err(.{ .invalid_argument_count = .{
+        pub fn wrap(call_expr: *Expr.Call, args: []const Value.Traceable, env: Expr.EvalEnv) Expr.eval.Error!Value {
+            const loc = @as(*Expr, @fieldParentPtr("call", call_expr)).loc();
+            if (args.len != params.len) return env.err(.{ .invalid_argument_count = .{
                 .mode = .exact,
-                .expected = params.len - 1,
-                .found = call_expr.args.len,
-                .location = expr.loc(),
+                .expected = params.len,
+                .found = args.len,
+                .location = loc,
             } });
-            var tuple: TupleFromParams(params) = undefined;
-            inline for (0..params.len - 1) |i| {
-                const expected: ?Value.Type = switch (@TypeOf(tuple[i])) {
-                    f32 => .number,
-                    []const u8 => .string,
-                    Value.Object => .object,
-                    Value.Func => .func,
-                    Value => null,
-                    else => @compileError("Unsupported parameter type: " ++ @typeName(@TypeOf(tuple[i])) ++ "."),
-                };
+            var tuple: TupleFromParams(info.params) = undefined;
+            inline for (params, 0..) |param, i| {
+                const expected: ?Value.Type = inline for (@typeInfo(Value).@"union".fields) |fld| {
+                    if (param.type == fld.type) break @field(Value.Type, fld.name);
+                } else null;
                 if (expected) |e| {
-                    const value = try Expr.eval.validate(call_expr.args[i], &.{e}, env);
-                    tuple[i] = @field(value, @tagName(e));
+                    try Value.validate(args[i], &.{e}, env.diag);
+                    tuple[i] = @field(args[i].value, @tagName(e));
                 } else {
-                    tuple[i] = try Expr.eval.evaluate(call_expr.args[i], env);
+                    tuple[i] = args[i];
                 }
             }
-            tuple[params.len - 1] = env;
+            tuple[params.len] = env;
 
             return @call(.auto, func, tuple);
         }
     };
-    return .{
-        .ptr = Wrapper.wrap,
-    };
+    return .{ .ptr = Wrapper.wrap };
 }
 
 fn TupleFromParams(comptime params: []const std.builtin.Type.Fn.Param) type {

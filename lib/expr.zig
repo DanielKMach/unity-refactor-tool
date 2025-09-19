@@ -118,7 +118,7 @@ pub const Expr = union(enum) {
             .vars = env.vars,
         };
 
-        return try eval.evaluate(self, new_env);
+        return (try eval.evaluate(self, new_env)).value;
     }
 
     pub fn loc(self: *Expr) Location {
@@ -133,6 +133,14 @@ pub const Expr = union(enum) {
             .variable => |v| v.name.loc,
             .assignment => |as| .merge(&.{ as.target.loc(), as.value.loc() }),
             .call => |c| .merge(&.{ c.callee.loc(), c.paren.loc }),
+        };
+    }
+
+    /// Creates a traceable value from this expression and the given value.
+    pub fn derived(self: *Expr, value: Value) Value.Traceable {
+        return .{
+            .source = self,
+            .value = value,
         };
     }
 

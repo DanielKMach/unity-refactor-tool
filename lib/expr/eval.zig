@@ -7,111 +7,102 @@ const Location = core.Token.Location;
 
 pub const Error = core.RuntimeError || std.mem.Allocator.Error || error{LibyamlError};
 
-pub fn evaluate(expr: *Expr, env: Expr.EvalEnv) Error!Value {
-    return switch (expr.*) {
+pub fn evaluate(expr: *Expr, env: Expr.EvalEnv) Error!Value.Traceable {
+    return expr.derived(switch (expr.*) {
         .literal => |lit| switch (lit.token.value) {
             .number => |num| .{ .number = num },
             .string => |str| .{ .string = str },
             else => unreachable,
         },
         .unary => |un| switch (un.op.value) {
-            .minus => negate(un.operand, env),
-            .NOT => logicalNot(un.operand, env),
+            .minus => try negate(un.operand, env),
+            .NOT => try logicalNot(un.operand, env),
             else => unreachable,
         },
         .binary => |bin| switch (bin.op.value) {
-            .plus => addOrConcat(bin.left, bin.right, env),
-            .minus => subtract(bin.left, bin.right, env),
-            .star => multiply(bin.left, bin.right, env),
-            .slash => divide(bin.left, bin.right, env),
-            .percentage => mod(bin.left, bin.right, env),
-            .equal_equal => equals(bin.left, bin.right, env),
-            .bang_equal => notEquals(bin.left, bin.right, env),
-            .greater => greaterThan(bin.left, bin.right, env),
-            .less => lessThan(bin.left, bin.right, env),
-            .greater_equal => greaterThanOrEqual(bin.left, bin.right, env),
-            .less_equal => lessThanOrEqual(bin.left, bin.right, env),
-            .OR => logicalOr(bin.left, bin.right, env),
-            .AND => logicalAnd(bin.left, bin.right, env),
-            .question_question => nullCoalesce(bin.left, bin.right, env),
+            .plus => try addOrConcat(bin.left, bin.right, env),
+            .minus => try subtract(bin.left, bin.right, env),
+            .star => try multiply(bin.left, bin.right, env),
+            .slash => try divide(bin.left, bin.right, env),
+            .percentage => try mod(bin.left, bin.right, env),
+            .equal_equal => try equals(bin.left, bin.right, env),
+            .bang_equal => try notEquals(bin.left, bin.right, env),
+            .greater => try greaterThan(bin.left, bin.right, env),
+            .less => try lessThan(bin.left, bin.right, env),
+            .greater_equal => try greaterThanOrEqual(bin.left, bin.right, env),
+            .less_equal => try lessThanOrEqual(bin.left, bin.right, env),
+            .OR => try logicalOr(bin.left, bin.right, env),
+            .AND => try logicalAnd(bin.left, bin.right, env),
+            .question_question => try nullCoalesce(bin.left, bin.right, env),
             else => unreachable,
         },
-        .ternary => |tern| ternary(tern.left, tern.middle, tern.right, env),
-        .grouping => |group| evaluate(group.expr, env),
+        .ternary => |tern| try ternary(tern.left, tern.middle, tern.right, env),
+        .grouping => |group| (try evaluate(group.expr, env)).value,
         .property => |prop| env.context.get(prop.name.value.literal) orelse .nil,
         .variable => |varr| env.vars.get(varr.name.value.variable) catch @panic("TODO: Handle undefined variable"),
-        .access => |acc| access(acc.base, acc.property.value.literal, env),
+        .access => |acc| try access(acc.base, acc.property.value.literal, env),
         .assignment => |as| switch (as.op.value) {
-            .equal => assign(as.target, as.value, env),
-            .colon_equal => define(as.target, as.value, env),
+            .equal => try assign(as.target, as.value, env),
+            .colon_equal => try define(as.target, as.value, env),
             else => unreachable,
         },
-        .call => |*c| call(c, env),
-    };
+        .call => |*c| try call(c, env),
+    });
 }
 
 pub fn addOrConcat(left: *Expr, right: *Expr, env: Expr.EvalEnv) Error!Value {
     const a = try validate(left, &.{ .string, .number }, env);
-
     const b = try validate(right, &.{ .string, .number }, env);
-
-    return switch (a) {
-        .string => |str_a| switch (b) {
-            .string => |str_b| .{ .string = try std.fmt.allocPrint(env.allocator, "{s}{s}", .{ str_a, str_b }) },
-            .number => |num_b| .{ .string = try std.fmt.allocPrint(env.allocator, "{s}{d}", .{ str_a, num_b }) },
-            else => unreachable,
-        },
-        .number => |num_a| switch (b) {
-            .string => |str_b| .{ .string = try std.fmt.allocPrint(env.allocator, "{d}{s}", .{ num_a, str_b }) },
-            .number => |num_b| .{ .number = num_a + num_b },
-            else => unreachable,
-        },
-        else => unreachable,
-    };
+    if (a == .string or b == .string) {
+        return .{ .string = try std.fmt.allocPrint(env.allocator, "{f}{f}", .{
+            std.fmt.alt(a, .stringify),
+            std.fmt.alt(b, .stringify),
+        }) };
+    } else if (a == .number and b == .number) {
+        return .{ .number = a.number + b.number };
+    }
+    return env.err(.{ .type_mismatch = .{
+        .left = a,
+        .left_loc = left.loc(),
+        .right = b,
+        .right_loc = right.loc(),
+    } });
 }
 
 pub fn add(left: *Expr, right: *Expr, env: Expr.EvalEnv) Error!Value {
     const a = try validate(left, &.{.number}, env);
-
     const b = try validate(right, &.{.number}, env);
-
     return .{ .number = a.number + b.number };
 }
 
 pub fn subtract(left: *Expr, right: *Expr, env: Expr.EvalEnv) Error!Value {
     const a = try validate(left, &.{.number}, env);
-
     const b = try validate(right, &.{.number}, env);
-
     return .{ .number = a.number - b.number };
 }
 
 pub fn multiply(left: *Expr, right: *Expr, env: Expr.EvalEnv) Error!Value {
     const a = try validate(left, &.{.number}, env);
-
     const b = try validate(right, &.{.number}, env);
-
     return .{ .number = a.number * b.number };
 }
 
 pub fn divide(left: *Expr, right: *Expr, env: Expr.EvalEnv) Error!Value {
     const a = try validate(left, &.{.number}, env);
-
     const b = try validate(right, &.{.number}, env);
 
     if (b.number == 0) return env.err(.{ .division_by_zero = .{
-        .location = Location.merge(&.{ left.loc(), right.loc() }),
+        .location = .merge(&.{ left.loc(), right.loc() }),
     } });
     return .{ .number = a.number / b.number };
 }
 
 pub fn mod(left: *Expr, right: *Expr, env: Expr.EvalEnv) Error!Value {
     const a = try validate(left, &.{.number}, env);
-
     const b = try validate(right, &.{.number}, env);
 
     if (b.number == 0) return env.err(.{ .division_by_zero = .{
-        .location = Location.merge(&.{ left.loc(), right.loc() }),
+        .location = .merge(&.{ left.loc(), right.loc() }),
     } });
     return .{ .number = @mod(a.number, b.number) };
 }
@@ -122,8 +113,8 @@ pub fn negate(expr: *Expr, env: Expr.EvalEnv) Error!Value {
 }
 
 pub fn equals(left: *Expr, right: *Expr, env: Expr.EvalEnv) Error!Value {
-    const a = try evaluate(left, env);
-    const b = try evaluate(right, env);
+    const a = (try evaluate(left, env)).value;
+    const b = (try evaluate(right, env)).value;
     if (@as(Value.Type, a) != @as(Value.Type, b)) {
         return .{ .number = 0 };
     }
@@ -145,59 +136,56 @@ pub fn notEquals(left: *Expr, right: *Expr, env: Expr.EvalEnv) Error!Value {
 
 pub fn lessThan(left: *Expr, right: *Expr, env: Expr.EvalEnv) Error!Value {
     const a = try validate(left, &.{.number}, env);
-
     const b = try validate(right, &.{.number}, env);
-
     return .{ .number = if (a.number < b.number) 1 else 0 };
 }
 
 pub fn greaterThan(left: *Expr, right: *Expr, env: Expr.EvalEnv) Error!Value {
     const a = try validate(left, &.{.number}, env);
-
     const b = try validate(right, &.{.number}, env);
-
     return .{ .number = if (a.number > b.number) 1 else 0 };
 }
 
 pub fn lessThanOrEqual(left: *Expr, right: *Expr, env: Expr.EvalEnv) Error!Value {
     const a = try validate(left, &.{.number}, env);
-
     const b = try validate(right, &.{.number}, env);
-
     return .{ .number = if (a.number <= b.number) 1 else 0 };
 }
 
 pub fn greaterThanOrEqual(left: *Expr, right: *Expr, env: Expr.EvalEnv) Error!Value {
     const a = try validate(left, &.{.number}, env);
-
     const b = try validate(right, &.{.number}, env);
-
     return .{ .number = if (a.number >= b.number) 1 else 0 };
 }
 
 pub fn logicalAnd(left: *Expr, right: *Expr, env: Expr.EvalEnv) Error!Value {
     const a = try evaluate(left, env);
+    if (a.value.isTruthy()) return .{ .number = 0 };
     const b = try evaluate(right, env);
-    return .{ .number = if (isTrythy(a) and isTrythy(b)) 1 else 0 };
+    if (b.value.isTruthy()) return .{ .number = 0 };
+    return .{ .number = 1 };
 }
 
 pub fn logicalOr(left: *Expr, right: *Expr, env: Expr.EvalEnv) Error!Value {
     const a = try evaluate(left, env);
+    if (a.value.isTruthy()) return .{ .number = 1 };
     const b = try evaluate(right, env);
-    return .{ .number = if (isTrythy(a) or isTrythy(b)) 1 else 0 };
+    if (b.value.isTruthy()) return .{ .number = 1 };
+    return .{ .number = 0 };
 }
 
 pub fn logicalNot(expr: *Expr, env: Expr.EvalEnv) Error!Value {
-    const value = try evaluate(expr, env);
-    return .{ .number = if (isTrythy(value)) 0 else 1 };
+    const res = try evaluate(expr, env);
+    if (res.value.isTruthy()) return .{ .number = 0 };
+    return .{ .number = 1 };
 }
 
 pub fn nullCoalesce(left: *Expr, right: *Expr, env: Expr.EvalEnv) Error!Value {
     const a = try evaluate(left, env);
-    if (a != .nil) return a;
+    if (a.value != .nil) return a.value;
 
     const b = try evaluate(right, env);
-    return b;
+    return b.value;
 }
 
 pub fn concat(left: *Expr, right: *Expr, env: Expr.EvalEnv) Error!Value {
@@ -214,8 +202,8 @@ pub fn concat(left: *Expr, right: *Expr, env: Expr.EvalEnv) Error!Value {
 pub fn ternary(condition: *Expr, then: *Expr, otherwise: *Expr, env: Expr.EvalEnv) Error!Value {
     const cond = try evaluate(condition, env);
 
-    const target = if (isTrythy(cond)) then else otherwise;
-    return evaluate(target, env);
+    const target = if (cond.value.isTruthy()) then else otherwise;
+    return (try evaluate(target, env)).value;
 }
 
 pub fn access(base: *Expr, key: []const u8, env: Expr.EvalEnv) Error!Value {
@@ -228,7 +216,7 @@ pub fn define(target: *Expr, init: *Expr, env: Expr.EvalEnv) Error!Value {
     return switch (target.*) {
         .variable => |varr| blk: {
             const key = varr.name.value.variable;
-            const val = try evaluate(init, env);
+            const val = (try evaluate(init, env)).value;
             env.vars.define(key, val) catch |err| switch (err) {
                 error.ReadOnly => @panic("TODO: Handle read-only variable"),
                 error.AlreadyDefined => @panic("TODO: Handle already defined variable"),
@@ -241,7 +229,7 @@ pub fn define(target: *Expr, init: *Expr, env: Expr.EvalEnv) Error!Value {
 }
 
 pub fn assign(target: *Expr, value: *Expr, env: Expr.EvalEnv) Error!Value {
-    const val = try evaluate(value, env);
+    const val = (try evaluate(value, env)).value;
     switch (target.*) {
         .access => |acc| {
             const key = acc.property.value.literal;
@@ -269,30 +257,15 @@ pub fn assign(target: *Expr, value: *Expr, env: Expr.EvalEnv) Error!Value {
 
 pub fn call(call_expr: *Expr.Call, env: Expr.EvalEnv) Error!Value {
     const callee = try validate(call_expr.callee, &.{.func}, env);
-    return try callee.func.call(call_expr, env);
-}
-
-fn isTrythy(value: Value) bool {
-    return switch (value) {
-        .number => |num| num != 0,
-        .string => |str| str.len > 0,
-        .nil => false,
-        .object => true, // should objects always eval to true?
-        .array => @panic("TODO: Handle array"),
-        .func => true, // functions should always eval to true?
-    };
+    const vargs = try env.allocator.alloc(Value.Traceable, call_expr.args.len);
+    for (call_expr.args, vargs) |arg, *varg| {
+        varg.* = try evaluate(arg, env);
+    }
+    return try callee.func.call(call_expr, vargs, env);
 }
 
 pub fn validate(expr: *Expr, types: []const Value.Type, env: Expr.EvalEnv) Error!Value {
-    const value = try evaluate(expr, env);
-    for (types) |t| {
-        if (value == t) return value;
-    }
-    return env.err(.{
-        .unexpected_type = .{
-            .found = value,
-            .location = expr.loc(),
-            .expected = types,
-        },
-    });
+    const result = try evaluate(expr, env);
+    try Value.validate(result, types, env.diag);
+    return result.value;
 }
