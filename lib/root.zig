@@ -94,6 +94,10 @@ pub const RuntimeProblem = union(enum) {
         found: usize,
         location: Token.Location,
     },
+    invalid_argument: struct {
+        reason: []const u8,
+        location: Token.Location,
+    },
 
     unexpected: anyerror,
 };

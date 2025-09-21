@@ -318,6 +318,10 @@ pub fn printRuntimeProblem(runtime_error: usrl.RuntimeProblem, source: usrl.Sour
             try ansi.print(e, "Invalid argument count: expected {s} {d}, found {d}\r\n", .{ mode_str, err.expected, err.found });
             try printLineHighlight(err.location, source, fw);
         },
+        .invalid_argument => |err| {
+            try ansi.print(e, "Invalid argument: {s}\r\n", .{err.reason});
+            try printLineHighlight(err.location, source, fw);
+        },
         .unexpected => |err| {
             try ansi.print(e, "Unexpected {t}\r\n", .{err});
         },
