@@ -58,16 +58,16 @@ pub fn addOrConcat(left: *Expr, right: *Expr, env: Expr.EvalEnv) Error!Value {
     try Value.validate(b, &.{ .string, .number }, env.diag);
     if (a.val == .string or b.val == .string) {
         return .{ .string = try std.fmt.allocPrint(env.allocator, "{f}{f}", .{
-            std.fmt.alt(a, .stringify),
-            std.fmt.alt(b, .stringify),
+            std.fmt.alt(a.val, .stringify),
+            std.fmt.alt(b.val, .stringify),
         }) };
-    } else if (a == .number and b == .number) {
-        return .{ .number = a.number + b.number };
+    } else if (a.val == .number and b.val == .number) {
+        return .{ .number = a.val.number + b.val.number };
     }
     return env.err(.{ .type_mismatch = .{
-        .left = a,
+        .left = a.val,
         .left_loc = left.loc(),
-        .right = b,
+        .right = b.val,
         .right_loc = right.loc(),
     } });
 }

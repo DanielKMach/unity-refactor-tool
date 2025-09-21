@@ -99,7 +99,7 @@ fn assignment(tokens: *TokenIterator, env: Expr.ParseEnv) core.ParseAllocError!*
                     };
                     const unroll = try env.allocator.create(Expr);
                     unroll.* = .{ .binary = .{
-                        .left = left,
+                        .left = try left.dupe(env.allocator),
                         .op = .new(v, t.loc),
                         .right = right,
                     } };

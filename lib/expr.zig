@@ -122,6 +122,14 @@ pub const Expr = union(enum) {
         return try result.val.dupe(env.allocator);
     }
 
+    /// Creates a derived value from this expression and the given value.
+    pub fn derived(self: *Expr, value: Value) Value.Derived {
+        return .{
+            .src = self,
+            .val = value,
+        };
+    }
+
     pub fn loc(self: *Expr) Location {
         return switch (self.*) {
             .literal => |l| l.token.loc,
@@ -137,12 +145,83 @@ pub const Expr = union(enum) {
         };
     }
 
-    /// Creates a derived value from this expression and the given value.
-    pub fn derived(self: *Expr, value: Value) Value.Derived {
-        return .{
-            .src = self,
-            .val = value,
-        };
+    pub fn dupe(self: Expr, allocator: std.mem.Allocator) std.mem.Allocator.Error!*Expr {
+        switch (self) {
+            .literal => {
+                const duped = try allocator.create(Expr);
+                duped.* = self;
+                duped.literal.token = try duped.literal.token.dupe(allocator);
+                return duped;
+            },
+            .unary => {
+                const duped = try allocator.create(Expr);
+                duped.* = self;
+                duped.unary.op = try duped.unary.op.dupe(allocator);
+                duped.unary.operand = try duped.unary.operand.dupe(allocator);
+                return duped;
+            },
+            .binary => {
+                const duped = try allocator.create(Expr);
+                duped.* = self;
+                duped.binary.op = try duped.binary.op.dupe(allocator);
+                duped.binary.left = try duped.binary.left.dupe(allocator);
+                duped.binary.right = try duped.binary.right.dupe(allocator);
+                return duped;
+            },
+            .ternary => {
+                const duped = try allocator.create(Expr);
+                duped.* = self;
+                duped.ternary.left = try duped.ternary.left.dupe(allocator);
+                duped.ternary.middle = try duped.ternary.middle.dupe(allocator);
+                duped.ternary.right = try duped.ternary.right.dupe(allocator);
+                return duped;
+            },
+            .grouping => {
+                const duped = try allocator.create(Expr);
+                duped.* = self;
+                duped.grouping.expr = try duped.grouping.expr.dupe(allocator);
+                return duped;
+            },
+            .access => {
+                const duped = try allocator.create(Expr);
+                duped.* = self;
+                duped.access.property = try duped.access.property.dupe(allocator);
+                duped.access.base = try duped.access.base.dupe(allocator);
+                return duped;
+            },
+            .property => {
+                const duped = try allocator.create(Expr);
+                duped.* = self;
+                duped.property.name = try duped.property.name.dupe(allocator);
+                return duped;
+            },
+            .variable => {
+                const duped = try allocator.create(Expr);
+                duped.* = self;
+                duped.variable.name = try duped.variable.name.dupe(allocator);
+                return duped;
+            },
+            .assignment => {
+                const duped = try allocator.create(Expr);
+                duped.* = self;
+                duped.assignment.op = try duped.assignment.op.dupe(allocator);
+                duped.assignment.target = try duped.assignment.target.dupe(allocator);
+                duped.assignment.value = try duped.assignment.value.dupe(allocator);
+                return duped;
+            },
+            .call => |c| {
+                const duped = try allocator.create(Expr);
+                duped.* = self;
+                duped.call.paren = try duped.call.paren.dupe(allocator);
+                duped.call.callee = try duped.call.callee.dupe(allocator);
+                const duped_args = try allocator.alloc(*Expr, c.args.len);
+                for (c.args, 0..) |arg, i| {
+                    duped_args[i] = try arg.dupe(allocator);
+                }
+                duped.call.args = duped_args;
+                return duped;
+            },
+        }
     }
 
     pub fn format(self: Expr, writer: *std.Io.Writer) std.Io.Writer.Error!void {
