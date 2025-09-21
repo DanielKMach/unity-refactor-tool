@@ -61,23 +61,35 @@ pub const Value = union(enum) {
         };
     }
 
-    /// A value paired with its source expression for better traceability.
-    pub const Traceable = struct {
-        source: *core.Expr,
-        value: Value,
+    /// A value from a source expression for better traceability.
+    pub const Derived = struct {
+        src: *core.Expr,
+        val: Value,
     };
 
-    pub fn validate(value: Value.Traceable, expected: []const Type, diag: *core.RuntimeDiagnostics) core.RuntimeDiagnostics.Error!void {
+    pub fn validate(value: Derived, expected: []const Type, diag: *core.RuntimeDiagnostics) core.RuntimeDiagnostics.Error!void {
         const valid = for (expected) |t| {
-            if (value.value == t) break true;
+            if (value.val == t) break true;
         } else false;
 
         if (!valid) return diag.push(.{
             .unexpected_type = .{
-                .found = value.value,
-                .location = value.source.loc(),
+                .found = value.val,
+                .location = value.src.loc(),
                 .expected = expected,
             },
         });
+    }
+
+    pub fn eql(a: Value, b: Value) bool {
+        if (@as(Value.Type, a) != @as(Value.Type, b)) return false;
+        return switch (a) {
+            .number => |a_number| a_number == b.number,
+            .string => |a_string| std.mem.eql(u8, a_string, b.string),
+            .nil => true,
+            .object => |a_object| a_object.node == b.object.node,
+            .array => @panic("TODO: Handle array"),
+            .func => |a_func| a_func.ptr == b.func.ptr,
+        };
     }
 };

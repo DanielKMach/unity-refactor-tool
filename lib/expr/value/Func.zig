@@ -5,11 +5,11 @@ const Func = @This();
 const Expr = core.Expr;
 const Value = Expr.Value;
 
-pub const BuiltinFn = fn (*Expr.Call, []const Value.Traceable, Expr.EvalEnv) Expr.eval.Error!Value;
+pub const BuiltinFn = fn (*Expr.Call, []const Value.Derived, Expr.EvalEnv) Expr.eval.Error!Value;
 
 ptr: *const BuiltinFn,
 
-pub fn call(self: Func, call_expr: *Expr.Call, args: []const Value.Traceable, env: Expr.EvalEnv) Expr.eval.Error!Value {
+pub fn call(self: Func, call_expr: *Expr.Call, args: []const Value.Derived, env: Expr.EvalEnv) Expr.eval.Error!Value {
     return self.ptr(call_expr, args, env);
 }
 
@@ -27,15 +27,15 @@ pub fn new(func: anytype) Func {
     for (params) |param| {
         const valid = for (@typeInfo(Value).@"union".fields) |fld| {
             if (param.type == fld.type) break true;
-        } else param.type == Value.Traceable;
-        if (!valid) @compileError("All but last parameters of 'func' must be of type " ++ @typeName(Value.Traceable) ++ " or one of its variants. Found " ++ @typeName(param.type) ++ ".");
+        } else param.type == Value.Derived;
+        if (!valid) @compileError("All but last parameters of 'func' must be of type " ++ @typeName(Value.Derived) ++ " or one of its variants. Found " ++ @typeName(param.type) ++ ".");
     }
     if (info.params[params.len].type != Expr.EvalEnv) {
         @compileError("The last parameter of 'func' must be of type " ++ @typeName(Expr.EvalEnv) ++ ". Found " ++ @typeName(params[params.len].type) ++ ".");
     }
 
     const Wrapper = struct {
-        pub fn wrap(call_expr: *Expr.Call, args: []const Value.Traceable, env: Expr.EvalEnv) Expr.eval.Error!Value {
+        pub fn wrap(call_expr: *Expr.Call, args: []const Value.Derived, env: Expr.EvalEnv) Expr.eval.Error!Value {
             const loc = @as(*Expr, @fieldParentPtr("call", call_expr)).loc();
             if (args.len != params.len) return env.err(.{ .invalid_argument_count = .{
                 .mode = .exact,
@@ -50,7 +50,7 @@ pub fn new(func: anytype) Func {
                 } else null;
                 if (expected) |e| {
                     try Value.validate(args[i], &.{e}, env.diag);
-                    tuple[i] = @field(args[i].value, @tagName(e));
+                    tuple[i] = @field(args[i].val, @tagName(e));
                 } else {
                     tuple[i] = args[i];
                 }
@@ -112,13 +112,13 @@ pub const builtin = struct {
         return .{ .number = @round(x) };
     }
 
-    pub fn sqrt(v: Value.Traceable, env: Expr.EvalEnv) Error!Value {
+    pub fn sqrt(v: Value.Derived, env: Expr.EvalEnv) Error!Value {
         try Value.validate(v, &.{.number}, env.diag);
-        if (v.value.number < 0) return env.err(.{ .invalid_argument = .{
+        if (v.val.number < 0) return env.err(.{ .invalid_argument = .{
             .reason = "cannot compute square root of negative number",
-            .location = v.source.loc(),
+            .location = v.src.loc(),
         } });
-        return .{ .number = @sqrt(v.value.number) };
+        return .{ .number = @sqrt(v.val.number) };
     }
 
     pub fn abs(x: f32, _: Expr.EvalEnv) Error!Value {
@@ -137,9 +137,9 @@ pub const builtin = struct {
         return env.context.get(key) orelse .nil;
     }
 
-    pub fn len(value: Value.Traceable, env: Expr.EvalEnv) Error!Value {
+    pub fn len(value: Value.Derived, env: Expr.EvalEnv) Error!Value {
         try Value.validate(value, &.{ .string, .object, .array }, env.diag);
-        return switch (value.value) {
+        return switch (value.val) {
             .string => |s| .{ .number = @floatFromInt(s.len) },
             .object => |_| @panic("TODO: object length"),
             .array => |_| @panic("TODO: array length"),
@@ -147,12 +147,12 @@ pub const builtin = struct {
         };
     }
 
-    pub fn idx(needle: Value.Traceable, haystack: Value.Traceable, env: Expr.EvalEnv) Error!Value {
+    pub fn idx(needle: Value.Derived, haystack: Value.Derived, env: Expr.EvalEnv) Error!Value {
         try Value.validate(haystack, &.{ .string, .array }, env.diag);
-        switch (haystack.value) {
+        switch (haystack.val) {
             .string => |s| {
                 try Value.validate(needle, &.{.string}, env.diag);
-                const index = std.mem.indexOf(u8, s, needle.value.string);
+                const index = std.mem.indexOf(u8, s, needle.val.string);
                 return if (index) |i| .{ .number = @floatFromInt(i) } else .nil;
             },
             .array => |_| @panic("TODO: array indexOf"),
@@ -160,12 +160,12 @@ pub const builtin = struct {
         }
     }
 
-    pub fn lastIdx(needle: Value.Traceable, haystack: Value.Traceable, env: Expr.EvalEnv) Error!Value {
+    pub fn lastIdx(needle: Value.Derived, haystack: Value.Derived, env: Expr.EvalEnv) Error!Value {
         try Value.validate(haystack, &.{ .string, .array }, env.diag);
-        switch (haystack.value) {
+        switch (haystack.val) {
             .string => |s| {
                 try Value.validate(needle, &.{.string}, env.diag);
-                const index = std.mem.lastIndexOf(u8, s, needle.value.string);
+                const index = std.mem.lastIndexOf(u8, s, needle.val.string);
                 return if (index) |i| .{ .number = @floatFromInt(i) } else .nil;
             },
             .array => |_| @panic("TODO: array lastIndexOf"),
@@ -173,42 +173,42 @@ pub const builtin = struct {
         }
     }
 
-    pub fn slice(val: []const u8, start: Value.Traceable, length: Value.Traceable, env: Expr.EvalEnv) Error!Value {
+    pub fn slice(val: []const u8, start: Value.Derived, length: Value.Derived, env: Expr.EvalEnv) Error!Value {
         try Value.validate(start, &.{.number}, env.diag);
         try Value.validate(length, &.{ .number, .nil }, env.diag);
 
-        if (@rem(start.value.number, 1) != 0) return env.err(.{ .invalid_argument = .{
+        if (@rem(start.val.number, 1) != 0) return env.err(.{ .invalid_argument = .{
             .reason = "start index must be an integer",
-            .location = start.source.loc(),
+            .location = start.src.loc(),
         } });
 
-        const l: usize = if (length.value == .number) blk: {
-            if (@rem(length.value.number, 1) != 0) return env.err(.{ .invalid_argument = .{
+        const l: usize = if (length.val == .number) blk: {
+            if (@rem(length.val.number, 1) != 0) return env.err(.{ .invalid_argument = .{
                 .reason = "substring length must be an integer",
-                .location = length.source.loc(),
+                .location = length.src.loc(),
             } });
-            if (length.value.number < 0) return env.err(.{ .invalid_argument = .{
+            if (length.val.number < 0) return env.err(.{ .invalid_argument = .{
                 .reason = "substring length cannot be negative",
-                .location = length.source.loc(),
+                .location = length.src.loc(),
             } });
-            break :blk @intFromFloat(length.value.number);
+            break :blk @intFromFloat(length.val.number);
         } else std.math.maxInt(usize);
 
-        if (start.value.number >= 0) {
-            const off: usize = @intFromFloat(start.value.number);
+        if (start.val.number >= 0) {
+            const off: usize = @intFromFloat(start.val.number);
             const index = if (off < val.len) off else val.len;
             const end = if (off + l < val.len) off + l else val.len;
             return .{ .string = val[index..end] };
         } else {
-            const off: usize = @intFromFloat(@abs(start.value.number));
+            const off: usize = @intFromFloat(@abs(start.val.number));
             const end = if (off - 1 < val.len) val.len - (off - 1) else 0;
             const index = if (l < end) end - l else 0;
             return .{ .string = val[index..end] };
         }
     }
 
-    pub fn @"type"(any: Value.Traceable, _: Expr.EvalEnv) Error!Value {
-        return .{ .string = switch (any.value) {
+    pub fn @"type"(any: Value.Derived, _: Expr.EvalEnv) Error!Value {
+        return .{ .string = switch (any.val) {
             .nil => "nil",
             .string => "string",
             .number => "number",
@@ -218,24 +218,24 @@ pub const builtin = struct {
         } };
     }
 
-    pub fn str(any: Value.Traceable, env: Expr.EvalEnv) Error!Value {
-        if (any.value == .string) return any.value;
+    pub fn str(any: Value.Derived, env: Expr.EvalEnv) Error!Value {
+        if (any.val == .string) return any.val;
         return .{ .string = try std.fmt.allocPrint(
             env.allocator,
             "{f}",
-            .{std.fmt.alt(any.value, .stringify)},
+            .{std.fmt.alt(any.val, .stringify)},
         ) };
     }
 
-    pub fn num(any: Value.Traceable, env: Expr.EvalEnv) Error!Value {
+    pub fn num(any: Value.Derived, env: Expr.EvalEnv) Error!Value {
         try Value.validate(any, &.{ .string, .number }, env.diag);
-        switch (any.value) {
-            .number => return any.value,
+        switch (any.val) {
+            .number => return any.val,
             .string => |s| if (std.fmt.parseFloat(f32, s)) |n| {
                 return .{ .number = n };
             } else |_| return env.err(.{ .invalid_argument = .{
                 .reason = "could not convert string to number",
-                .location = any.source.loc(),
+                .location = any.src.loc(),
             } }),
             else => unreachable,
         }

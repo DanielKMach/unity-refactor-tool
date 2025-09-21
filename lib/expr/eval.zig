@@ -7,7 +7,7 @@ const Location = core.Token.Location;
 
 pub const Error = core.RuntimeError || std.mem.Allocator.Error || error{LibyamlError};
 
-pub fn evaluate(expr: *Expr, env: Expr.EvalEnv) Error!Value.Traceable {
+pub fn evaluate(expr: *Expr, env: Expr.EvalEnv) Error!Value.Derived {
     return expr.derived(switch (expr.*) {
         .literal => |lit| switch (lit.token.value) {
             .number => |num| .{ .number = num },
@@ -38,7 +38,7 @@ pub fn evaluate(expr: *Expr, env: Expr.EvalEnv) Error!Value.Traceable {
             else => unreachable,
         },
         .ternary => |tern| try ternary(tern.left, tern.middle, tern.right, env),
-        .grouping => |group| (try evaluate(group.expr, env)).value,
+        .grouping => |group| (try evaluate(group.expr, env)).val,
         .property => |prop| env.context.get(prop.name.value.literal) orelse .nil,
         .variable => |varr| env.vars.get(varr.name.value.variable) catch @panic("TODO: Handle undefined variable"),
         .access => |acc| try access(acc.base, acc.property.value.literal, env),
@@ -52,9 +52,11 @@ pub fn evaluate(expr: *Expr, env: Expr.EvalEnv) Error!Value.Traceable {
 }
 
 pub fn addOrConcat(left: *Expr, right: *Expr, env: Expr.EvalEnv) Error!Value {
-    const a = try validate(left, &.{ .string, .number }, env);
-    const b = try validate(right, &.{ .string, .number }, env);
-    if (a == .string or b == .string) {
+    const a = try evaluate(left, env);
+    try Value.validate(a, &.{ .string, .number }, env.diag);
+    const b = try evaluate(right, env);
+    try Value.validate(b, &.{ .string, .number }, env.diag);
+    if (a.val == .string or b.val == .string) {
         return .{ .string = try std.fmt.allocPrint(env.allocator, "{f}{f}", .{
             std.fmt.alt(a, .stringify),
             std.fmt.alt(b, .stringify),
@@ -71,127 +73,138 @@ pub fn addOrConcat(left: *Expr, right: *Expr, env: Expr.EvalEnv) Error!Value {
 }
 
 pub fn add(left: *Expr, right: *Expr, env: Expr.EvalEnv) Error!Value {
-    const a = try validate(left, &.{.number}, env);
-    const b = try validate(right, &.{.number}, env);
-    return .{ .number = a.number + b.number };
+    const a = try evaluate(left, env);
+    try Value.validate(a, &.{.number}, env.diag);
+    const b = try evaluate(right, env);
+    try Value.validate(b, &.{.number}, env.diag);
+    return .{ .number = a.val.number + b.val.number };
 }
 
 pub fn subtract(left: *Expr, right: *Expr, env: Expr.EvalEnv) Error!Value {
-    const a = try validate(left, &.{.number}, env);
-    const b = try validate(right, &.{.number}, env);
-    return .{ .number = a.number - b.number };
+    const a = try evaluate(left, env);
+    try Value.validate(a, &.{.number}, env.diag);
+    const b = try evaluate(right, env);
+    try Value.validate(b, &.{.number}, env.diag);
+    return .{ .number = a.val.number - b.val.number };
 }
 
 pub fn multiply(left: *Expr, right: *Expr, env: Expr.EvalEnv) Error!Value {
-    const a = try validate(left, &.{.number}, env);
-    const b = try validate(right, &.{.number}, env);
-    return .{ .number = a.number * b.number };
+    const a = try evaluate(left, env);
+    try Value.validate(a, &.{.number}, env.diag);
+    const b = try evaluate(right, env);
+    try Value.validate(b, &.{.number}, env.diag);
+    return .{ .number = a.val.number * b.val.number };
 }
 
 pub fn divide(left: *Expr, right: *Expr, env: Expr.EvalEnv) Error!Value {
-    const a = try validate(left, &.{.number}, env);
-    const b = try validate(right, &.{.number}, env);
+    const a = try evaluate(left, env);
+    try Value.validate(a, &.{.number}, env.diag);
+    const b = try evaluate(right, env);
+    try Value.validate(b, &.{.number}, env.diag);
 
-    if (b.number == 0) return env.err(.{ .division_by_zero = .{
+    if (b.val.number == 0) return env.err(.{ .division_by_zero = .{
         .location = .merge(&.{ left.loc(), right.loc() }),
     } });
-    return .{ .number = a.number / b.number };
+    return .{ .number = a.val.number / b.val.number };
 }
 
 pub fn mod(left: *Expr, right: *Expr, env: Expr.EvalEnv) Error!Value {
-    const a = try validate(left, &.{.number}, env);
-    const b = try validate(right, &.{.number}, env);
+    const a = try evaluate(left, env);
+    try Value.validate(a, &.{.number}, env.diag);
+    const b = try evaluate(right, env);
+    try Value.validate(b, &.{.number}, env.diag);
 
-    if (b.number == 0) return env.err(.{ .division_by_zero = .{
+    if (b.val.number == 0) return env.err(.{ .division_by_zero = .{
         .location = .merge(&.{ left.loc(), right.loc() }),
     } });
-    return .{ .number = @mod(a.number, b.number) };
+    return .{ .number = @mod(a.val.number, b.val.number) };
 }
 
 pub fn negate(expr: *Expr, env: Expr.EvalEnv) Error!Value {
-    const value = try validate(expr, &.{.number}, env);
-    return .{ .number = -value.number };
+    const x = try evaluate(expr, env);
+    try Value.validate(x, &.{.number}, env.diag);
+    return .{ .number = -x.val.number };
 }
 
 pub fn equals(left: *Expr, right: *Expr, env: Expr.EvalEnv) Error!Value {
-    const a = (try evaluate(left, env)).value;
-    const b = (try evaluate(right, env)).value;
-    if (@as(Value.Type, a) != @as(Value.Type, b)) {
-        return .{ .number = 0 };
-    }
-
-    return switch (a) {
-        .number => |a_number| .{ .number = if (a_number == b.number) 1 else 0 },
-        .string => |a_string| .{ .number = if (std.mem.eql(u8, a_string, b.string)) 1 else 0 },
-        .nil => .{ .number = 1 },
-        .object => |a_object| .{ .number = if (a_object.node == b.object.node) 1 else 0 },
-        .array => @panic("TODO: Handle array"),
-        .func => |a_func| .{ .number = if (a_func.ptr == b.func.ptr) 1 else 0 },
-    };
+    const a = (try evaluate(left, env)).val;
+    const b = (try evaluate(right, env)).val;
+    return .{ .number = if (Value.eql(a, b)) 1 else 0 };
 }
 
 pub fn notEquals(left: *Expr, right: *Expr, env: Expr.EvalEnv) Error!Value {
-    const eqls = try equals(left, right, env);
-    return .{ .number = if (eqls.number == 0) 1 else 0 };
+    const a = (try evaluate(left, env)).val;
+    const b = (try evaluate(right, env)).val;
+    return .{ .number = if (!Value.eql(a, b)) 1 else 0 };
 }
 
 pub fn lessThan(left: *Expr, right: *Expr, env: Expr.EvalEnv) Error!Value {
-    const a = try validate(left, &.{.number}, env);
-    const b = try validate(right, &.{.number}, env);
-    return .{ .number = if (a.number < b.number) 1 else 0 };
+    const a = try evaluate(left, env);
+    try Value.validate(a, &.{.number}, env.diag);
+    const b = try evaluate(right, env);
+    try Value.validate(b, &.{.number}, env.diag);
+    return .{ .number = if (a.val.number < b.val.number) 1 else 0 };
 }
 
 pub fn greaterThan(left: *Expr, right: *Expr, env: Expr.EvalEnv) Error!Value {
-    const a = try validate(left, &.{.number}, env);
-    const b = try validate(right, &.{.number}, env);
-    return .{ .number = if (a.number > b.number) 1 else 0 };
+    const a = try evaluate(left, env);
+    try Value.validate(a, &.{.number}, env.diag);
+    const b = try evaluate(right, env);
+    try Value.validate(b, &.{.number}, env.diag);
+    return .{ .number = if (a.val.number > b.val.number) 1 else 0 };
 }
 
 pub fn lessThanOrEqual(left: *Expr, right: *Expr, env: Expr.EvalEnv) Error!Value {
-    const a = try validate(left, &.{.number}, env);
-    const b = try validate(right, &.{.number}, env);
-    return .{ .number = if (a.number <= b.number) 1 else 0 };
+    const a = try evaluate(left, env);
+    try Value.validate(a, &.{.number}, env.diag);
+    const b = try evaluate(right, env);
+    try Value.validate(b, &.{.number}, env.diag);
+    return .{ .number = if (a.val.number <= b.val.number) 1 else 0 };
 }
 
 pub fn greaterThanOrEqual(left: *Expr, right: *Expr, env: Expr.EvalEnv) Error!Value {
-    const a = try validate(left, &.{.number}, env);
-    const b = try validate(right, &.{.number}, env);
-    return .{ .number = if (a.number >= b.number) 1 else 0 };
+    const a = try evaluate(left, env);
+    try Value.validate(a, &.{.number}, env.diag);
+    const b = try evaluate(right, env);
+    try Value.validate(b, &.{.number}, env.diag);
+    return .{ .number = if (a.val.number >= b.val.number) 1 else 0 };
 }
 
 pub fn logicalAnd(left: *Expr, right: *Expr, env: Expr.EvalEnv) Error!Value {
     const a = try evaluate(left, env);
-    if (a.value.isTruthy()) return .{ .number = 0 };
+    if (!a.val.isTruthy()) return .{ .number = 0 };
     const b = try evaluate(right, env);
-    if (b.value.isTruthy()) return .{ .number = 0 };
+    if (!b.val.isTruthy()) return .{ .number = 0 };
     return .{ .number = 1 };
 }
 
 pub fn logicalOr(left: *Expr, right: *Expr, env: Expr.EvalEnv) Error!Value {
     const a = try evaluate(left, env);
-    if (a.value.isTruthy()) return .{ .number = 1 };
+    if (a.val.isTruthy()) return .{ .number = 1 };
     const b = try evaluate(right, env);
-    if (b.value.isTruthy()) return .{ .number = 1 };
+    if (b.val.isTruthy()) return .{ .number = 1 };
     return .{ .number = 0 };
 }
 
 pub fn logicalNot(expr: *Expr, env: Expr.EvalEnv) Error!Value {
     const res = try evaluate(expr, env);
-    if (res.value.isTruthy()) return .{ .number = 0 };
+    if (res.val.isTruthy()) return .{ .number = 0 };
     return .{ .number = 1 };
 }
 
 pub fn nullCoalesce(left: *Expr, right: *Expr, env: Expr.EvalEnv) Error!Value {
     const a = try evaluate(left, env);
-    if (a.value != .nil) return a.value;
+    if (a.val != .nil) return a.val;
 
     const b = try evaluate(right, env);
-    return b.value;
+    return b.val;
 }
 
 pub fn concat(left: *Expr, right: *Expr, env: Expr.EvalEnv) Error!Value {
-    const a = try validate(left, &.{.string}, env);
-    const b = try validate(right, &.{.string}, env);
+    const a = try evaluate(left, env);
+    try Value.validate(a, &.{.string}, env.diag);
+    const b = try evaluate(right, env);
+    try Value.validate(b, &.{.string}, env.diag);
 
     const combined = try env.allocator.alloc(u8, a.string.len + b.string.len);
     @memcpy(combined[0..a.string.len], a.string);
@@ -203,21 +216,22 @@ pub fn concat(left: *Expr, right: *Expr, env: Expr.EvalEnv) Error!Value {
 pub fn ternary(condition: *Expr, then: *Expr, otherwise: *Expr, env: Expr.EvalEnv) Error!Value {
     const cond = try evaluate(condition, env);
 
-    const target = if (cond.value.isTruthy()) then else otherwise;
-    return (try evaluate(target, env)).value;
+    const target = if (cond.val.isTruthy()) then else otherwise;
+    return (try evaluate(target, env)).val;
 }
 
 pub fn access(base: *Expr, key: []const u8, env: Expr.EvalEnv) Error!Value {
-    const obj = try validate(base, &.{.object}, env);
+    const obj = try evaluate(base, env);
+    try Value.validate(obj, &.{.object}, env.diag);
 
-    return obj.object.get(key) orelse .nil;
+    return obj.val.object.get(key) orelse .nil;
 }
 
 pub fn define(target: *Expr, init: *Expr, env: Expr.EvalEnv) Error!Value {
     return switch (target.*) {
         .variable => |varr| blk: {
             const key = varr.name.value.variable;
-            const val = (try evaluate(init, env)).value;
+            const val = (try evaluate(init, env)).val;
             env.vars.define(key, val) catch |err| switch (err) {
                 error.ReadOnly => @panic("TODO: Handle read-only variable"),
                 error.AlreadyDefined => @panic("TODO: Handle already defined variable"),
@@ -230,12 +244,13 @@ pub fn define(target: *Expr, init: *Expr, env: Expr.EvalEnv) Error!Value {
 }
 
 pub fn assign(target: *Expr, value: *Expr, env: Expr.EvalEnv) Error!Value {
-    const val = (try evaluate(value, env)).value;
+    const val = (try evaluate(value, env)).val;
     switch (target.*) {
         .access => |acc| {
             const key = acc.property.value.literal;
-            const obj = try validate(acc.base, &.{.object}, env);
-            try obj.object.set(key, val);
+            const obj = try evaluate(acc.base, env);
+            try Value.validate(obj, &.{.object}, env.diag);
+            try obj.val.object.set(key, val);
         },
         .property => |prop| {
             const key = prop.name.value.literal;
@@ -257,16 +272,11 @@ pub fn assign(target: *Expr, value: *Expr, env: Expr.EvalEnv) Error!Value {
 }
 
 pub fn call(call_expr: *Expr.Call, env: Expr.EvalEnv) Error!Value {
-    const callee = try validate(call_expr.callee, &.{.func}, env);
-    const vargs = try env.allocator.alloc(Value.Traceable, call_expr.args.len);
+    const callee = try evaluate(call_expr.callee, env);
+    try Value.validate(callee, &.{.func}, env.diag);
+    const vargs = try env.allocator.alloc(Value.Derived, call_expr.args.len);
     for (call_expr.args, vargs) |arg, *varg| {
         varg.* = try evaluate(arg, env);
     }
-    return try callee.func.call(call_expr, vargs, env);
-}
-
-pub fn validate(expr: *Expr, types: []const Value.Type, env: Expr.EvalEnv) Error!Value {
-    const result = try evaluate(expr, env);
-    try Value.validate(result, types, env.diag);
-    return result.value;
+    return try callee.val.func.call(call_expr, vargs, env);
 }

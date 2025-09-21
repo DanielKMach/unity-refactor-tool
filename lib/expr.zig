@@ -119,7 +119,7 @@ pub const Expr = union(enum) {
         };
 
         const result = try eval.evaluate(self, new_env);
-        return try result.value.dupe(env.allocator);
+        return try result.val.dupe(env.allocator);
     }
 
     pub fn loc(self: *Expr) Location {
@@ -137,11 +137,11 @@ pub const Expr = union(enum) {
         };
     }
 
-    /// Creates a traceable value from this expression and the given value.
-    pub fn derived(self: *Expr, value: Value) Value.Traceable {
+    /// Creates a derived value from this expression and the given value.
+    pub fn derived(self: *Expr, value: Value) Value.Derived {
         return .{
-            .source = self,
-            .value = value,
+            .src = self,
+            .val = value,
         };
     }
 
