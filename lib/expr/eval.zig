@@ -72,14 +72,6 @@ pub fn addOrConcat(left: *Expr, right: *Expr, env: Expr.EvalEnv) Error!Value {
     } });
 }
 
-pub fn add(left: *Expr, right: *Expr, env: Expr.EvalEnv) Error!Value {
-    const a = try evaluate(left, env);
-    try Value.validate(a, &.{.number}, env.diag);
-    const b = try evaluate(right, env);
-    try Value.validate(b, &.{.number}, env.diag);
-    return .{ .number = a.val.number + b.val.number };
-}
-
 pub fn subtract(left: *Expr, right: *Expr, env: Expr.EvalEnv) Error!Value {
     const a = try evaluate(left, env);
     try Value.validate(a, &.{.number}, env.diag);
@@ -198,19 +190,6 @@ pub fn nullCoalesce(left: *Expr, right: *Expr, env: Expr.EvalEnv) Error!Value {
 
     const b = try evaluate(right, env);
     return b.val;
-}
-
-pub fn concat(left: *Expr, right: *Expr, env: Expr.EvalEnv) Error!Value {
-    const a = try evaluate(left, env);
-    try Value.validate(a, &.{.string}, env.diag);
-    const b = try evaluate(right, env);
-    try Value.validate(b, &.{.string}, env.diag);
-
-    const combined = try env.allocator.alloc(u8, a.string.len + b.string.len);
-    @memcpy(combined[0..a.string.len], a.string);
-    @memcpy(combined[a.string.len..], b.string);
-
-    return .{ .string = combined };
 }
 
 pub fn ternary(condition: *Expr, then: *Expr, otherwise: *Expr, env: Expr.EvalEnv) Error!Value {
