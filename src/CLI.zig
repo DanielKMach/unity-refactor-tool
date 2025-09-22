@@ -322,6 +322,24 @@ pub fn printRuntimeProblem(runtime_error: usrl.RuntimeProblem, source: usrl.Sour
             try ansi.print(e, "Invalid argument: {s}\r\n", .{err.reason});
             try printLineHighlight(err.location, source, fw);
         },
+        .undefined_variable => |err| {
+            try ansi.print(e, "Undefined {f}. Use '{f} := (...)' to define it.\r\n", .{
+                err.varr.value,
+                std.fmt.alt(err.varr.value, .raw),
+            });
+            try printLineHighlight(err.location, source, fw);
+        },
+        .already_defined_variable => |err| {
+            try ansi.print(e, "{f} is already defined. Use '{f} = (...)' to update it.\r\n", .{
+                err.varr.value,
+                std.fmt.alt(err.varr.value, .raw),
+            });
+            try printLineHighlight(err.location, source, fw);
+        },
+        .overriding_readonly => |err| {
+            try ansi.print(e, "Cannot override read-only {f}\r\n", .{err.varr.value});
+            try printLineHighlight(err.location, source, fw);
+        },
         .unexpected => |err| {
             try ansi.print(e, "Unexpected {t}\r\n", .{err});
         },

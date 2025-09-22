@@ -98,6 +98,18 @@ pub const RuntimeProblem = union(enum) {
         reason: []const u8,
         location: Token.Location,
     },
+    undefined_variable: struct {
+        varr: Token,
+        location: Token.Location,
+    },
+    already_defined_variable: struct {
+        varr: Token,
+        location: Token.Location,
+    },
+    overriding_readonly: struct {
+        varr: Token,
+        location: Token.Location,
+    },
 
     unexpected: anyerror,
 };

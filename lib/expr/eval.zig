@@ -40,7 +40,9 @@ pub fn evaluate(expr: *Expr, env: Expr.EvalEnv) Error!Value.Derived {
         .ternary => |tern| try ternary(tern.left, tern.middle, tern.right, env),
         .grouping => |group| (try evaluate(group.expr, env)).val,
         .property => |prop| env.context.get(prop.name.value.literal) orelse .nil,
-        .variable => |varr| env.vars.get(varr.name.value.variable) catch @panic("TODO: Handle undefined variable"),
+        .variable => |varr| env.vars.get(varr.name.value.variable) catch return env.err(.{
+            .undefined_variable = .{ .varr = varr.name, .location = varr.name.loc },
+        }),
         .access => |acc| try access(acc.base, acc.property.value.literal, env),
         .assignment => |as| switch (as.op.value) {
             .equal => try assign(as.target, as.value, env),
@@ -211,10 +213,16 @@ pub fn define(target: *Expr, init: *Expr, env: Expr.EvalEnv) Error!Value {
         .variable => |varr| blk: {
             const key = varr.name.value.variable;
             const val = (try evaluate(init, env)).val;
-            env.vars.define(key, val) catch |err| switch (err) {
-                error.ReadOnly => @panic("TODO: Handle read-only variable"),
-                error.AlreadyDefined => @panic("TODO: Handle already defined variable"),
-                else => |e| return e,
+            env.vars.define(key, val) catch |err| return switch (err) {
+                error.ReadOnly => env.err(.{ .overriding_readonly = .{
+                    .varr = varr.name,
+                    .location = .merge(&.{ target.loc(), init.loc() }),
+                } }),
+                error.AlreadyDefined => env.err(.{ .already_defined_variable = .{
+                    .varr = varr.name,
+                    .location = .merge(&.{ target.loc(), init.loc() }),
+                } }),
+                else => |e| e,
             };
             break :blk val;
         },
@@ -237,16 +245,21 @@ pub fn assign(target: *Expr, value: *Expr, env: Expr.EvalEnv) Error!Value {
         },
         .variable => |varr| {
             const key = varr.name.value.variable;
-            env.vars.set(key, val) catch |err| switch (err) {
-                error.ReadOnly => @panic("TODO: Handle read-only variable"),
-                error.UndefinedVariable => @panic("TODO: Handle undefined variable"),
-                else => |e| return e,
+            env.vars.set(key, val) catch |err| return switch (err) {
+                error.ReadOnly => env.err(.{ .overriding_readonly = .{
+                    .varr = varr.name,
+                    .location = .merge(&.{ target.loc(), value.loc() }),
+                } }),
+                error.UndefinedVariable => env.err(.{ .undefined_variable = .{
+                    .varr = varr.name,
+                    .location = .merge(&.{ target.loc(), value.loc() }),
+                } }),
+                else => |e| e,
             };
         },
         // .indexing => {} TODO
         else => unreachable,
     }
-
     return val;
 }
 
