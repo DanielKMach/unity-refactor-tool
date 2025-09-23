@@ -41,6 +41,8 @@ pub const operator_list: []const struct { []const u8, Value } = &.{
     .{ "<", .less },
     .{ "(", .left_paren },
     .{ ")", .right_paren },
+    .{ "[", .left_bracket },
+    .{ "]", .right_bracket },
     .{ ">=", .greater_equal },
     .{ "<=", .less_equal },
     .{ "!=", .bang_equal },
@@ -157,6 +159,8 @@ pub const Type = enum {
     semicolon, // ';'
     left_paren, // '('
     right_paren, // ')'
+    left_bracket, // '['
+    right_bracket, // ']'
 
     /// A number literal.
     number,
@@ -246,6 +250,8 @@ pub const Value = union(Type) {
     semicolon,
     left_paren,
     right_paren,
+    left_bracket,
+    right_bracket,
     number: f32,
     string: []const u8,
     literal: []const u8,

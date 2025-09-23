@@ -6,13 +6,14 @@ const core = @import("core");
 pub const Value = union(enum) {
     pub const Type = @typeInfo(Value).@"union".tag_type orelse unreachable;
     pub const Object = @import("value/Object.zig");
+    pub const List = @import("value/List.zig");
     pub const Func = @import("value/Func.zig");
 
     nil,
     string: []const u8,
     number: f32,
     object: Object,
-    array: void,
+    array: List,
     func: Func,
 
     /// Duplicates this value into the given allocator.

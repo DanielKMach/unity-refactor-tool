@@ -5,6 +5,7 @@ pub const Expr = @import("expr.zig").Expr;
 pub const runtime = @import("runtime.zig");
 pub const profiling = @import("profiling.zig");
 pub const util = @import("util.zig");
+pub const yaml = @import("yaml.zig");
 
 pub const Source = @import("Source.zig");
 pub const Token = @import("Token.zig");

@@ -65,6 +65,12 @@ pub const Expr = union(enum) {
         property: core.Token,
     };
 
+    pub const Indexing = struct {
+        base: *core.Expr,
+        index: *core.Expr,
+        bracket: core.Token,
+    };
+
     pub const Property = struct {
         name: core.Token,
     };
@@ -91,6 +97,7 @@ pub const Expr = union(enum) {
     ternary: Ternary,
     grouping: Grouping,
     access: Access,
+    indexing: Indexing,
     property: Property,
     variable: Variable,
     assignment: Assignment,
@@ -138,6 +145,7 @@ pub const Expr = union(enum) {
             .ternary => |t| .merge(&.{ t.left.loc(), t.right.loc() }),
             .grouping => |g| g.loc,
             .access => |a| .merge(&.{ a.base.loc(), a.property.loc }),
+            .indexing => |i| .merge(&.{ i.base.loc(), i.index.loc(), i.bracket.loc }),
             .property => |p| p.name.loc,
             .variable => |v| v.name.loc,
             .assignment => |as| .merge(&.{ as.target.loc(), as.value.loc() }),
@@ -189,6 +197,14 @@ pub const Expr = union(enum) {
                 duped.access.base = try duped.access.base.dupe(allocator);
                 return duped;
             },
+            .indexing => {
+                const duped = try allocator.create(Expr);
+                duped.* = self;
+                duped.indexing.bracket = try duped.indexing.bracket.dupe(allocator);
+                duped.indexing.base = try duped.indexing.base.dupe(allocator);
+                duped.indexing.index = try duped.indexing.index.dupe(allocator);
+                return duped;
+            },
             .property => {
                 const duped = try allocator.create(Expr);
                 duped.* = self;
@@ -232,6 +248,7 @@ pub const Expr = union(enum) {
             .ternary => |t| try writer.print("(?: {f} {f} {f})", .{ t.left, t.middle, t.right }),
             .grouping => |g| try writer.print("(group {f})", .{g.expr}),
             .access => |a| try writer.print("(. {f} {f})", .{ a.base, std.fmt.alt(a.property.value, .raw) }),
+            .indexing => |i| try writer.print("(index {f} {f})", .{ i.base, i.index }),
             .property => |p| try writer.print("{f}", .{std.fmt.alt(p.name.value, .raw)}),
             .variable => |v| try writer.print("{f}", .{std.fmt.alt(v.name.value, .raw)}),
             .assignment => |as| try writer.print("({f} {f} {f})", .{ std.fmt.alt(as.op.value, .raw), as.target, as.value }),
@@ -272,6 +289,11 @@ pub const Expr = union(enum) {
             .access => |a| {
                 a.base.cleanup(allocator);
                 a.property.cleanup(allocator);
+            },
+            .indexing => |i| {
+                i.base.cleanup(allocator);
+                i.index.cleanup(allocator);
+                i.bracket.cleanup(allocator);
             },
             .property => |p| p.name.cleanup(allocator),
             .variable => |v| v.name.cleanup(allocator),

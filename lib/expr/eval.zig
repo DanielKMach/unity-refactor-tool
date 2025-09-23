@@ -44,6 +44,7 @@ pub fn evaluate(expr: *Expr, env: Expr.EvalEnv) Error!Value.Derived {
             .undefined_variable = .{ .varr = varr.name, .location = varr.name.loc },
         }),
         .access => |acc| try access(acc.base, acc.property.value.literal, env),
+        .indexing => |idx| try index(idx.base, idx.index, env),
         .assignment => |as| switch (as.op.value) {
             .equal => try assign(as.target, as.value, env),
             .colon_equal => try define(as.target, as.value, env),
@@ -208,6 +209,25 @@ pub fn access(base: *Expr, key: []const u8, env: Expr.EvalEnv) Error!Value {
     return obj.val.object.get(key) orelse .nil;
 }
 
+pub fn index(base: *Expr, index_expr: *Expr, env: Expr.EvalEnv) Error!Value {
+    const arr = try evaluate(base, env);
+    try Value.validate(arr, &.{.array}, env.diag);
+
+    const idx = try evaluate(index_expr, env);
+    try Value.validate(idx, &.{.number}, env.diag);
+    if (@rem(idx.val.number, 1) != 0) return env.err(.{ .invalid_argument = .{
+        .reason = "Array index must be an integer",
+        .location = index_expr.loc(),
+    } });
+    const i: usize = @intFromFloat(idx.val.number);
+    if (i < 0) return env.err(.{ .invalid_argument = .{
+        .reason = "Array index must be non-negative",
+        .location = index_expr.loc(),
+    } });
+
+    return arr.val.array.get(i) orelse @panic("TODO: Out of bounds error");
+}
+
 pub fn define(target: *Expr, init: *Expr, env: Expr.EvalEnv) Error!Value {
     return switch (target.*) {
         .variable => |varr| blk: {
@@ -257,7 +277,17 @@ pub fn assign(target: *Expr, value: *Expr, env: Expr.EvalEnv) Error!Value {
                 else => |e| e,
             };
         },
-        // .indexing => {} TODO
+        .indexing => |ind| {
+            const arr = try evaluate(ind.base, env);
+            try Value.validate(arr, &.{.array}, env.diag);
+            const idx = try evaluate(ind.index, env);
+            try Value.validate(idx, &.{.number}, env.diag);
+            if (idx.val.number < 0 or @rem(idx.val.number, 1) != 0) @panic("TODO: Invalid array index error");
+            arr.val.array.set(@intFromFloat(idx.val.number), val) catch |err| switch (err) {
+                error.OutOfBounds => @panic("TODO: Out of bounds error"),
+                else => |e| return e,
+            };
+        },
         else => unreachable,
     }
     return val;

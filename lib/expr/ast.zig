@@ -83,7 +83,7 @@ fn assignment(tokens: *TokenIterator, env: Expr.ParseEnv) core.ParseAllocError!*
         .slash_equal,
         .colon_equal,
     })) |t| switch (left.*) {
-        .property, .variable, .access => {
+        .property, .variable, .access, .indexing => {
             var op = t;
             var right = try assignment(tokens, env);
             switch (t.value) {
@@ -159,9 +159,17 @@ fn vaif(tokens: *TokenIterator, env: Expr.ParseEnv) core.ParseAllocError!*Expr {
                 .property = try t.dupe(env.allocator),
             } };
             left = expr;
-        }
-        // else if (tokens.match(.left_bracket)) {} TODO: indexing
-        else if (tokens.match(.left_paren)) {
+        } else if (tokens.match(.left_bracket)) {
+            const index = try parse(tokens, env);
+            const rb = try tokens.grab(.right_bracket, env.diag);
+            const expr = try env.allocator.create(Expr);
+            expr.* = .{ .indexing = .{
+                .base = left,
+                .index = index,
+                .bracket = try rb.dupe(env.allocator),
+            } };
+            left = expr;
+        } else if (tokens.match(.left_paren)) {
             var args = std.ArrayList(*Expr).empty;
             defer args.deinit(env.allocator);
             errdefer for (args.items) |arg| arg.cleanup(env.allocator);
