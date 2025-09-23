@@ -128,3 +128,23 @@ pub fn nodeFromValue(doc: *yaml.Document, value: Value) std.mem.Allocator.Error!
     const nodes = yaml.fromStack(yaml.Node, doc.nodes);
     return &nodes[@intCast(id - 1)];
 }
+
+pub fn format(self: Object, writer: *std.Io.Writer) std.Io.Writer.Error!void {
+    std.debug.assert(self.node.type == ly.YAML_MAPPING_NODE);
+
+    try writer.writeAll("{ ");
+    const pairs = yaml.fromStack(yaml.Pair, self.node.data.mapping.pairs);
+    const nodes = yaml.fromStack(yaml.Node, self.doc.nodes);
+    for (pairs, 0..) |pair, i| {
+        if (i != 0) try writer.print(", ", .{});
+
+        const knode = &nodes[@intCast(pair.key - 1)];
+        const vnode = &nodes[@intCast(pair.value - 1)];
+
+        std.debug.assert(knode.type == ly.YAML_SCALAR_NODE);
+        const val = valueFromNode(self.doc, vnode);
+
+        try writer.print("{s}: {f}", .{ yaml.fromBuffer(u8, knode.data.scalar), val });
+    }
+    try writer.writeAll(" }");
+}

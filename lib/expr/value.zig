@@ -51,14 +51,25 @@ pub const Value = union(enum) {
         };
     }
 
+    pub fn format(self: Value, writer: *std.Io.Writer) std.Io.Writer.Error!void {
+        return switch (self) {
+            .nil => writer.writeAll("NIL"),
+            .number => |n| writer.print("{d}", .{n}),
+            .string => |s| writer.print("'{s}'", .{s}),
+            .object => |o| writer.print("{f}", .{o}),
+            .array => |a| writer.print("{f}", .{a}),
+            .func => |f| writer.print("[func@{x}]", .{@intFromPtr(f.ptr)}),
+        };
+    }
+
     pub fn stringify(self: Value, writer: *std.Io.Writer) std.Io.Writer.Error!void {
-        try switch (self) {
-            .nil => writer.print("NIL", .{}),
-            .number => |n| try writer.print("{d}", .{n}),
-            .string => |s| try writer.print("{s}", .{s}),
-            .object => writer.print("[object]", .{}),
-            .array => writer.print("[array]", .{}),
-            .func => writer.print("[function]", .{}),
+        return switch (self) {
+            .nil => writer.writeAll("NIL"),
+            .number => |n| writer.print("{d}", .{n}),
+            .string => |s| writer.print("{s}", .{s}),
+            .object => |o| writer.print("{f}", .{o}),
+            .array => |a| writer.print("{f}", .{a}),
+            .func => |f| writer.print("[func@{x}]", .{@intFromPtr(f.ptr)}),
         };
     }
 

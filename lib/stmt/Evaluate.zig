@@ -132,6 +132,7 @@ pub fn scanAndPrint(self: This, file: std.fs.File, file_path: []const u8, guid: 
             .vars = &vars,
         });
         defer value.cleanup(env.allocator);
+        try print(file_path, value, env.out);
 
         try yaml.dumpDocument(&doc);
 
@@ -142,8 +143,6 @@ pub fn scanAndPrint(self: This, file: std.fs.File, file_path: []const u8, guid: 
                 .document = try env.allocator.dupe(u8, out_yaml),
             });
         }
-
-        try print(file_path, value, env.out);
     }
 
     if (changes.items.len == 0) {
@@ -170,13 +169,5 @@ pub fn print(path: []const u8, value: core.Expr.Value, out: *std.Io.Writer) !voi
     core.profiling.begin(print);
     defer core.profiling.stop();
 
-    try out.print("{s} =>", .{path});
-    switch (value) {
-        .nil => try out.print(" nil\n", .{}),
-        .string => |s| try out.print(" '{s}'\n", .{s}),
-        .number => |n| try out.print(" {d}\n", .{n}),
-        .object => try out.print(" object\n", .{}),
-        .array => try out.print(" array\n", .{}),
-        .func => try out.print(" func\n", .{}),
-    }
+    try out.print("{s} => {f}\r\n", .{ path, value });
 }

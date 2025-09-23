@@ -45,3 +45,20 @@ pub fn len(self: List) usize {
     std.debug.assert(self.node.type == ly.YAML_SEQUENCE_NODE);
     return self.node.data.sequence.items.top - self.node.data.sequence.items.start;
 }
+
+pub fn format(self: List, writer: *std.Io.Writer) std.Io.Writer.Error!void {
+    std.debug.assert(self.node.type == ly.YAML_SEQUENCE_NODE);
+
+    try writer.writeAll("[ ");
+    const items = yaml.fromStack(c_int, self.node.data.sequence.items);
+    const nodes = yaml.fromStack(yaml.Node, self.doc.nodes);
+    for (items, 0..) |item, i| {
+        if (i != 0) try writer.print(", ", .{});
+
+        const vnode = &nodes[@intCast(item - 1)];
+        const val = Object.valueFromNode(self.doc, vnode);
+
+        try writer.print("{f}", .{val});
+    }
+    try writer.writeAll(" ]");
+}
