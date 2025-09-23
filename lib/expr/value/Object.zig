@@ -46,6 +46,11 @@ pub fn set(self: Object, key: []const u8, value: Value) SetError!void {
     }
 }
 
+pub fn len(self: Object) usize {
+    std.debug.assert(self.node.type == ly.YAML_MAPPING_NODE);
+    return self.node.data.mapping.pairs.top - self.node.data.mapping.pairs.start;
+}
+
 pub fn valueFromNode(doc: *yaml.Document, node: *yaml.Node) Value {
     return switch (node.type) {
         ly.YAML_SCALAR_NODE => blk: {

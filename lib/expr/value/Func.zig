@@ -139,12 +139,12 @@ pub const builtin = struct {
 
     pub fn len(value: Value.Derived, env: Expr.EvalEnv) Error!Value {
         try Value.validate(value, &.{ .string, .object, .array }, env.diag);
-        return switch (value.val) {
-            .string => |s| .{ .number = @floatFromInt(s.len) },
-            .object => |_| @panic("TODO: object length"),
-            .array => |_| @panic("TODO: array length"),
+        return .{ .number = switch (value.val) {
+            .string => |s| @floatFromInt(s.len),
+            .object => |o| @floatFromInt(o.len()),
+            .array => |a| @floatFromInt(a.len()),
             else => unreachable,
-        };
+        } };
     }
 
     pub fn idx(needle: Value.Derived, haystack: Value.Derived, env: Expr.EvalEnv) Error!Value {
@@ -239,5 +239,9 @@ pub const builtin = struct {
             } }),
             else => unreachable,
         }
+    }
+
+    pub fn ctx(env: Expr.EvalEnv) Error!Value {
+        return .{ .object = env.context };
     }
 };

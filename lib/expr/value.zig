@@ -100,7 +100,7 @@ pub const Value = union(enum) {
             .string => |a_string| std.mem.eql(u8, a_string, b.string),
             .nil => true,
             .object => |a_object| a_object.node == b.object.node,
-            .array => @panic("TODO: Handle array"),
+            .array => |a_array| a_array.node == b.array.node,
             .func => |a_func| a_func.ptr == b.func.ptr,
         };
     }
