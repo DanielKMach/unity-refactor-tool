@@ -155,7 +155,13 @@ pub const builtin = struct {
                 const index = std.mem.indexOf(u8, s, needle.val.string);
                 return if (index) |i| .{ .number = @floatFromInt(i) } else .nil;
             },
-            .array => |_| @panic("TODO: array indexOf"),
+            .array => |a| {
+                for (0..a.len()) |i| {
+                    const item = a.get(i) orelse unreachable;
+                    if (Value.eql(item, needle.val)) return .{ .number = @floatFromInt(i) };
+                }
+                return .nil;
+            },
             else => unreachable,
         }
     }
@@ -168,9 +174,24 @@ pub const builtin = struct {
                 const index = std.mem.lastIndexOf(u8, s, needle.val.string);
                 return if (index) |i| .{ .number = @floatFromInt(i) } else .nil;
             },
-            .array => |_| @panic("TODO: array lastIndexOf"),
+            .array => |a| {
+                for (a.len()..0) |i| {
+                    const item = a.get(i) orelse unreachable;
+                    if (Value.eql(item, needle.val)) return .{ .number = @floatFromInt(i) };
+                }
+                return .nil;
+            },
             else => unreachable,
         }
+    }
+
+    pub fn push(item: Value.Derived, list: Value.List, _: Expr.EvalEnv) Error!Value {
+        try list.push(item.val);
+        return .nil;
+    }
+
+    pub fn pop(list: Value.List, _: Expr.EvalEnv) Error!Value {
+        return list.pop() orelse .nil;
     }
 
     pub fn slice(val: []const u8, start: Value.Derived, length: Value.Derived, env: Expr.EvalEnv) Error!Value {
