@@ -213,19 +213,9 @@ pub fn index(base: *Expr, index_expr: *Expr, env: Expr.EvalEnv) Error!Value {
     const arr = try evaluate(base, env);
     try Value.validate(arr, &.{.array}, env.diag);
 
-    const idx = try evaluate(index_expr, env);
-    try Value.validate(idx, &.{.number}, env.diag);
-    if (@rem(idx.val.number, 1) != 0) return env.err(.{ .invalid_argument = .{
-        .reason = "Array index must be an integer",
-        .location = index_expr.loc(),
-    } });
-    const i: usize = @intFromFloat(idx.val.number);
-    if (i < 0) return env.err(.{ .invalid_argument = .{
-        .reason = "Array index must be non-negative",
-        .location = index_expr.loc(),
-    } });
-
-    return arr.val.array.get(i) orelse @panic("TODO: Out of bounds error");
+    const idx_val = try evaluate(index_expr, env);
+    const idx = try arr.val.array.validateIndex(idx_val, env.diag);
+    return arr.val.array.get(idx) catch unreachable;
 }
 
 pub fn define(target: *Expr, init: *Expr, env: Expr.EvalEnv) Error!Value {
@@ -280,11 +270,10 @@ pub fn assign(target: *Expr, value: *Expr, env: Expr.EvalEnv) Error!Value {
         .indexing => |ind| {
             const arr = try evaluate(ind.base, env);
             try Value.validate(arr, &.{.array}, env.diag);
-            const idx = try evaluate(ind.index, env);
-            try Value.validate(idx, &.{.number}, env.diag);
-            if (idx.val.number < 0 or @rem(idx.val.number, 1) != 0) @panic("TODO: Invalid array index error");
-            arr.val.array.set(@intFromFloat(idx.val.number), val) catch |err| switch (err) {
-                error.OutOfBounds => @panic("TODO: Out of bounds error"),
+            const idx_val = try evaluate(ind.index, env);
+            const idx = try arr.val.array.validateIndex(idx_val, env.diag);
+            arr.val.array.set(idx, val) catch |err| switch (err) {
+                error.OutOfBounds => unreachable,
                 else => |e| return e,
             };
         },

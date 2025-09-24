@@ -340,6 +340,14 @@ pub fn printRuntimeProblem(runtime_error: usrl.RuntimeProblem, source: usrl.Sour
             try ansi.print(e, "Cannot override read-only {f}\r\n", .{err.varr.value});
             try printLineHighlight(err.location, source, fw);
         },
+        .invalid_index => |err| {
+            try ansi.print(e, "Invalid index {d}\r\n", .{err.index});
+            try printLineHighlight(err.location, source, fw);
+        },
+        .out_of_bounds => |err| {
+            try ansi.print(e, "Index {d} out of bounds (length: {d})\r\n", .{ err.index, err.len });
+            try printLineHighlight(err.location, source, fw);
+        },
         .unexpected => |err| {
             try ansi.print(e, "Unexpected {t}\r\n", .{err});
         },

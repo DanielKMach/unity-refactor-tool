@@ -9,14 +9,15 @@ const Object = Value.Object;
 const yaml = core.yaml;
 const ly = yaml.ly;
 
-const PushError = std.mem.Allocator.Error || yaml.LibyamlError;
-const SetError = std.mem.Allocator.Error || yaml.LibyamlError || error{OutOfBounds};
+pub const GetError = error{OutOfBounds};
+pub const PushError = std.mem.Allocator.Error || yaml.LibyamlError;
+pub const SetError = GetError || std.mem.Allocator.Error || yaml.LibyamlError;
 
 node: *yaml.Node,
 doc: *yaml.Document,
 
-pub fn get(self: List, index: usize) ?Value {
-    const node = yaml.getItem(self.doc.*, self.node.*, index) orelse return null;
+pub fn get(self: List, index: usize) GetError!Value {
+    const node = yaml.getItem(self.doc.*, self.node.*, index) orelse return error.OutOfBounds;
     return Object.valueFromNode(self.doc, node);
 }
 
@@ -61,6 +62,29 @@ pub fn pop(self: List) ?Value {
 pub fn len(self: List) usize {
     std.debug.assert(self.node.type == ly.YAML_SEQUENCE_NODE);
     return self.node.data.sequence.items.top - self.node.data.sequence.items.start;
+}
+
+pub fn validateIndex(self: List, index: Value.Derived, diag: *core.RuntimeDiagnostics) core.RuntimeDiagnostics.Error!usize {
+    try Value.validate(index, &.{.number}, diag);
+
+    const float = index.val.number;
+    if (std.math.isNan(float) or std.math.isInf(float) or @rem(float, 1) != 0) {
+        return diag.push(.{ .invalid_index = .{
+            .index = float,
+            .location = index.src.loc(),
+        } });
+    }
+
+    const idx: isize = @intFromFloat(float);
+    if (idx < 0 or idx >= self.len()) {
+        return diag.push(.{ .out_of_bounds = .{
+            .index = idx,
+            .len = self.len(),
+            .location = index.src.loc(),
+        } });
+    }
+
+    return @intCast(idx);
 }
 
 pub fn format(self: List, writer: *std.Io.Writer) std.Io.Writer.Error!void {

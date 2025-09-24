@@ -157,7 +157,7 @@ pub const builtin = struct {
             },
             .array => |a| {
                 for (0..a.len()) |i| {
-                    const item = a.get(i) orelse unreachable;
+                    const item = a.get(i) catch unreachable;
                     if (Value.eql(item, needle.val)) return .{ .number = @floatFromInt(i) };
                 }
                 return .nil;
@@ -176,7 +176,7 @@ pub const builtin = struct {
             },
             .array => |a| {
                 for (a.len()..0) |i| {
-                    const item = a.get(i) orelse unreachable;
+                    const item = a.get(i) catch unreachable;
                     if (Value.eql(item, needle.val)) return .{ .number = @floatFromInt(i) };
                 }
                 return .nil;

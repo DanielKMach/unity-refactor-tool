@@ -111,6 +111,15 @@ pub const RuntimeProblem = union(enum) {
         varr: Token,
         location: Token.Location,
     },
+    out_of_bounds: struct {
+        index: isize,
+        len: usize,
+        location: Token.Location,
+    },
+    invalid_index: struct {
+        index: f32,
+        location: Token.Location,
+    },
 
     unexpected: anyerror,
 };
