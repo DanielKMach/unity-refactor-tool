@@ -53,7 +53,6 @@ pub fn run(self: This, env: core.Stmt.RunEnv) core.Stmt.RunError!void {
 
     const guid = try self.of.getGUID(env);
     defer env.allocator.free(guid);
-    defer for (guid) |g| g.deinit(env.allocator);
 
     const show = Stmt.Show{
         .mode = .indirect_uses,

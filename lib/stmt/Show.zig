@@ -85,7 +85,6 @@ pub fn search(self: This, count: ?*usize, times: ?*usize, env: Stmt.RunEnv) ![][
 
     var guids = std.ArrayList(GUID).empty;
     defer guids.deinit(env.allocator);
-    defer for (guids.items) |g| g.deinit(env.allocator);
     var searched: usize = 0;
 
     var dir = try in.dir(env);
@@ -100,7 +99,6 @@ pub fn search(self: This, count: ?*usize, times: ?*usize, env: Stmt.RunEnv) ![][
     {
         const starting_targets = try of.getGUID(env);
         defer env.allocator.free(starting_targets);
-        errdefer for (starting_targets) |g| g.deinit(env.allocator);
 
         try guids.appendSlice(env.allocator, starting_targets);
     }
@@ -124,10 +122,7 @@ pub fn search(self: This, count: ?*usize, times: ?*usize, env: Stmt.RunEnv) ![][
         if (self.mode == .indirect_uses) {
             for (references.ctx.items[scanned..]) |ref| {
                 if (!std.mem.endsWith(u8, ref, ".prefab")) continue;
-                const guid = try GUID.fromFile(ref, env.allocator);
-                errdefer guid.deinit(env.allocator);
-
-                try guids.append(env.allocator, guid);
+                try guids.append(env.allocator, try GUID.fromFile(ref, env.allocator));
             }
             scanned = references.length();
         }
@@ -166,7 +161,7 @@ pub fn matchScriptOrPrefabGUID(guids: []const GUID, yaml: *Yaml) Yaml.ParseError
     const guid = nullableGuid orelse return false;
 
     return for (guids) |g| {
-        if (std.mem.eql(u8, g.value, guid)) break true;
+        if (g.eql(guid)) break true;
     } else false;
 }
 
@@ -226,32 +221,31 @@ const Search = struct {
         var fread = file.reader(&buf);
         var reader = &fread.interface;
 
-        const progress = try allocator.alloc(usize, self.guid.len);
-        defer allocator.free(progress);
-        @memset(progress, 0);
-
         main: while (true) {
-            if (reader.bufferedLen() == 0) {
-                reader.fillMore() catch |err| {
-                    if (err != error.EndOfStream) {
-                        log.warn("Error ({s}) reading file: '{s}'", .{ @errorName(err), path });
-                    }
-                    break;
+            while (true) {
+                if (reader.bufferedLen() < 33) reader.fillMore() catch |err| {
+                    if (err == error.EndOfStream) break;
+                    log.warn("Error ({s}) reading file: '{s}'", .{ @errorName(err), path });
+                    return err;
                 };
+                if (!std.ascii.isHex(reader.peekByte() catch unreachable)) { // unreachable due to fill
+                    _ = reader.takeByte() catch unreachable; // unreachable due to fill
+                } else break;
             }
-            const c = reader.takeByte() catch unreachable; // Because already filled.
 
-            for (0..self.guid.len) |i| {
-                if (c == self.guid[i].value[progress[i]]) {
-                    progress[i] += 1;
-                    if (progress[i] == self.guid[i].value.len) {
-                        try self.addPath(path, file, allocator);
-                        break :main;
-                    }
-                } else {
-                    progress[i] = 0;
+            const maybe_guid = reader.peek(32) catch |err| {
+                if (err == error.EndOfStream) break;
+                log.warn("Error ({s}) reading file: '{s}'", .{ @errorName(err), path });
+                return err;
+            };
+
+            for (self.guid) |guid| {
+                if (guid.eql(maybe_guid)) {
+                    try self.addPath(path, file, allocator);
+                    break :main;
                 }
             }
+            _ = reader.takeByte() catch unreachable; // unreachable due to previous peek
         }
 
         self.count_mtx.lock();

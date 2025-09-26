@@ -72,11 +72,10 @@ pub fn getGUID(self: This, env: Stmt.RunEnv) Stmt.RunError![]GUID {
 
     var guids = std.ArrayList(GUID).empty;
     defer guids.deinit(env.allocator);
-    errdefer for (guids.items) |guid| guid.deinit(env.allocator);
 
     for (self.targets) |target| {
         try guids.append(env.allocator, switch (target) {
-            .guid => |guid| try GUID.init(guid.value.string, null, env.allocator),
+            .guid => |guid| try GUID.fromText(guid.value.string),
             .name => |name| blk: {
                 const path = try searchComponent(name.value.literal, env.cwd, env.allocator) orelse {
                     return env.err(.{ .invalid_asset = .{ .path = name.loc } });
