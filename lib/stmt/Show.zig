@@ -220,32 +220,40 @@ const Search = struct {
         var buf: [4096]u8 = undefined;
         var fread = file.reader(&buf);
         var reader = &fread.interface;
+        var maybe_guid: [32]u8 = undefined;
+        var n: usize = 0;
 
         main: while (true) {
             while (true) {
-                if (reader.bufferedLen() < 33) reader.fillMore() catch |err| {
-                    if (err == error.EndOfStream) break;
+                if (reader.bufferedLen() == 0) reader.fillMore() catch |err| {
+                    if (err != error.EndOfStream) {
+                        log.warn("Error ({s}) reading file: '{s}'", .{ @errorName(err), path });
+                        return err;
+                    }
+                };
+                if (reader.takeByte()) |b| {
+                    if (std.ascii.isHex(b)) {
+                        if (n == 32) {
+                            @memmove(maybe_guid[0..31], maybe_guid[1..]);
+                            n -= 1;
+                        }
+                        maybe_guid[n] = b;
+                        n += 1;
+                        if (n == 32) break;
+                    } else n = 0;
+                } else |err| {
+                    if (err == error.EndOfStream) break :main;
                     log.warn("Error ({s}) reading file: '{s}'", .{ @errorName(err), path });
                     return err;
-                };
-                if (!std.ascii.isHex(reader.peekByte() catch unreachable)) { // unreachable due to fill
-                    _ = reader.takeByte() catch unreachable; // unreachable due to fill
-                } else break;
-            }
-
-            const maybe_guid = reader.peek(32) catch |err| {
-                if (err == error.EndOfStream) break;
-                log.warn("Error ({s}) reading file: '{s}'", .{ @errorName(err), path });
-                return err;
-            };
-
-            for (self.guid) |guid| {
-                if (guid.eql(maybe_guid)) {
-                    try self.addPath(path, file, allocator);
-                    break :main;
                 }
             }
-            _ = reader.takeByte() catch unreachable; // unreachable due to previous peek
+
+            std.debug.assert(n == 32);
+            for (self.guid) |guid| {
+                if (!guid.eql(&maybe_guid)) continue;
+                try self.addPath(path, file, allocator);
+                break :main;
+            }
         }
 
         self.count_mtx.lock();
