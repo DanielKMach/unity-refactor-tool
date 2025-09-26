@@ -5,7 +5,6 @@ const log = std.log.scoped(.expr_object);
 
 const List = @This();
 const Value = core.Expr.Value;
-const Object = Value.Object;
 const yaml = core.yaml;
 const ly = yaml.ly;
 
@@ -18,14 +17,14 @@ doc: *yaml.Document,
 
 pub fn get(self: List, index: usize) GetError!Value {
     const node = yaml.getItem(self.doc.*, self.node.*, index) orelse return error.OutOfBounds;
-    return Object.valueFromNode(self.doc, node);
+    return Value.fromNode(node, self.doc);
 }
 
 pub fn set(self: List, index: usize, value: Value) SetError!void {
     std.debug.assert(self.node.type == ly.YAML_SEQUENCE_NODE);
     if (index >= self.len()) return error.OutOfBounds;
     const nodes = yaml.fromStack(yaml.Node, self.doc.nodes);
-    const vnode = try Object.nodeFromValue(self.doc, value);
+    const vnode = try value.toNode(self.doc);
     const vnode_id: c_int = @intCast(vnode - nodes.ptr + 1);
 
     const items = yaml.fromStack(c_int, self.node.data.sequence.items);
@@ -35,7 +34,7 @@ pub fn set(self: List, index: usize, value: Value) SetError!void {
 pub fn push(self: List, value: Value) PushError!void {
     std.debug.assert(self.node.type == ly.YAML_SEQUENCE_NODE);
     const nodes = yaml.fromStack(yaml.Node, self.doc.nodes);
-    const vnode = try Object.nodeFromValue(self.doc, value);
+    const vnode = try value.toNode(self.doc);
     const vnode_id: c_int = @intCast(vnode - nodes.ptr + 1);
     const id = self.node - nodes.ptr + 1;
 
@@ -56,7 +55,7 @@ pub fn pop(self: List) ?Value {
 
     const nodes = yaml.fromStack(yaml.Node, self.doc.nodes);
     const vnode = &nodes[@intCast(vnode_id - 1)];
-    return Object.valueFromNode(self.doc, vnode);
+    return Value.fromNode(vnode, self.doc);
 }
 
 pub fn len(self: List) usize {
@@ -96,7 +95,7 @@ pub fn format(self: List, writer: *std.Io.Writer) std.Io.Writer.Error!void {
         if (i != 0) try writer.print(", ", .{});
 
         const vnode = &nodes[@intCast(item - 1)];
-        const val = Object.valueFromNode(self.doc, vnode);
+        const val = Value.fromNode(vnode, self.doc);
 
         try writer.print("{f}", .{val});
     }

@@ -2,6 +2,8 @@
 
 const std = @import("std");
 const core = @import("core");
+const yaml = core.yaml;
+const ly = yaml.ly;
 
 pub const Value = union(enum) {
     pub const Type = @typeInfo(Value).@"union".tag_type orelse unreachable;
@@ -103,5 +105,90 @@ pub const Value = union(enum) {
             .array => |a_array| a_array.node == b.array.node,
             .func => |a_func| a_func.ptr == b.func.ptr,
         };
+    }
+
+    /// Constructs a Value from a YAML node.
+    pub fn fromNode(node: *yaml.Node, doc: *yaml.Document) Value {
+        return switch (node.type) {
+            ly.YAML_SCALAR_NODE => blk: {
+                const scalar = node.data.scalar;
+                const buf = yaml.fromBuffer(u8, scalar);
+
+                switch (scalar.style) {
+                    ly.YAML_SINGLE_QUOTED_SCALAR_STYLE, ly.YAML_DOUBLE_QUOTED_SCALAR_STYLE => {
+                        break :blk .{ .string = buf };
+                    },
+                    else => {
+                        if (buf.len == 0) return .nil;
+                        if (std.fmt.parseFloat(f32, buf)) |num| {
+                            break :blk .{ .number = num };
+                        } else |_| {
+                            break :blk .{ .string = buf };
+                        }
+                    },
+                }
+            },
+            ly.YAML_MAPPING_NODE => .{ .object = .{
+                .node = node,
+                .doc = doc,
+            } },
+            ly.YAML_SEQUENCE_NODE => .{ .array = .{
+                .node = node,
+                .doc = doc,
+            } },
+            else => unreachable,
+        };
+    }
+
+    /// Converts this value into a YAML node in the given document.
+    pub fn toNode(value: Value, doc: *yaml.Document) std.mem.Allocator.Error!*yaml.Node {
+        const allocator = std.heap.c_allocator;
+        const id: c_int = switch (value) {
+            .string => |str| blk: {
+                const buf = try allocator.dupe(u8, str);
+                break :blk ly.yaml_document_add_scalar(
+                    doc,
+                    null, // No tag
+                    @ptrCast(buf),
+                    @intCast(buf.len),
+                    ly.YAML_DOUBLE_QUOTED_SCALAR_STYLE,
+                );
+            },
+            .number => |num| blk: {
+                const buf = try std.fmt.allocPrint(allocator, "{d}", .{num});
+                break :blk ly.yaml_document_add_scalar(
+                    doc,
+                    null, // No tag
+                    @ptrCast(buf),
+                    @intCast(buf.len),
+                    ly.YAML_PLAIN_SCALAR_STYLE,
+                );
+            },
+            .nil => blk: {
+                const buf = try allocator.alloc(u8, 0);
+                break :blk ly.yaml_document_add_scalar(
+                    doc,
+                    null, // No tag
+                    @ptrCast(buf),
+                    @intCast(buf.len),
+                    ly.YAML_PLAIN_SCALAR_STYLE,
+                );
+            },
+            .object => |obj| blk: {
+                const nodes = yaml.fromStack(yaml.Node, doc.nodes);
+                const i = obj.node - nodes.ptr;
+                std.debug.assert(i < nodes.len);
+                break :blk @intCast(i + 1);
+            },
+            .array => |arr| blk: {
+                const nodes = yaml.fromStack(yaml.Node, doc.nodes);
+                const i = arr.node - nodes.ptr;
+                std.debug.assert(i < nodes.len);
+                break :blk @intCast(i + 1);
+            },
+            .func => @panic("TODO: Dont allow funcs"),
+        };
+        const nodes = yaml.fromStack(yaml.Node, doc.nodes);
+        return &nodes[@intCast(id - 1)];
     }
 };
