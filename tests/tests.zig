@@ -14,6 +14,6 @@ test {
     _ = stringlist;
     _ = tokenizer;
     _ = source;
-    _ = patcher;
+    // _ = patcher;
     _ = show;
 }

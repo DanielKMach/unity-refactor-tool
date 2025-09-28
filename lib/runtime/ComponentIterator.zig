@@ -8,15 +8,21 @@ const History = @import("history.zig").History;
 pub const IterateError = std.mem.Allocator.Error || std.Io.Reader.Error || std.Io.Reader.DelimiterError || std.fs.File.Reader.SeekError;
 pub const PatchError = IterateError || std.Io.Writer.Error || std.Io.Reader.StreamError;
 
-pub const Component = struct {
-    index: usize,
+pub const Info = struct {
+    pos: usize,
     len: usize,
-    document: []const u8,
+    class_id: u32,
+    file_id: u64,
+};
+
+pub const Entry = struct {
+    info: Info,
+    content: []const u8,
 };
 
 freader: std.fs.File.Reader,
 allocator: std.mem.Allocator,
-last: ?Component,
+last: ?Entry,
 
 pub fn init(file: std.fs.File, allocator: std.mem.Allocator) std.mem.Allocator.Error!This {
     const buf = try allocator.alloc(u8, 4096);
@@ -33,71 +39,93 @@ pub fn deinit(self: *This) void {
     self.* = undefined;
 }
 
-pub fn next(self: *This) IterateError!?Component {
+pub fn next(self: *This) IterateError!?Entry {
     var reader = &self.freader.interface;
 
     var target: usize = 0;
-    if (self.last) |c| {
-        target = c.index + c.len;
+    if (self.last) |lst| {
+        target = lst.info.pos + lst.info.len;
         self.freeLast();
     }
     try self.freader.seekTo(target);
 
-    const index, const len = findNextComponent(&self.freader) catch |err| switch (err) {
+    const info = findNextComponent(&self.freader) catch |err| switch (err) {
         error.EndOfStream => return null,
         else => return err,
     };
-    std.debug.assert(len != 0);
 
-    try self.freader.seekTo(index);
-    const doc = try reader.readAlloc(self.allocator, len);
-    std.debug.assert(doc.len == len);
+    try self.freader.seekTo(info.pos);
+    const content = try reader.readAlloc(self.allocator, info.len);
+    std.debug.assert(content.len == info.len);
 
-    const comp = Component{
-        .index = index,
-        .len = len,
-        .document = doc,
-    };
-    self.last = comp;
-    return comp;
+    self.last = .{ .info = info, .content = content };
+    return .{ .info = info, .content = content };
 }
 
 fn freeLast(self: *This) void {
-    if (self.last) |c| {
-        self.allocator.free(c.document);
+    if (self.last) |doc| {
+        self.allocator.free(doc.content);
         self.last = null;
     }
 }
 
-fn findNextComponent(freader: *std.fs.File.Reader) ![2]usize {
+fn findNextComponent(freader: *std.fs.File.Reader) !Info {
     var reader = &freader.interface;
-    var line: []u8 = try reader.takeDelimiterInclusive('\n');
+    var line: []u8 = &.{};
+    var peek: []u8 = try reader.peekDelimiterInclusive('\n');
 
-    while (line[0] == '%' or std.mem.startsWith(u8, line, "--- ")) {
+    while (peek[0] == '%' or std.mem.startsWith(u8, peek, "--- ")) {
         line = try reader.takeDelimiterInclusive('\n');
+        peek = try reader.peekDelimiterInclusive('\n');
     }
 
-    const index = freader.logicalPos() - line.len;
+    const ids = parseClassFileID(line) catch std.debug.panic("Could not find IDs in line '{s}'", .{line});
+
+    const index = freader.logicalPos();
+    line = try reader.takeDelimiterInclusive('\n');
+
     while (!std.mem.startsWith(u8, line, "--- ")) {
         line = reader.takeDelimiterInclusive('\n') catch |err| switch (err) {
-            error.EndOfStream => return .{ index, freader.logicalPos() - index },
+            error.EndOfStream => return .{
+                .pos = index,
+                .len = freader.logicalPos() - index,
+                .class_id = ids[0],
+                .file_id = ids[1],
+            },
             else => return err,
         };
     }
 
-    return .{ index, freader.logicalPos() - line.len - index };
+    return .{
+        .pos = index,
+        .len = freader.logicalPos() - line.len - index,
+        .class_id = ids[0],
+        .file_id = ids[1],
+    };
 }
 
-pub fn patch(self: *This, out: *std.Io.Writer, components: []const Component) PatchError!void {
+fn parseClassFileID(line: []const u8) !struct { u32, u64 } {
+    std.debug.assert(std.mem.startsWith(u8, line, "--- !u!"));
+    var i: usize = 7;
+    while (std.ascii.isDigit(line[i])) i += 1;
+    const class_id = try std.fmt.parseInt(u32, line[7..i], 10);
+    while (!std.ascii.isDigit(line[i])) i += 1;
+    const s = i;
+    while (i < line.len and std.ascii.isDigit(line[i])) i += 1;
+    const file_id = try std.fmt.parseInt(u64, line[s..i], 10);
+    return .{ class_id, file_id };
+}
+
+pub fn patch(self: *This, out: *std.Io.Writer, entries: []const Entry) PatchError!void {
     try self.freader.seekTo(0);
     var reader = &self.freader.interface;
 
     var last_index: usize = 0;
-    for (components) |comp| {
-        try reader.streamExact(out, comp.index - last_index);
-        try out.writeAll(comp.document);
-        try reader.discardAll(comp.len);
-        last_index = comp.index + comp.len;
+    for (entries) |e| {
+        try reader.streamExact(out, e.info.pos - last_index);
+        try out.writeAll(e.content);
+        try reader.discardAll(e.info.len);
+        last_index = e.info.pos + e.info.len;
     }
 
     _ = try reader.streamRemaining(out);

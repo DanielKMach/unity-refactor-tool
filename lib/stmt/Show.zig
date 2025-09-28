@@ -142,8 +142,8 @@ fn verifyUse(file: std.fs.File, guid: []const GUID, allocator: std.mem.Allocator
     var iterator = try ComponentIterator.init(file, allocator);
     defer iterator.deinit();
 
-    return while (try iterator.next()) |comp| {
-        var yaml = Yaml.init(.{ .string = comp.document }, null, allocator);
+    return while (try iterator.next()) |e| {
+        var yaml = Yaml.init(.{ .string = e.content }, null, allocator);
         if (try matchScriptOrPrefabGUID(guid, &yaml)) break true;
     } else false;
 }

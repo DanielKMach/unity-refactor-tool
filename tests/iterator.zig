@@ -16,9 +16,11 @@ test "component iteration" {
     defer iterator.deinit();
 
     inline for (test_prefab.components) |comp| {
-        const got = try iterator.next();
-        try testing.expect(got != null);
-        try testing.expectEqualStrings(comp.content, got.?.document);
+        const entry = try iterator.next();
+        try testing.expect(entry != null);
+        try testing.expectEqual(comp.file_id, entry.?.info.file_id);
+        try testing.expectEqual(comp.class_id, entry.?.info.class_id);
+        try testing.expectEqualStrings(comp.content, entry.?.content);
     }
     try testing.expectEqual(null, try iterator.next());
 }

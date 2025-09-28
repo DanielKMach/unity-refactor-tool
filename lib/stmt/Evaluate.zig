@@ -101,16 +101,16 @@ pub fn scanAndPrint(self: This, file: std.fs.File, file_path: []const u8, guid: 
     var iter = try ComponentIterator.init(file, env.allocator);
     defer iter.deinit();
 
-    var changes = std.ArrayList(ComponentIterator.Component).empty;
+    var changes = std.ArrayList(ComponentIterator.Entry).empty;
     defer changes.deinit(env.allocator);
-    defer for (changes.items) |change| env.allocator.free(change.document);
+    defer for (changes.items) |change| env.allocator.free(change.content);
 
-    while (try iter.next()) |comp| {
-        const buf = try env.allocator.alloc(u8, comp.len * 2);
+    while (try iter.next()) |e| {
+        const buf = try env.allocator.alloc(u8, e.content.len * 2);
         defer env.allocator.free(buf);
 
         var out_yaml = buf;
-        var yaml = Yaml.init(.{ .string = comp.document }, .{ .string = &out_yaml }, env.allocator);
+        var yaml = Yaml.init(.{ .string = e.content }, .{ .string = &out_yaml }, env.allocator);
 
         if (!(try core.Stmt.Show.matchScriptOrPrefabGUID(guid, &yaml))) continue;
 
@@ -135,11 +135,10 @@ pub fn scanAndPrint(self: This, file: std.fs.File, file_path: []const u8, guid: 
 
         try yaml.dumpDocument(&doc);
 
-        if (!std.mem.eql(u8, out_yaml, comp.document)) {
+        if (!std.mem.eql(u8, out_yaml, e.content)) {
             try changes.append(env.allocator, .{
-                .index = comp.index,
-                .len = comp.len,
-                .document = try env.allocator.dupe(u8, out_yaml),
+                .info = e.info,
+                .content = try env.allocator.dupe(u8, out_yaml[0 .. buf.len - out_yaml.len]),
             });
         }
     }
@@ -158,7 +157,7 @@ pub fn scanAndPrint(self: This, file: std.fs.File, file_path: []const u8, guid: 
 
     try patcher.start();
     for (changes.items) |change| {
-        try patcher.patch(change.index, change.len, change.document);
+        try patcher.patch(change.info.pos, change.info.len, change.content);
     }
     try patcher.flush();
     try patcher.apply();

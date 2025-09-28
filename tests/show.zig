@@ -9,10 +9,7 @@ test "guid test" {
     inline for (data1.test_prefab.components) |comp| {
         var yaml = usrl.runtime.Yaml.init(.{ .string = comp.content }, null, testing.allocator);
         if (comp.guid) |g| {
-            const guid = usrl.runtime.GUID{
-                .value = g,
-                .source = null,
-            };
+            const guid = try usrl.runtime.GUID.fromText(g);
             try testing.expect(try Show.matchScriptOrPrefabGUID(&.{guid}, &yaml));
         }
     }
