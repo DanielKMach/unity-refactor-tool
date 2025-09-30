@@ -134,7 +134,7 @@ pub const builtin = struct {
     }
 
     pub fn prop(key: []const u8, env: Expr.EvalEnv) Error!Value {
-        return env.context.get(key) orelse .nil;
+        return (try env.context.obj(env)).get(key) orelse .nil;
     }
 
     pub fn len(value: Value.Derived, env: Expr.EvalEnv) Error!Value {
@@ -236,6 +236,7 @@ pub const builtin = struct {
             .object => "object",
             .array => "array",
             .func => "function",
+            .asset => "asset",
         } };
     }
 
@@ -263,6 +264,6 @@ pub const builtin = struct {
     }
 
     pub fn ctx(env: Expr.EvalEnv) Error!Value {
-        return .{ .object = env.context };
+        return .{ .asset = env.context };
     }
 };

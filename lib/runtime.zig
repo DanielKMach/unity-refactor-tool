@@ -8,3 +8,4 @@ pub const ComponentIterator = @import("runtime/ComponentIterator.zig");
 pub const StringList = @import("runtime/StringList.zig");
 pub const GUID = @import("runtime/GUID.zig");
 pub const FilePatcher = @import("runtime/FilePatcher.zig");
+pub const ObjMap = @import("runtime/ObjMap.zig");

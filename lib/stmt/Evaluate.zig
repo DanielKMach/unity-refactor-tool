@@ -94,7 +94,7 @@ pub fn searchAndPrint(self: This, assets: []const []const u8, guid: []const GUID
     }
 }
 
-pub fn scanAndPrint(self: This, file: std.fs.File, file_path: []const u8, guid: []const GUID, env: core.Stmt.RunEnv) !void {
+pub fn scanAndPrint(self: This, file: std.fs.File, file_path: []const u8, guids: []const GUID, env: core.Stmt.RunEnv) !void {
     core.profiling.begin(scanAndPrint);
     defer core.profiling.stop();
 
@@ -112,33 +112,35 @@ pub fn scanAndPrint(self: This, file: std.fs.File, file_path: []const u8, guid: 
         var out_yaml = buf;
         var yaml = Yaml.init(.{ .string = e.content }, .{ .string = &out_yaml }, env.allocator);
 
-        if (!(try core.Stmt.Show.matchScriptOrPrefabGUID(guid, &yaml))) continue;
+        const guid = try Stmt.Show.matchGUID(guids, &yaml) orelse continue;
 
-        var doc: Yaml.Document = undefined;
-        try yaml.loadDocument(&doc);
-        defer Yaml.deleteDocument(&doc);
+        var objs: core.runtime.ObjMap = .init(env.allocator);
+        defer objs.deinit();
+
+        const ctx: Expr.Value.Asset = .{
+            .file_id = e.info.file_id,
+            .guid = guid,
+        };
+        const doc = try objs.new(guid, e.info.file_id, e.info.class_id);
+        try yaml.loadDocument(doc);
 
         var vars: Expr.VarMap = try .default(env.allocator);
-        const root: Expr.Value.Object = .{
-            .node = @ptrCast(doc.nodes.start),
-            .doc = &doc,
-        };
-
         const value = try self.expr.evaluateAuto(.{
             .allocator = env.allocator,
             .diag = env.diag,
-            .context = (root.get("MonoBehaviour") orelse unreachable).object,
+            .context = ctx,
+            .objs = &objs,
             .vars = &vars,
         });
         defer value.cleanup(env.allocator);
         try print(file_path, value, env.out);
 
-        try yaml.dumpDocument(&doc);
+        try yaml.dumpDocument(doc);
 
         if (!std.mem.eql(u8, out_yaml, e.content)) {
             try changes.append(env.allocator, .{
                 .info = e.info,
-                .content = try env.allocator.dupe(u8, out_yaml[0 .. buf.len - out_yaml.len]),
+                .content = try env.allocator.dupe(u8, out_yaml),
             });
         }
     }

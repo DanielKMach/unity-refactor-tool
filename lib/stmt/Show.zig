@@ -150,7 +150,12 @@ fn verifyUse(file: std.fs.File, guid: []const GUID, allocator: std.mem.Allocator
 
 /// Check if the GUID of the document in `yaml` matches any of the GUIDs in `guids`.
 pub fn matchScriptOrPrefabGUID(guids: []const GUID, yaml: *Yaml) Yaml.ParseError!bool {
-    core.profiling.begin(matchScriptOrPrefabGUID);
+    return try matchGUID(guids, yaml) != null;
+}
+
+/// Check if the GUID of the document in `yaml` matches any of the GUIDs in `guids`.
+pub fn matchGUID(guids: []const GUID, yaml: *Yaml) Yaml.ParseError!?GUID {
+    core.profiling.begin(matchGUID);
     defer core.profiling.stop();
 
     var buf: [32]u8 = undefined;
@@ -158,11 +163,11 @@ pub fn matchScriptOrPrefabGUID(guids: []const GUID, yaml: *Yaml) Yaml.ParseError
     if (nullableGuid == null) {
         nullableGuid = try yaml.get(&.{ "PrefabInstance", "m_SourcePrefab", "guid" }, &buf);
     }
-    const guid = nullableGuid orelse return false;
+    const guid = nullableGuid orelse return null;
 
     return for (guids) |g| {
-        if (g.eql(guid)) break true;
-    } else false;
+        if (g.eql(guid)) break g;
+    } else null;
 }
 
 fn sort(arr: [][]const u8) void {

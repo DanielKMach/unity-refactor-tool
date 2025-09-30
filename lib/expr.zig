@@ -15,7 +15,8 @@ pub const Expr = union(enum) {
     pub const EvalEnv = struct {
         allocator: std.mem.Allocator,
         diag: *core.RuntimeDiagnostics,
-        context: Value.Object,
+        context: Value.Asset,
+        objs: *core.runtime.ObjMap,
         vars: *VarMap,
 
         pub fn err(self: EvalEnv, p: core.RuntimeProblem) core.RuntimeDiagnostics.Error {
@@ -122,6 +123,7 @@ pub const Expr = union(enum) {
             .allocator = stack.allocator(),
             .diag = env.diag,
             .context = env.context,
+            .objs = env.objs,
             .vars = env.vars,
         };
 

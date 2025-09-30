@@ -10,6 +10,7 @@ pub const Value = union(enum) {
     pub const Object = @import("value/Object.zig");
     pub const List = @import("value/List.zig");
     pub const Func = @import("value/Func.zig");
+    pub const Asset = @import("value/Asset.zig");
 
     nil,
     string: []const u8,
@@ -17,6 +18,7 @@ pub const Value = union(enum) {
     object: Object,
     array: List,
     func: Func,
+    asset: Asset,
 
     /// Duplicates this value into the given allocator.
     ///
@@ -50,6 +52,7 @@ pub const Value = union(enum) {
             .object => true,
             .array => true,
             .func => true,
+            .asset => |a| a.file_id != 0,
         };
     }
 
@@ -61,6 +64,11 @@ pub const Value = union(enum) {
             .object => |o| writer.print("{f}", .{o}),
             .array => |a| writer.print("{f}", .{a}),
             .func => |f| writer.print("[func@{x}]", .{@intFromPtr(f.ptr)}),
+            .asset => |a| {
+                try writer.print("[asset {d}", .{a.file_id});
+                if (a.guid) |g| try writer.print(":{f}", .{g});
+                try writer.writeAll("]");
+            },
         };
     }
 
@@ -72,6 +80,11 @@ pub const Value = union(enum) {
             .object => |o| writer.print("{f}", .{o}),
             .array => |a| writer.print("{f}", .{a}),
             .func => |f| writer.print("[func@{x}]", .{@intFromPtr(f.ptr)}),
+            .asset => |a| {
+                try writer.print("[asset {d}", .{a.file_id});
+                if (a.guid) |g| try writer.print(":{f}", .{g});
+                try writer.writeAll("]");
+            },
         };
     }
 
@@ -104,6 +117,7 @@ pub const Value = union(enum) {
             .object => |a_object| a_object.node == b.object.node,
             .array => |a_array| a_array.node == b.array.node,
             .func => |a_func| a_func.ptr == b.func.ptr,
+            .asset => |a_asset| a_asset.file_id == b.asset.file_id and (a_asset.guid == null and b.asset.guid == null or a_asset.guid != null and b.asset.guid != null and a_asset.guid.?.id == b.asset.guid.?.id),
         };
     }
 
@@ -128,10 +142,26 @@ pub const Value = union(enum) {
                     },
                 }
             },
-            ly.YAML_MAPPING_NODE => .{ .object = .{
-                .node = node,
-                .doc = doc,
-            } },
+            ly.YAML_MAPPING_NODE => blk: {
+                if (yaml.getNode(doc.*, node.*, "fileID")) |file_id_node| {
+                    const file_id_str = yaml.fromBuffer(u8, file_id_node.data.scalar);
+                    const file_id = std.fmt.parseInt(u64, file_id_str, 10) catch unreachable;
+                    var guid: ?core.runtime.GUID = null;
+                    if (yaml.getNode(doc.*, node.*, "guid")) |guid_node| {
+                        const guid_str = yaml.fromBuffer(u8, guid_node.data.scalar);
+                        guid = core.runtime.GUID.fromText(guid_str) catch unreachable;
+                    }
+                    break :blk .{ .asset = .{
+                        .file_id = file_id,
+                        .guid = guid,
+                    } };
+                } else {
+                    break :blk .{ .object = .{
+                        .node = node,
+                        .doc = doc,
+                    } };
+                }
+            },
             ly.YAML_SEQUENCE_NODE => .{ .array = .{
                 .node = node,
                 .doc = doc,
@@ -141,7 +171,7 @@ pub const Value = union(enum) {
     }
 
     /// Converts this value into a YAML node in the given document.
-    pub fn toNode(value: Value, doc: *yaml.Document) std.mem.Allocator.Error!*yaml.Node {
+    pub fn toNode(value: Value, doc: *yaml.Document) (std.mem.Allocator.Error || yaml.LibyamlError)!*yaml.Node {
         const allocator = std.heap.c_allocator;
         const id: c_int = switch (value) {
             .string => |str| blk: {
@@ -186,8 +216,62 @@ pub const Value = union(enum) {
                 std.debug.assert(i < nodes.len);
                 break :blk @intCast(i + 1);
             },
+            .asset => |ass| blk: {
+                const ref_node = ly.yaml_document_add_mapping(
+                    doc,
+                    null,
+                    ly.YAML_FLOW_MAPPING_STYLE,
+                );
+                if (ref_node == 0) return error.LibyamlError;
+
+                const file_id_knode = ly.yaml_document_add_scalar(
+                    doc,
+                    null,
+                    "fileID",
+                    6,
+                    ly.YAML_PLAIN_SCALAR_STYLE,
+                );
+                if (file_id_knode == 0) return error.LibyamlError;
+
+                const file_id_str = try std.fmt.allocPrint(allocator, "{d}", .{ass.file_id});
+                errdefer allocator.free(file_id_str);
+                const file_id_vnode = ly.yaml_document_add_scalar(
+                    doc,
+                    null,
+                    file_id_str.ptr,
+                    @intCast(file_id_str.len),
+                    ly.YAML_PLAIN_SCALAR_STYLE,
+                );
+                if (file_id_vnode == 0) return error.LibyamlError;
+                if (ly.yaml_document_append_mapping_pair(doc, ref_node, file_id_knode, file_id_vnode) == 0) return error.LibyamlError;
+
+                if (ass.guid) |guid| {
+                    const guid_knode = ly.yaml_document_add_scalar(
+                        doc,
+                        null,
+                        "guid",
+                        4,
+                        ly.YAML_PLAIN_SCALAR_STYLE,
+                    );
+                    if (guid_knode == 0) return error.LibyamlError;
+
+                    const guid_str = try std.fmt.allocPrint(allocator, "{f}", .{guid});
+                    errdefer allocator.free(guid_str);
+                    const guid_vnode = ly.yaml_document_add_scalar(
+                        doc,
+                        null,
+                        guid_str.ptr,
+                        32,
+                        ly.YAML_PLAIN_SCALAR_STYLE,
+                    );
+                    if (guid_vnode == 0) return error.LibyamlError;
+                    if (ly.yaml_document_append_mapping_pair(doc, ref_node, guid_knode, guid_vnode) == 0) return error.LibyamlError;
+                }
+                break :blk ref_node;
+            },
             .func => @panic("TODO: Dont allow funcs"),
         };
+        if (id == 0) return error.LibyamlError;
         const nodes = yaml.fromStack(yaml.Node, doc.nodes);
         return &nodes[@intCast(id - 1)];
     }

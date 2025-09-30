@@ -39,7 +39,7 @@ pub fn evaluate(expr: *Expr, env: Expr.EvalEnv) Error!Value.Derived {
         },
         .ternary => |tern| try ternary(tern.left, tern.middle, tern.right, env),
         .grouping => |group| (try evaluate(group.expr, env)).val,
-        .property => |prop| env.context.get(prop.name.value.literal) orelse .nil,
+        .property => |prop| (try env.context.obj(env)).get(prop.name.value.literal) orelse .nil,
         .variable => |varr| env.vars.get(varr.name.value.variable) catch return env.err(.{
             .undefined_variable = .{ .varr = varr.name, .location = varr.name.loc },
         }),
@@ -203,10 +203,15 @@ pub fn ternary(condition: *Expr, then: *Expr, otherwise: *Expr, env: Expr.EvalEn
 }
 
 pub fn access(base: *Expr, key: []const u8, env: Expr.EvalEnv) Error!Value {
-    const obj = try evaluate(base, env);
-    try Value.validate(obj, &.{.object}, env.diag);
+    const objv = try evaluate(base, env);
+    try Value.validate(objv, &.{ .object, .asset }, env.diag);
+    const obj = switch (objv.val) {
+        .object => |o| o,
+        .asset => |a| try a.obj(env),
+        else => unreachable,
+    };
 
-    return obj.val.object.get(key) orelse .nil;
+    return obj.get(key) orelse .nil;
 }
 
 pub fn index(base: *Expr, index_expr: *Expr, env: Expr.EvalEnv) Error!Value {
@@ -245,13 +250,19 @@ pub fn assign(target: *Expr, value: *Expr, env: Expr.EvalEnv) Error!Value {
     switch (target.*) {
         .access => |acc| {
             const key = acc.property.value.literal;
-            const obj = try evaluate(acc.base, env);
-            try Value.validate(obj, &.{.object}, env.diag);
-            try obj.val.object.set(key, val);
+            const objv = try evaluate(acc.base, env);
+            try Value.validate(objv, &.{ .object, .asset }, env.diag);
+            const obj = switch (objv.val) {
+                .object => |o| o,
+                .asset => |a| try a.obj(env),
+                else => unreachable,
+            };
+            try obj.set(key, val);
         },
         .property => |prop| {
             const key = prop.name.value.literal;
-            try env.context.set(key, val);
+            const obj = try env.context.obj(env);
+            try obj.set(key, val);
         },
         .variable => |varr| {
             const key = varr.name.value.variable;

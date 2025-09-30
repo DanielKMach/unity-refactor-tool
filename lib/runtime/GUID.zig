@@ -23,6 +23,10 @@ pub inline fn eql(self: GUID, guid: []const u8) bool {
     } else true;
 }
 
+pub fn format(self: GUID, writer: *std.Io.Writer) std.Io.Writer.Error!void {
+    return writer.print("{x:0>32}", .{self.id});
+}
+
 pub fn fromText(guid: []const u8) FromTextError!GUID {
     if (!isGUID(guid)) return error.InvalidGUID;
     const id = std.fmt.parseInt(u128, guid, 16) catch return error.InvalidGUID;
