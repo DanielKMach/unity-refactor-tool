@@ -8,7 +8,7 @@ const Stmt = core.Stmt;
 const clse = core.Stmt.clse;
 const TokenIterator = core.Token.Iterator;
 const Scanner = core.runtime.Scanner;
-const ComponentIterator = core.runtime.ComponentIterator;
+const ObjIterator = core.runtime.ObjIterator;
 const Yaml = core.runtime.Yaml;
 const GUID = core.runtime.GUID;
 const Expr = core.Expr;
@@ -96,10 +96,8 @@ pub fn searchAndPrint(self: This, refs: []const []const u8, guid: []const GUID, 
     var fetched = assets.entries();
     while (fetched.next()) |entry| {
         try env.out.flush();
-        log.debug("'{s}', len={d}", .{ entry.value_ptr.*, entry.value_ptr.*.len });
         try env.transaction.include(entry.value_ptr.*);
 
-        log.debug("'{s}', len={d}", .{ entry.value_ptr.*, entry.value_ptr.*.len });
         const file = try std.fs.openFileAbsolute(entry.value_ptr.*, .{ .mode = .read_write });
         defer file.close();
 
@@ -109,7 +107,7 @@ pub fn searchAndPrint(self: This, refs: []const []const u8, guid: []const GUID, 
         var patcher = core.runtime.FilePatcher.init(file, temp, env.allocator);
         defer patcher.deinit();
 
-        var iter = try ComponentIterator.init(file, env.allocator);
+        var iter = try ObjIterator.init(file, env.allocator);
         defer iter.deinit();
 
         try patcher.start();
@@ -140,7 +138,7 @@ pub fn scanAndPrint(self: This, path: []const u8, guids: []const GUID, assets: *
     const file = try std.fs.openFileAbsolute(path, .{ .mode = .read_write });
     defer file.close();
 
-    var iter = try ComponentIterator.init(file, env.allocator);
+    var iter = try ObjIterator.init(file, env.allocator);
     defer iter.deinit();
 
     while (try iter.next()) |e| {

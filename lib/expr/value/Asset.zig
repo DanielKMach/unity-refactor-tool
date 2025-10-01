@@ -34,7 +34,7 @@ pub fn obj(self: Asset, env: Expr.eval.Env) Expr.eval.Error!Value.Object {
         });
         defer file.close();
 
-        var iterator = try core.runtime.ComponentIterator.init(file, env.allocator);
+        var iterator = try core.runtime.ObjIterator.init(file, env.allocator);
         defer iterator.deinit();
 
         while (try iterator.next()) |e| {

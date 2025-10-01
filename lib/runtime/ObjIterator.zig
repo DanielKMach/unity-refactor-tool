@@ -1,3 +1,5 @@
+//! Iterates through all Unity object definitions in a file.
+
 const std = @import("std");
 
 const log = std.log.scoped(.component_iterator);
@@ -5,7 +7,8 @@ const log = std.log.scoped(.component_iterator);
 const This = @This();
 const History = @import("history.zig").History;
 
-pub const IterateError = std.mem.Allocator.Error || std.Io.Reader.Error || std.Io.Reader.DelimiterError || std.fs.File.Reader.SeekError;
+pub const ParseHeaderError = error{InvalidHeader};
+pub const IterateError = ParseHeaderError || std.mem.Allocator.Error || std.Io.Reader.Error || std.Io.Reader.DelimiterError || std.fs.File.Reader.SeekError;
 pub const PatchError = IterateError || std.Io.Writer.Error || std.Io.Reader.StreamError;
 
 pub const Info = struct {
@@ -79,7 +82,7 @@ fn findNextComponent(freader: *std.fs.File.Reader) !Info {
         peek = try reader.peekDelimiterInclusive('\n');
     }
 
-    const ids = parseClassFileID(line) catch std.debug.panic("Could not find IDs in line '{s}'", .{line});
+    const ids = try parseClassFileID(line);
 
     const index = freader.logicalPos();
     line = try reader.takeDelimiterInclusive('\n');
@@ -105,14 +108,14 @@ fn findNextComponent(freader: *std.fs.File.Reader) !Info {
 }
 
 fn parseClassFileID(line: []const u8) !struct { u32, u64 } {
-    std.debug.assert(std.mem.startsWith(u8, line, "--- !u!"));
+    if (!std.mem.startsWith(u8, line, "--- !u!")) return error.InvalidHeader;
     var i: usize = 7;
     while (std.ascii.isDigit(line[i])) i += 1;
-    const class_id = try std.fmt.parseInt(u32, line[7..i], 10);
+    const class_id = std.fmt.parseInt(u32, line[7..i], 10) catch return error.InvalidHeader;
     while (!std.ascii.isDigit(line[i])) i += 1;
     const s = i;
     while (i < line.len and std.ascii.isDigit(line[i])) i += 1;
-    const file_id = try std.fmt.parseInt(u64, line[s..i], 10);
+    const file_id = std.fmt.parseInt(u64, line[s..i], 10) catch return error.InvalidHeader;
     return .{ class_id, file_id };
 }
 

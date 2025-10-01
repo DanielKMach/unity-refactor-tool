@@ -7,7 +7,7 @@ const Stmt = core.Stmt;
 const clse = core.Stmt.clse;
 const TokenIterator = core.Token.Iterator;
 const Yaml = core.runtime.Yaml;
-const ComponentIterator = core.runtime.ComponentIterator;
+const ObjIterator = core.runtime.ObjIterator;
 const Scanner = core.runtime.Scanner;
 const GUID = core.runtime.GUID;
 
@@ -139,7 +139,7 @@ fn verifyUse(file: std.fs.File, guid: []const GUID, allocator: std.mem.Allocator
     core.profiling.begin(verifyUse);
     defer core.profiling.stop();
 
-    var iterator = try ComponentIterator.init(file, allocator);
+    var iterator = try ObjIterator.init(file, allocator);
     defer iterator.deinit();
 
     return while (try iterator.next()) |e| {
