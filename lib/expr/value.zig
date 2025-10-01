@@ -266,6 +266,25 @@ pub const Value = union(enum) {
                     );
                     if (guid_vnode == 0) return error.LibyamlError;
                     if (ly.yaml_document_append_mapping_pair(doc, ref_node, guid_knode, guid_vnode) == 0) return error.LibyamlError;
+
+                    const type_knode = ly.yaml_document_add_scalar(
+                        doc,
+                        null,
+                        "type",
+                        4,
+                        ly.YAML_PLAIN_SCALAR_STYLE,
+                    );
+                    if (type_knode == 0) return error.LibyamlError;
+
+                    const type_vnode = ly.yaml_document_add_scalar(
+                        doc,
+                        null,
+                        "3",
+                        1,
+                        ly.YAML_PLAIN_SCALAR_STYLE,
+                    );
+                    if (type_vnode == 0) return error.LibyamlError;
+                    if (ly.yaml_document_append_mapping_pair(doc, ref_node, type_knode, type_vnode) == 0) return error.LibyamlError;
                 }
                 break :blk ref_node;
             },

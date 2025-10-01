@@ -147,7 +147,7 @@ pub fn scanAndPrint(self: This, path: []const u8, guids: []const GUID, assets: *
         var yaml = Yaml.init(.{ .string = e.content }, null, env.allocator);
 
         if (try Stmt.Show.matchGUID(guids, &yaml) == null) continue;
-        const guid = try assets.put(path, env.allocator);
+        const guid = try assets.put(path);
 
         const ctx: Expr.Value.Asset = .{
             .file_id = e.info.file_id,
@@ -160,6 +160,7 @@ pub fn scanAndPrint(self: This, path: []const u8, guids: []const GUID, assets: *
         var vars: Expr.VarMap = try .default(env.allocator);
         const value = try self.expr.evaluateAuto(.{
             .allocator = env.allocator,
+            .root = undefined, // Will be set by evaluateAuto
             .diag = env.diag,
             .context = ctx,
             .assets = assets,

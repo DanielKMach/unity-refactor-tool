@@ -5,11 +5,11 @@ const Func = @This();
 const Expr = core.Expr;
 const Value = Expr.Value;
 
-pub const BuiltinFn = fn (*Expr.Call, []const Value.Derived, Expr.EvalEnv) Expr.eval.Error!Value;
+pub const BuiltinFn = fn (*Expr.Call, []const Value.Derived, Expr.eval.Env) Expr.eval.Error!Value;
 
 ptr: *const BuiltinFn,
 
-pub fn call(self: Func, call_expr: *Expr.Call, args: []const Value.Derived, env: Expr.EvalEnv) Expr.eval.Error!Value {
+pub fn call(self: Func, call_expr: *Expr.Call, args: []const Value.Derived, env: Expr.eval.Env) Expr.eval.Error!Value {
     return self.ptr(call_expr, args, env);
 }
 
@@ -30,12 +30,12 @@ pub fn new(func: anytype) Func {
         } else param.type == Value.Derived;
         if (!valid) @compileError("All but last parameters of 'func' must be of type " ++ @typeName(Value.Derived) ++ " or one of its variants. Found " ++ @typeName(param.type) ++ ".");
     }
-    if (info.params[params.len].type != Expr.EvalEnv) {
-        @compileError("The last parameter of 'func' must be of type " ++ @typeName(Expr.EvalEnv) ++ ". Found " ++ @typeName(params[params.len].type) ++ ".");
+    if (info.params[params.len].type != Expr.eval.Env) {
+        @compileError("The last parameter of 'func' must be of type " ++ @typeName(Expr.eval.Env) ++ ". Found " ++ @typeName(params[params.len].type) ++ ".");
     }
 
     const Wrapper = struct {
-        pub fn wrap(call_expr: *Expr.Call, args: []const Value.Derived, env: Expr.EvalEnv) Expr.eval.Error!Value {
+        pub fn wrap(call_expr: *Expr.Call, args: []const Value.Derived, env: Expr.eval.Env) Expr.eval.Error!Value {
             const loc = @as(*Expr, @fieldParentPtr("call", call_expr)).loc();
             if (args.len != params.len) return env.err(.{ .invalid_argument_count = .{
                 .mode = .exact,
@@ -88,31 +88,31 @@ fn TupleFromParams(comptime params: []const std.builtin.Type.Fn.Param) type {
 pub const builtin = struct {
     const Error = Expr.eval.Error;
 
-    pub fn min(x: f32, y: f32, _: Expr.EvalEnv) Error!Value {
+    pub fn min(x: f32, y: f32, _: Expr.eval.Env) Error!Value {
         return .{ .number = @min(x, y) };
     }
 
-    pub fn max(x: f32, y: f32, _: Expr.EvalEnv) Error!Value {
+    pub fn max(x: f32, y: f32, _: Expr.eval.Env) Error!Value {
         return .{ .number = @max(x, y) };
     }
 
-    pub fn floor(x: f32, _: Expr.EvalEnv) Error!Value {
+    pub fn floor(x: f32, _: Expr.eval.Env) Error!Value {
         return .{ .number = @floor(x) };
     }
 
-    pub fn ceil(x: f32, _: Expr.EvalEnv) Error!Value {
+    pub fn ceil(x: f32, _: Expr.eval.Env) Error!Value {
         return .{ .number = @ceil(x) };
     }
 
-    pub fn trunc(x: f32, _: Expr.EvalEnv) Error!Value {
+    pub fn trunc(x: f32, _: Expr.eval.Env) Error!Value {
         return .{ .number = @trunc(x) };
     }
 
-    pub fn round(x: f32, _: Expr.EvalEnv) Error!Value {
+    pub fn round(x: f32, _: Expr.eval.Env) Error!Value {
         return .{ .number = @round(x) };
     }
 
-    pub fn sqrt(v: Value.Derived, env: Expr.EvalEnv) Error!Value {
+    pub fn sqrt(v: Value.Derived, env: Expr.eval.Env) Error!Value {
         try Value.validate(v, &.{.number}, env.diag);
         if (v.val.number < 0) return env.err(.{ .invalid_argument = .{
             .reason = "cannot compute square root of negative number",
@@ -121,23 +121,23 @@ pub const builtin = struct {
         return .{ .number = @sqrt(v.val.number) };
     }
 
-    pub fn abs(x: f32, _: Expr.EvalEnv) Error!Value {
+    pub fn abs(x: f32, _: Expr.eval.Env) Error!Value {
         return .{ .number = @abs(x) };
     }
 
-    pub fn cos(x: f32, _: Expr.EvalEnv) Error!Value {
+    pub fn cos(x: f32, _: Expr.eval.Env) Error!Value {
         return .{ .number = @cos(x) };
     }
 
-    pub fn sin(x: f32, _: Expr.EvalEnv) Error!Value {
+    pub fn sin(x: f32, _: Expr.eval.Env) Error!Value {
         return .{ .number = @sin(x) };
     }
 
-    pub fn prop(key: []const u8, env: Expr.EvalEnv) Error!Value {
+    pub fn prop(key: []const u8, env: Expr.eval.Env) Error!Value {
         return (try env.context.obj(env)).get(key) orelse .nil;
     }
 
-    pub fn len(value: Value.Derived, env: Expr.EvalEnv) Error!Value {
+    pub fn len(value: Value.Derived, env: Expr.eval.Env) Error!Value {
         try Value.validate(value, &.{ .string, .object, .array }, env.diag);
         return .{ .number = switch (value.val) {
             .string => |s| @floatFromInt(s.len),
@@ -147,7 +147,7 @@ pub const builtin = struct {
         } };
     }
 
-    pub fn idx(needle: Value.Derived, haystack: Value.Derived, env: Expr.EvalEnv) Error!Value {
+    pub fn idx(needle: Value.Derived, haystack: Value.Derived, env: Expr.eval.Env) Error!Value {
         try Value.validate(haystack, &.{ .string, .array }, env.diag);
         switch (haystack.val) {
             .string => |s| {
@@ -166,7 +166,7 @@ pub const builtin = struct {
         }
     }
 
-    pub fn lastIdx(needle: Value.Derived, haystack: Value.Derived, env: Expr.EvalEnv) Error!Value {
+    pub fn lastIdx(needle: Value.Derived, haystack: Value.Derived, env: Expr.eval.Env) Error!Value {
         try Value.validate(haystack, &.{ .string, .array }, env.diag);
         switch (haystack.val) {
             .string => |s| {
@@ -185,16 +185,16 @@ pub const builtin = struct {
         }
     }
 
-    pub fn push(item: Value.Derived, list: Value.List, _: Expr.EvalEnv) Error!Value {
+    pub fn push(item: Value.Derived, list: Value.List, _: Expr.eval.Env) Error!Value {
         try list.push(item.val);
         return .nil;
     }
 
-    pub fn pop(list: Value.List, _: Expr.EvalEnv) Error!Value {
+    pub fn pop(list: Value.List, _: Expr.eval.Env) Error!Value {
         return list.pop() orelse .nil;
     }
 
-    pub fn slice(val: []const u8, start: Value.Derived, length: Value.Derived, env: Expr.EvalEnv) Error!Value {
+    pub fn slice(val: []const u8, start: Value.Derived, length: Value.Derived, env: Expr.eval.Env) Error!Value {
         try Value.validate(start, &.{.number}, env.diag);
         try Value.validate(length, &.{ .number, .nil }, env.diag);
 
@@ -228,7 +228,7 @@ pub const builtin = struct {
         }
     }
 
-    pub fn @"type"(any: Value.Derived, _: Expr.EvalEnv) Error!Value {
+    pub fn @"type"(any: Value.Derived, _: Expr.eval.Env) Error!Value {
         return .{ .string = switch (any.val) {
             .nil => "nil",
             .string => "string",
@@ -240,7 +240,7 @@ pub const builtin = struct {
         } };
     }
 
-    pub fn str(any: Value.Derived, env: Expr.EvalEnv) Error!Value {
+    pub fn str(any: Value.Derived, env: Expr.eval.Env) Error!Value {
         if (any.val == .string) return any.val;
         return .{ .string = try std.fmt.allocPrint(
             env.allocator,
@@ -249,7 +249,7 @@ pub const builtin = struct {
         ) };
     }
 
-    pub fn num(any: Value.Derived, env: Expr.EvalEnv) Error!Value {
+    pub fn num(any: Value.Derived, env: Expr.eval.Env) Error!Value {
         try Value.validate(any, &.{ .string, .number }, env.diag);
         switch (any.val) {
             .number => return any.val,
@@ -263,7 +263,7 @@ pub const builtin = struct {
         }
     }
 
-    pub fn ctx(env: Expr.EvalEnv) Error!Value {
+    pub fn ctx(env: Expr.eval.Env) Error!Value {
         return .{ .asset = env.context };
     }
 };

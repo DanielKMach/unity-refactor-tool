@@ -29,8 +29,8 @@ pub fn get(self: *const AssetMap, guid: GUID) ?[]const u8 {
     return self.assets.get(guid);
 }
 
-pub fn put(self: *AssetMap, asset_path: []const u8, allocator: std.mem.Allocator) !GUID {
-    const guid = try GUID.fromFile(asset_path, allocator);
+pub fn put(self: *AssetMap, asset_path: []const u8) !GUID {
+    const guid = try GUID.fromFile(asset_path, self.allocator);
     if (self.get(guid) != null) return guid;
     const abspath = try self.allocator.dupe(u8, asset_path);
     errdefer self.allocator.free(abspath);
@@ -38,11 +38,11 @@ pub fn put(self: *AssetMap, asset_path: []const u8, allocator: std.mem.Allocator
     return guid;
 }
 
-pub fn fetch(self: *AssetMap, guid: GUID, allocator: std.mem.Allocator) !?[]const u8 {
+pub fn fetch(self: *AssetMap, guid: GUID) !?[]const u8 {
     var dir = try std.fs.cwd().openDir(".", .{ .iterate = true, .access_sub_paths = true });
     defer dir.close();
 
-    var walker = try dir.walk(allocator);
+    var walker = try dir.walk(self.allocator);
     defer walker.deinit();
 
     var buf: [4096]u8 = undefined;
@@ -51,13 +51,16 @@ pub fn fetch(self: *AssetMap, guid: GUID, allocator: std.mem.Allocator) !?[]cons
         if (entry.kind != .file) continue;
         if (!std.mem.endsWith(u8, entry.path, ".meta")) continue;
 
-        const file = try dir.openFile(entry.path, .{ .mode = .read_only });
+        const file = dir.openFile(entry.path, .{ .mode = .read_only }) catch continue;
         defer file.close();
 
         var reader = file.reader(&buf);
 
         var guid_buf: [32]u8 = undefined;
-        const file_guid = try GUID.scanMetafile(&reader.interface, &guid_buf, allocator);
+        const file_guid = GUID.scanMetafile(&reader.interface, &guid_buf, self.allocator) catch |err| switch (err) {
+            error.InvalidMetaFile => continue,
+            else => |e| return e,
+        };
 
         if (guid.eql(file_guid)) {
             std.debug.assert(std.mem.endsWith(u8, entry.path, ".meta"));

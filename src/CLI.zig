@@ -348,6 +348,14 @@ pub fn printRuntimeProblem(runtime_error: usrl.RuntimeProblem, source: usrl.Sour
             try ansi.print(e, "Index {d} out of bounds (length: {d})\r\n", .{ err.index, err.len });
             try printLineHighlight(err.location, source, fw);
         },
+        .invalid_asset_reference => |err| {
+            try ansi.print(e, "Invalid asset with GUID '{f}'. This could be because the asset was not found or it could not be opened.\r\n", .{err.guid});
+            try printLineHighlight(err.location, source, fw);
+        },
+        .invalid_object_definition => |err| {
+            try ansi.print(e, "Object definition with file ID {d} was not present in asset with GUID '{f}'.\r\n", .{ err.file_id, err.guid });
+            try printLineHighlight(err.location, source, fw);
+        },
         .unexpected => |err| {
             try ansi.print(e, "Unexpected {t}\r\n", .{err});
         },

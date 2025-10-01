@@ -5,9 +5,18 @@ const log = std.log.scoped(.ast_parser);
 const Expr = core.Expr;
 const TokenIterator = core.Token.Iterator;
 
-const ParseFn = fn (*TokenIterator, Expr.ParseEnv) core.ParseAllocError!*Expr;
+const ParseFn = fn (*TokenIterator, Env) core.ParseAllocError!*Expr;
 
-pub fn parse(tokens: *TokenIterator, env: Expr.ParseEnv) core.ParseAllocError!*Expr {
+pub const Env = struct {
+    allocator: std.mem.Allocator,
+    diag: *core.ParseDiagnostics,
+
+    pub fn err(self: Env, p: core.ParseProblem) core.ParseDiagnostics.Error {
+        return self.diag.push(p);
+    }
+};
+
+pub fn parse(tokens: *TokenIterator, env: Env) core.ParseAllocError!*Expr {
     const expr = try assignment(tokens, env);
     log.info("Parsed expression {f}", .{expr});
     return expr;
@@ -16,7 +25,7 @@ pub fn parse(tokens: *TokenIterator, env: Expr.ParseEnv) core.ParseAllocError!*E
 /// Generates a function that parses right-to-left ternary expressions.
 fn genTernaryFunc(next_call: *const ParseFn) ParseFn {
     return (struct {
-        pub fn parse(tokens: *TokenIterator, env: Expr.ParseEnv) core.ParseAllocError!*Expr {
+        pub fn parse(tokens: *TokenIterator, env: Env) core.ParseAllocError!*Expr {
             var left = try next_call(tokens, env);
             if (tokens.match(.question)) {
                 const middle = try next_call(tokens, env);
@@ -38,7 +47,7 @@ fn genTernaryFunc(next_call: *const ParseFn) ParseFn {
 /// Generates a function that parses left-to-right binary expressions.
 fn genBinaryFunc(next_call: *const ParseFn, expected_tokens: []const core.Token.Type) ParseFn {
     return (struct {
-        pub fn parse(tokens: *TokenIterator, env: Expr.ParseEnv) core.ParseAllocError!*Expr {
+        pub fn parse(tokens: *TokenIterator, env: Env) core.ParseAllocError!*Expr {
             var left = try next_call(tokens, env);
             while (tokens.consumeAny(expected_tokens)) |t| {
                 const right = try next_call(tokens, env);
@@ -58,7 +67,7 @@ fn genBinaryFunc(next_call: *const ParseFn, expected_tokens: []const core.Token.
 /// Generates a function that parses prefixed unary expressions.
 fn genUnaryFunc(next_call: *const ParseFn, expected_tokens: []const core.Token.Type) ParseFn {
     return (struct {
-        pub fn parse(tokens: *TokenIterator, env: Expr.ParseEnv) core.ParseAllocError!*Expr {
+        pub fn parse(tokens: *TokenIterator, env: Env) core.ParseAllocError!*Expr {
             if (tokens.consumeAny(expected_tokens)) |t| {
                 const operand = try @This().parse(tokens, env);
                 const expr = try env.allocator.create(Expr);
@@ -73,7 +82,7 @@ fn genUnaryFunc(next_call: *const ParseFn, expected_tokens: []const core.Token.T
     }).parse;
 }
 
-fn assignment(tokens: *TokenIterator, env: Expr.ParseEnv) core.ParseAllocError!*Expr {
+fn assignment(tokens: *TokenIterator, env: Env) core.ParseAllocError!*Expr {
     var left = try ternary(tokens, env);
     if (tokens.consumeAny(&.{
         .equal,
@@ -134,7 +143,7 @@ const nullCoalesce = genBinaryFunc(unary, &.{.question_question});
 const unary = genUnaryFunc(vaif, &.{ .NOT, .minus });
 
 // Parse variable, access, indexing, function call or value
-fn vaif(tokens: *TokenIterator, env: Expr.ParseEnv) core.ParseAllocError!*Expr {
+fn vaif(tokens: *TokenIterator, env: Env) core.ParseAllocError!*Expr {
     var left = if (tokens.consumeAny(&.{ .literal, .variable })) |t| blk: {
         const varprop: *Expr = try env.allocator.create(Expr);
         errdefer env.allocator.destroy(varprop);
@@ -196,7 +205,7 @@ fn vaif(tokens: *TokenIterator, env: Expr.ParseEnv) core.ParseAllocError!*Expr {
     return left;
 }
 
-fn value(tokens: *TokenIterator, env: Expr.ParseEnv) core.ParseAllocError!*Expr {
+fn value(tokens: *TokenIterator, env: Env) core.ParseAllocError!*Expr {
     if (tokens.consumeAny(&.{ .string, .number, .NIL })) |t| {
         const expr = try env.allocator.create(Expr);
         expr.* = .{ .literal = .{

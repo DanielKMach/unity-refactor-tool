@@ -120,6 +120,15 @@ pub const RuntimeProblem = union(enum) {
         index: f32,
         location: Token.Location,
     },
+    invalid_asset_reference: struct {
+        guid: runtime.GUID,
+        location: Token.Location,
+    },
+    invalid_object_definition: struct {
+        guid: runtime.GUID,
+        file_id: u64,
+        location: Token.Location,
+    },
 
     unexpected: anyerror,
 };
