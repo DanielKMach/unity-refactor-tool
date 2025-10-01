@@ -15,13 +15,14 @@ guid: ?GUID, // If null, local to the ctx's file
 pub fn obj(self: Asset, env: Expr.EvalEnv) Expr.eval.Error!Value.Object {
     const guid = self.guid orelse env.context.guid orelse @panic("context asset has no guid");
     const entry = env.objs.get(guid, self.file_id) orelse blk: {
-        const path = find(guid, env.allocator) catch @panic("TODO: Runtime error unable to find asset file") orelse unreachable;
-        defer env.allocator.free(path);
+        const path = env.assets.get(guid) orelse blk2: {
+            const path = env.assets.fetch(guid, env.allocator) catch @panic("TODO: unable to find asset file") orelse unreachable;
+            log.info("Loaded asset {f} at '{s}'", .{ guid, path });
+            break :blk2 path;
+        };
 
-        const file = std.fs.openFileAbsolute(path, .{ .mode = .read_only }) catch @panic("TODO: Runtime error unable to open asset file");
+        const file = std.fs.openFileAbsolute(path, .{ .mode = .read_only }) catch @panic("TODO: unable to open asset file");
         defer file.close();
-
-        log.info("Loaded asset {f} at '{s}'", .{ guid, path });
 
         var iterator = try core.runtime.ComponentIterator.init(file, env.allocator);
         defer iterator.deinit();
@@ -47,32 +48,5 @@ pub fn obj(self: Asset, env: Expr.EvalEnv) Expr.eval.Error!Value.Object {
     };
 }
 
-fn find(guid: GUID, allocator: std.mem.Allocator) !?[]const u8 {
-    var dir = try std.fs.cwd().openDir(".", .{ .iterate = true, .access_sub_paths = true });
-    defer dir.close();
-
-    var walker = try dir.walk(allocator);
-    defer walker.deinit();
-
-    var buf: [4096]u8 = undefined;
-
-    while (try walker.next()) |entry| {
-        if (entry.kind != .file) continue;
-        if (!std.mem.endsWith(u8, entry.path, ".meta")) continue;
-
-        const file = try dir.openFile(entry.path, .{ .mode = .read_only });
-        defer file.close();
-
-        var reader = file.reader(&buf);
-
-        var guid_buf: [32]u8 = undefined;
-        const file_guid = try GUID.scanMetafile(&reader.interface, &guid_buf, allocator);
-
-        if (guid.eql(file_guid)) {
-            std.debug.assert(std.mem.endsWith(u8, entry.path, ".meta"));
-            return try dir.realpathAlloc(allocator, entry.path[0 .. entry.path.len - 5]);
-        }
-    }
-
-    return null;
-}
+// fn find(guid: GUID, allocator: std.mem.Allocator) !?[]const u8 {
+// }

@@ -16,6 +16,7 @@ pub const Expr = union(enum) {
         allocator: std.mem.Allocator,
         diag: *core.RuntimeDiagnostics,
         context: Value.Asset,
+        assets: *core.runtime.AssetMap,
         objs: *core.runtime.ObjMap,
         vars: *VarMap,
 
@@ -123,6 +124,7 @@ pub const Expr = union(enum) {
             .allocator = stack.allocator(),
             .diag = env.diag,
             .context = env.context,
+            .assets = env.assets,
             .objs = env.objs,
             .vars = env.vars,
         };
