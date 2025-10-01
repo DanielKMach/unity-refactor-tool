@@ -138,7 +138,7 @@ pub fn scanAndPrint(self: This, path: []const u8, guids: []const GUID, assets: *
     const file = try std.fs.openFileAbsolute(path, .{ .mode = .read_write });
     defer file.close();
 
-    var iter = try ObjIterator.init(file, env.allocator);
+    var iter: ObjIterator = try .init(file, env.allocator);
     defer iter.deinit();
 
     while (try iter.next()) |e| {
@@ -150,6 +150,7 @@ pub fn scanAndPrint(self: This, path: []const u8, guids: []const GUID, assets: *
         const ctx: Expr.Value.Asset = .{
             .file_id = e.info.file_id,
             .guid = guid,
+            .type = 3, // TODO: determine type
         };
 
         const doc = try objs.new(guid, e.info.file_id, e.info.class_id);

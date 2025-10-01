@@ -11,6 +11,7 @@ const Asset = @This();
 
 file_id: u64,
 guid: ?GUID, // If null, local to the ctx's file
+type: ?u4,
 
 pub fn obj(self: Asset, env: Expr.eval.Env) Expr.eval.Error!Value.Object {
     const guid = self.guid orelse env.context.guid orelse @panic("context asset has no guid");
@@ -46,7 +47,7 @@ pub fn obj(self: Asset, env: Expr.eval.Env) Expr.eval.Error!Value.Object {
 
             var yml = core.runtime.Yaml.init(.{ .string = e.content }, null, env.allocator);
             try yml.loadDocument(doc);
-            log.info("Parsed obj instance {d} with class {d} at '{s}'", .{ e.info.file_id, e.info.class_id, path });
+            log.info("Parsed obj instance {d} with class {d} in '{s}'", .{ e.info.file_id, e.info.class_id, path });
             break :blk env.objs.get(guid, self.file_id) orelse unreachable;
         }
         return env.err(.{
@@ -63,6 +64,3 @@ pub fn obj(self: Asset, env: Expr.eval.Env) Expr.eval.Error!Value.Object {
         .doc = entry.doc,
     };
 }
-
-// fn find(guid: GUID, allocator: std.mem.Allocator) !?[]const u8 {
-// }

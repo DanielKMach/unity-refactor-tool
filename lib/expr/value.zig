@@ -147,13 +147,18 @@ pub const Value = union(enum) {
                     const file_id_str = yaml.fromBuffer(u8, file_id_node.data.scalar);
                     const file_id = std.fmt.parseInt(u64, file_id_str, 10) catch unreachable;
                     var guid: ?core.runtime.GUID = null;
+                    var @"type": ?u4 = null;
                     if (yaml.getNode(doc.*, node.*, "guid")) |guid_node| {
                         const guid_str = yaml.fromBuffer(u8, guid_node.data.scalar);
                         guid = core.runtime.GUID.fromText(guid_str) catch unreachable;
+                        const type_node = yaml.getNode(doc.*, node.*, "type") orelse unreachable;
+                        const type_str = yaml.fromBuffer(u8, type_node.data.scalar);
+                        @"type" = std.fmt.parseInt(u4, type_str, 10) catch unreachable;
                     }
                     break :blk .{ .asset = .{
                         .file_id = file_id,
                         .guid = guid,
+                        .type = @"type",
                     } };
                 } else {
                     break :blk .{ .object = .{
@@ -276,10 +281,16 @@ pub const Value = union(enum) {
                     );
                     if (type_knode == 0) return error.LibyamlError;
 
+                    const type_str = switch (ass.type orelse unreachable) {
+                        3 => "3",
+                        2 => "2",
+                        else => unreachable,
+                    };
+                    errdefer allocator.free(type_str);
                     const type_vnode = ly.yaml_document_add_scalar(
                         doc,
                         null,
-                        "3",
+                        type_str,
                         1,
                         ly.YAML_PLAIN_SCALAR_STYLE,
                     );
