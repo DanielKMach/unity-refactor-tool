@@ -12,6 +12,8 @@ pub const Value = union(enum) {
     pub const Func = @import("value/Func.zig");
     pub const Asset = @import("value/Asset.zig");
 
+    pub const ToNodeError = std.mem.Allocator.Error || yaml.LibyamlError || error{UnrepresentableValue};
+
     nil,
     string: []const u8,
     number: f32,
@@ -176,7 +178,7 @@ pub const Value = union(enum) {
     }
 
     /// Converts this value into a YAML node in the given document.
-    pub fn toNode(value: Value, doc: *yaml.Document) (std.mem.Allocator.Error || yaml.LibyamlError)!*yaml.Node {
+    pub fn toNode(value: Value, doc: *yaml.Document) ToNodeError!*yaml.Node {
         const allocator = std.heap.c_allocator;
         const id: c_int = switch (value) {
             .string => |str| blk: {
@@ -299,7 +301,7 @@ pub const Value = union(enum) {
                 }
                 break :blk ref_node;
             },
-            .func => @panic("TODO: Dont allow funcs"),
+            .func => return error.UnrepresentableValue,
         };
         if (id == 0) return error.LibyamlError;
         const nodes = yaml.fromStack(yaml.Node, doc.nodes);

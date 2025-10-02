@@ -129,6 +129,11 @@ pub const RuntimeProblem = union(enum) {
         file_id: u64,
         location: Token.Location,
     },
+    unassignable_value: struct {
+        value_type: Expr.Value.Type,
+        assigned_to: enum { variable, property, array },
+        location: Token.Location,
+    },
 
     unexpected: anyerror,
 };

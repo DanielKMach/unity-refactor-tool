@@ -9,8 +9,8 @@ const yaml = core.yaml;
 const ly = yaml.ly;
 
 pub const GetError = error{OutOfBounds};
-pub const PushError = std.mem.Allocator.Error || yaml.LibyamlError;
-pub const SetError = GetError || std.mem.Allocator.Error || yaml.LibyamlError;
+pub const PushError = std.mem.Allocator.Error || yaml.LibyamlError || Value.ToNodeError;
+pub const SetError = GetError || PushError;
 
 node: *yaml.Node,
 doc: *yaml.Document,

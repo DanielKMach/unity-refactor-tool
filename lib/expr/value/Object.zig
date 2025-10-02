@@ -8,7 +8,7 @@ const Value = core.Expr.Value;
 const yaml = core.yaml;
 const ly = yaml.ly;
 
-const SetError = std.mem.Allocator.Error || yaml.LibyamlError;
+const SetError = std.mem.Allocator.Error || yaml.LibyamlError || Value.ToNodeError;
 
 node: *yaml.Node,
 doc: *yaml.Document,

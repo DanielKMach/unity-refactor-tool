@@ -271,12 +271,26 @@ pub fn assign(target: *Expr, value: *Expr, env: Env) Error!Value {
                 .asset => |a| try a.obj(env),
                 else => unreachable,
             };
-            try obj.set(key, val);
+            obj.set(key, val) catch |err| switch (err) {
+                error.UnrepresentableValue => return env.err(.{ .unassignable_value = .{
+                    .value_type = val,
+                    .assigned_to = .property,
+                    .location = .merge(&.{ target.loc(), value.loc() }),
+                } }),
+                else => |e| return e,
+            };
         },
         .property => |prop| {
             const key = prop.name.value.literal;
             const obj = try env.context.obj(env);
-            try obj.set(key, val);
+            obj.set(key, val) catch |err| switch (err) {
+                error.UnrepresentableValue => return env.err(.{ .unassignable_value = .{
+                    .value_type = val,
+                    .assigned_to = .property,
+                    .location = .merge(&.{ target.loc(), value.loc() }),
+                } }),
+                else => |e| return e,
+            };
         },
         .variable => |varr| {
             const key = varr.name.value.variable;
@@ -299,6 +313,11 @@ pub fn assign(target: *Expr, value: *Expr, env: Env) Error!Value {
             const idx = try arr.val.array.validateIndex(idx_val, env.diag);
             arr.val.array.set(idx, val) catch |err| switch (err) {
                 error.OutOfBounds => unreachable,
+                error.UnrepresentableValue => return env.err(.{ .unassignable_value = .{
+                    .value_type = val,
+                    .assigned_to = .array,
+                    .location = .merge(&.{ target.loc(), value.loc() }),
+                } }),
                 else => |e| return e,
             };
         },

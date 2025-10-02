@@ -356,6 +356,10 @@ pub fn printRuntimeProblem(runtime_error: usrl.RuntimeProblem, source: usrl.Sour
             try ansi.print(e, "Object definition with file ID {d} was not present in asset with GUID '{f}'.\r\n", .{ err.file_id, err.guid });
             try printLineHighlight(err.location, source, fw);
         },
+        .unassignable_value => |err| {
+            try ansi.print(e, "Value of type {t} cannot be assigned to {t}\r\n", .{ err.value_type, err.assigned_to });
+            try printLineHighlight(err.location, source, fw);
+        },
         .unexpected => |err| {
             try ansi.print(e, "Unexpected {t}\r\n", .{err});
         },
