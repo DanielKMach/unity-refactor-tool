@@ -124,10 +124,20 @@ pub const RuntimeProblem = union(enum) {
         guid: runtime.GUID,
         location: Token.Location,
     },
-    invalid_object_definition: struct {
+    asset_not_found: struct {
+        guid: runtime.GUID,
+        location: Token.Location,
+    },
+    object_definition_not_found: struct {
         guid: runtime.GUID,
         file_id: u64,
         location: Token.Location,
+    },
+    null_object_definition_reference: struct {
+        location: Token.Location,
+    },
+    search_failed: struct {
+        guid: runtime.GUID,
     },
     unassignable_value: struct {
         value_type: Expr.Value.Type,

@@ -349,16 +349,27 @@ pub fn printRuntimeProblem(runtime_error: usrl.RuntimeProblem, source: usrl.Sour
             try printLineHighlight(err.location, source, fw);
         },
         .invalid_asset_reference => |err| {
-            try ansi.print(e, "Invalid asset with GUID '{f}'. This could be because the asset was not found or it could not be opened.\r\n", .{err.guid});
+            try ansi.print(e, "Invalid asset with GUID '{f}'. This could be because the asset could not be opened properly or it wasn't properly configured.\r\n", .{err.guid});
             try printLineHighlight(err.location, source, fw);
         },
-        .invalid_object_definition => |err| {
-            try ansi.print(e, "Object definition with file ID {d} was not present in asset with GUID '{f}'.\r\n", .{ err.file_id, err.guid });
+        .asset_not_found => |err| {
+            try ansi.print(e, "Asset with GUID '{f}' was not found.\r\n", .{err.guid});
+            try printLineHighlight(err.location, source, fw);
+        },
+        .object_definition_not_found => |err| {
+            try ansi.print(e, "Object definition with file ID {d} was not found in asset with GUID '{f}'.\r\n", .{ err.file_id, err.guid });
+            try printLineHighlight(err.location, source, fw);
+        },
+        .null_object_definition_reference => |err| {
+            try ansi.print(e, "Object definition is null\r\n", .{});
             try printLineHighlight(err.location, source, fw);
         },
         .unassignable_value => |err| {
             try ansi.print(e, "Value of type {t} cannot be assigned to {t}\r\n", .{ err.value_type, err.assigned_to });
             try printLineHighlight(err.location, source, fw);
+        },
+        .search_failed => |err| {
+            try ansi.print(e, "Search for object with GUID '{f}' failed.\r\n", .{err.guid});
         },
         .unexpected => |err| {
             try ansi.print(e, "Unexpected {t}\r\n", .{err});

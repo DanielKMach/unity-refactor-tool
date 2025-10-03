@@ -134,7 +134,7 @@ pub const builtin = struct {
     }
 
     pub fn prop(key: []const u8, env: Expr.eval.Env) Error!Value {
-        return (try env.context.obj(env)).get(key) orelse .nil;
+        return (env.context.obj(env) catch unreachable).get(key) orelse .nil;
     }
 
     pub fn len(value: Value.Derived, env: Expr.eval.Env) Error!Value {
@@ -185,8 +185,14 @@ pub const builtin = struct {
         }
     }
 
-    pub fn push(item: Value.Derived, list: Value.List, _: Expr.eval.Env) Error!Value {
-        try list.push(item.val);
+    pub fn push(item: Value.Derived, list: Value.List, env: Expr.eval.Env) Error!Value {
+        list.push(item.val) catch |err| switch (err) {
+            error.UnrepresentableValue => return env.err(.{ .invalid_argument = .{
+                .reason = "cannot convert value into node",
+                .location = item.src.loc(),
+            } }),
+            else => |er| return er,
+        };
         return .nil;
     }
 

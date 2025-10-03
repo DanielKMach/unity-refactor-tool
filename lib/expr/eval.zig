@@ -5,7 +5,7 @@ const Expr = core.Expr;
 const Value = core.Expr.Value;
 const Location = core.Token.Location;
 
-pub const Error = anyerror;
+pub const Error = core.RuntimeError || std.mem.Allocator.Error || core.yaml.LibyamlError;
 
 pub const Env = struct {
     allocator: std.mem.Allocator,
@@ -53,7 +53,7 @@ pub fn evaluate(expr: *Expr, env: Env) Error!Value.Derived {
         },
         .ternary => |tern| try ternary(tern.left, tern.middle, tern.right, env),
         .grouping => |group| (try evaluate(group.expr, env)).val,
-        .property => |prop| (try env.context.obj(env)).get(prop.name.value.literal) orelse .nil,
+        .property => |prop| (env.context.obj(env) catch unreachable).get(prop.name.value.literal) orelse .nil,
         .variable => |varr| env.vars.get(varr.name.value.variable) catch return env.err(.{
             .undefined_variable = .{ .varr = varr.name, .location = varr.name.loc },
         }),
@@ -218,12 +218,7 @@ pub fn ternary(condition: *Expr, then: *Expr, otherwise: *Expr, env: Env) Error!
 
 pub fn access(base: *Expr, key: []const u8, env: Env) Error!Value {
     const objv = try evaluate(base, env);
-    try Value.validate(objv, &.{ .object, .asset }, env.diag);
-    const obj = switch (objv.val) {
-        .object => |o| o,
-        .asset => |a| try a.obj(env),
-        else => unreachable,
-    };
+    const obj = try toObj(objv, env);
 
     return obj.get(key) orelse .nil;
 }
@@ -266,11 +261,7 @@ pub fn assign(target: *Expr, value: *Expr, env: Env) Error!Value {
             const key = acc.property.value.literal;
             const objv = try evaluate(acc.base, env);
             try Value.validate(objv, &.{ .object, .asset }, env.diag);
-            const obj = switch (objv.val) {
-                .object => |o| o,
-                .asset => |a| try a.obj(env),
-                else => unreachable,
-            };
+            const obj = try toObj(objv, env);
             obj.set(key, val) catch |err| switch (err) {
                 error.UnrepresentableValue => return env.err(.{ .unassignable_value = .{
                     .value_type = val,
@@ -282,7 +273,7 @@ pub fn assign(target: *Expr, value: *Expr, env: Env) Error!Value {
         },
         .property => |prop| {
             const key = prop.name.value.literal;
-            const obj = try env.context.obj(env);
+            const obj = env.context.obj(env) catch unreachable;
             obj.set(key, val) catch |err| switch (err) {
                 error.UnrepresentableValue => return env.err(.{ .unassignable_value = .{
                     .value_type = val,
@@ -334,4 +325,33 @@ pub fn call(call_expr: *Expr.Call, env: Env) Error!Value {
         varg.* = try evaluate(arg, env);
     }
     return try callee.val.func.call(call_expr, vargs, env);
+}
+
+pub fn toObj(dval: Value.Derived, env: Env) Error!Value.Object {
+    try Value.validate(dval, &.{ .object, .asset }, env.diag);
+    if (dval.val == .object) return dval.val.object;
+    const ass = dval.val.asset;
+
+    return ass.obj(env) catch |err| switch (err) {
+        error.AssetNotFound => env.err(.{ .asset_not_found = .{
+            .guid = ass.guid orelse env.context.guid orelse unreachable,
+            .location = env.root.loc(),
+        } }),
+        error.InvalidAsset => env.err(.{ .invalid_asset_reference = .{
+            .guid = ass.guid orelse env.context.guid orelse unreachable,
+            .location = env.root.loc(),
+        } }),
+        error.ObjectDefinitionNotFound => env.err(.{ .object_definition_not_found = .{
+            .guid = ass.guid orelse env.context.guid orelse unreachable,
+            .file_id = ass.file_id,
+            .location = env.root.loc(),
+        } }),
+        error.NullObjectDefinition => env.err(.{ .null_object_definition_reference = .{
+            .location = env.root.loc(),
+        } }),
+        error.SearchError => env.err(.{ .search_failed = .{
+            .guid = ass.guid orelse env.context.guid orelse unreachable,
+        } }),
+        else => |e| e,
+    };
 }
