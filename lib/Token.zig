@@ -20,6 +20,7 @@ pub const keyword_list: []const struct { []const u8, Value } = &.{
     .{ "REFS", .REFS },
     .{ "USES", .USES },
     .{ "FOR", .FOR },
+    .{ "NIL", .NIL },
 };
 
 pub const operator_list: []const struct { []const u8, Value } = &.{
@@ -31,10 +32,17 @@ pub const operator_list: []const struct { []const u8, Value } = &.{
     .{ "/", .slash },
     .{ "%", .percentage },
     .{ "=", .equal },
+    .{ "+=", .plus_equal },
+    .{ "-=", .minus_equal },
+    .{ "*=", .star_equal },
+    .{ "/=", .slash_equal },
+    .{ ":=", .colon_equal },
     .{ ">", .greater },
     .{ "<", .less },
     .{ "(", .left_paren },
     .{ ")", .right_paren },
+    .{ "[", .left_bracket },
+    .{ "]", .right_bracket },
     .{ ">=", .greater_equal },
     .{ "<=", .less_equal },
     .{ "!=", .bang_equal },
@@ -78,6 +86,7 @@ pub fn dupe(self: Token, allocator: std.mem.Allocator) std.mem.Allocator.Error!T
     const new_value: Value = switch (self.value) {
         .string => |s| .{ .string = try allocator.dupe(u8, s) },
         .literal => |l| .{ .literal = try allocator.dupe(u8, l) },
+        .variable => |v| .{ .variable = try allocator.dupe(u8, v) },
         else => self.value,
     };
     return Token{
@@ -93,6 +102,7 @@ pub fn cleanup(self: Token, allocator: std.mem.Allocator) void {
     switch (self.value) {
         .string => |s| allocator.free(s),
         .literal => |l| allocator.free(l),
+        .variable => |v| allocator.free(v),
         else => {},
     }
 }
@@ -121,6 +131,7 @@ pub const Type = enum {
     REFS,
     USES,
     FOR,
+    NIL,
 
     // Operators
     dot, // '.'
@@ -131,6 +142,11 @@ pub const Type = enum {
     slash, // '/'
     percentage, // '%'
     equal, // '='
+    plus_equal, // '+='
+    minus_equal, // '-='
+    star_equal, // '*='
+    slash_equal, // '/='
+    colon_equal, // ':='
     greater, // '>'
     greater_equal, // '>='
     less, // '<'
@@ -143,6 +159,8 @@ pub const Type = enum {
     semicolon, // ';'
     left_paren, // '('
     right_paren, // ')'
+    left_bracket, // '['
+    right_bracket, // ']'
 
     /// A number literal.
     number,
@@ -152,6 +170,9 @@ pub const Type = enum {
 
     /// Any alphanumeric literal, such as identifiers, component names, etc.
     literal,
+
+    /// Any alphanumeric literal with a leading '$'.
+    variable,
 
     /// End of file, used to indicate the end of input.
     eof,
@@ -203,6 +224,7 @@ pub const Value = union(Type) {
     REFS,
     USES,
     FOR,
+    NIL,
     dot,
     comma,
     plus,
@@ -211,6 +233,11 @@ pub const Value = union(Type) {
     slash,
     percentage,
     equal,
+    plus_equal,
+    minus_equal,
+    star_equal,
+    slash_equal,
+    colon_equal,
     greater,
     greater_equal,
     less,
@@ -223,9 +250,12 @@ pub const Value = union(Type) {
     semicolon,
     left_paren,
     right_paren,
+    left_bracket,
+    right_bracket,
     number: f32,
     string: []const u8,
     literal: []const u8,
+    variable: []const u8,
     eof,
 
     pub fn format(self: Value, writer: *std.Io.Writer) std.Io.Writer.Error!void {
@@ -233,6 +263,7 @@ pub const Value = union(Type) {
             .number => |n| try writer.print("number '{d}'", .{n}),
             .string => |s| try writer.print("string '{s}'", .{s}),
             .literal => |l| try writer.print("literal '{s}'", .{l}),
+            .variable => |v| try writer.print("variable '${s}'", .{v}),
             else => try @as(Type, self).format(writer),
         }
     }
@@ -242,6 +273,7 @@ pub const Value = union(Type) {
             .number => |n| try writer.print("{d}", .{n}),
             .string => |s| try writer.print("'{s}'", .{s}),
             .literal => |l| try writer.print("`{s}`", .{l}),
+            .variable => |v| try writer.print("${s}", .{v}),
             else => try @as(Type, self).raw(writer),
         }
     }

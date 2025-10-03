@@ -8,7 +8,7 @@ const Stmt = core.Stmt;
 const clse = core.Stmt.clse;
 const TokenIterator = core.Token.Iterator;
 const Scanner = core.runtime.Scanner;
-const ComponentIterator = core.runtime.ComponentIterator;
+const ObjIterator = core.runtime.ObjIterator;
 const Yaml = core.runtime.Yaml;
 const GUID = core.runtime.GUID;
 const Expr = core.Expr;
@@ -53,7 +53,6 @@ pub fn run(self: This, env: core.Stmt.RunEnv) core.Stmt.RunError!void {
 
     const guid = try self.of.getGUID(env);
     defer env.allocator.free(guid);
-    defer for (guid) |g| g.deinit(env.allocator);
 
     const show = Stmt.Show{
         .mode = .indirect_uses,
@@ -72,110 +71,109 @@ pub fn run(self: This, env: core.Stmt.RunEnv) core.Stmt.RunError!void {
     log.info("Printing references...", .{});
 
     try self.searchAndPrint(target_assets, guid, env);
-    try env.out.flush();
 }
 
-pub fn searchAndPrint(self: This, assets: []const []const u8, guid: []const GUID, env: core.Stmt.RunEnv) core.Stmt.RunError!void {
+pub fn searchAndPrint(self: This, refs: []const []const u8, guid: []const GUID, env: core.Stmt.RunEnv) core.Stmt.RunError!void {
     core.profiling.begin(searchAndPrint);
     defer core.profiling.stop();
 
-    for (assets) |path| {
-        const file = std.fs.openFileAbsolute(path, .{ .mode = .read_write }) catch |err| {
-            log.warn("Error ({s}) opening file: '{s}'", .{ @errorName(err), path });
-            return err;
-        };
-        defer file.close();
+    var objs: core.runtime.ObjMap = .init(env.allocator);
+    defer objs.deinit();
 
-        self.scanAndPrint(file, path, guid, env) catch |err| {
+    var assets: core.runtime.AssetMap = .init(env.allocator);
+    defer assets.deinit();
+
+    for (refs) |path| {
+        self.scanAndPrint(path, guid, &assets, &objs, env) catch |err| {
             if (err != error.USRLRuntimeError) {
                 log.warn("Error ({s}) scanning file: '{s}'", .{ @errorName(err), path });
             }
             return err;
         };
     }
+    try env.out.flush();
+
+    var fetched = assets.entries();
+    while (fetched.next()) |entry| {
+        try env.out.flush();
+        try env.transaction.include(entry.value_ptr.*);
+
+        const file = try std.fs.openFileAbsolute(entry.value_ptr.*, .{ .mode = .read_write });
+        defer file.close();
+
+        const temp = try env.transaction.getTemp();
+        defer env.transaction.delTemp(temp);
+
+        var patcher = core.runtime.FilePatcher.init(file, temp, env.allocator);
+        defer patcher.deinit();
+
+        var iter = try ObjIterator.init(file, env.allocator);
+        defer iter.deinit();
+
+        try patcher.start();
+
+        while (try iter.next()) |obj| {
+            const change = objs.get(entry.key_ptr.*, obj.info.file_id) orelse continue;
+
+            const buf = try env.allocator.alloc(u8, obj.content.len * 2);
+            defer env.allocator.free(buf);
+
+            var out = std.Io.Writer.fixed(buf);
+            var yml = Yaml.init(.{ .string = obj.content }, .{ .writer = &out }, env.allocator);
+
+            try yml.dumpDocument(change.doc);
+            if (std.mem.eql(u8, obj.content, out.buffered())) continue;
+
+            try patcher.patch(obj.info.pos, obj.info.len, out.buffered());
+        }
+        try patcher.flush();
+        try patcher.apply();
+    }
 }
 
-pub fn scanAndPrint(self: This, file: std.fs.File, file_path: []const u8, guid: []const GUID, env: core.Stmt.RunEnv) !void {
+pub fn scanAndPrint(self: This, path: []const u8, guids: []const GUID, assets: *core.runtime.AssetMap, objs: *core.runtime.ObjMap, env: core.Stmt.RunEnv) !void {
     core.profiling.begin(scanAndPrint);
     defer core.profiling.stop();
 
-    var iter = try ComponentIterator.init(file, env.allocator);
+    const file = try std.fs.openFileAbsolute(path, .{ .mode = .read_write });
+    defer file.close();
+
+    var iter: ObjIterator = try .init(file, env.allocator);
     defer iter.deinit();
 
-    var changes = std.ArrayList(ComponentIterator.Component).empty;
-    defer changes.deinit(env.allocator);
-    defer for (changes.items) |change| env.allocator.free(change.document);
+    while (try iter.next()) |e| {
+        var yaml = Yaml.init(.{ .string = e.content }, null, env.allocator);
 
-    while (try iter.next()) |comp| {
-        const buf = try env.allocator.alloc(u8, comp.len * 2);
-        defer env.allocator.free(buf);
+        if (try Stmt.Show.matchGUID(guids, &yaml) == null) continue;
+        const guid = try assets.put(path);
 
-        var out_yaml = buf;
-        var yaml = Yaml.init(.{ .string = comp.document }, .{ .string = &out_yaml }, env.allocator);
-
-        if (!(try core.Stmt.Show.matchScriptOrPrefabGUID(guid, &yaml))) continue;
-
-        var doc: Yaml.Document = undefined;
-        try yaml.loadDocument(&doc);
-        defer Yaml.deleteDocument(&doc);
-
-        var vars = Expr.VarMap.init(env.allocator);
-        const root = Expr.Value.Object{
-            .node = @ptrCast(doc.nodes.start),
-            .document = &doc,
+        const ctx: Expr.Value.Asset = .{
+            .file_id = e.info.file_id,
+            .guid = guid,
+            .type = 3, // TODO: determine type
         };
 
+        const doc = try objs.new(guid, e.info.file_id, e.info.class_id);
+        try yaml.loadDocument(doc);
+
+        var vars: Expr.VarMap = try .default(env.allocator);
         const value = try self.expr.evaluateAuto(.{
             .allocator = env.allocator,
+            .root = undefined, // Will be set by evaluateAuto
             .diag = env.diag,
-            .context = (root.get("MonoBehaviour") orelse unreachable).object,
+            .context = ctx,
+            .assets = assets,
+            .objs = objs,
             .vars = &vars,
         });
         defer value.cleanup(env.allocator);
-
-        try yaml.dumpDocument(&doc);
-
-        if (!std.mem.eql(u8, out_yaml, comp.document)) {
-            try changes.append(env.allocator, .{
-                .index = comp.index,
-                .len = comp.len,
-                .document = try env.allocator.dupe(u8, out_yaml),
-            });
-        }
-
-        try print(file_path, value, env.out);
+        try print(path, value, env.out);
     }
-
-    if (changes.items.len == 0) {
-        return;
-    }
-
-    try env.transaction.include(file_path);
-
-    const temp = try env.transaction.getTemp();
-    defer env.transaction.delTemp(temp);
-
-    var patcher = core.runtime.FilePatcher.init(file, temp, env.allocator);
-    defer patcher.deinit();
-
-    try patcher.start();
-    for (changes.items) |change| {
-        try patcher.patch(change.index, change.len, change.document);
-    }
-    try patcher.flush();
-    try patcher.apply();
 }
 
 pub fn print(path: []const u8, value: core.Expr.Value, out: *std.Io.Writer) !void {
     core.profiling.begin(print);
     defer core.profiling.stop();
 
-    try out.print("{s} =>", .{path});
-    switch (value) {
-        .nil => try out.print(" nil\n", .{}),
-        .string => |s| try out.print(" '{s}'\n", .{s}),
-        .number => |n| try out.print(" {d}\n", .{n}),
-        .object => try out.print(" object\n", .{}),
-        .array => try out.print(" array\n", .{}),
-    }
+    try out.print("{s} => {f}\r\n", .{ path, value });
 }

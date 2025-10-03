@@ -5,23 +5,58 @@ const Value = core.Expr.Value;
 const VarMap = @This();
 
 allocator: std.mem.Allocator,
-map: std.StringHashMap(Value),
+readonly: std.StringHashMap(Value),
+readwrite: std.StringHashMap(Value),
+
+const ReadOnlyError = error{ReadOnly};
+
+pub const GetError = error{UndefinedVariable};
+pub const SetError = std.mem.Allocator.Error || ReadOnlyError || GetError;
+pub const DefineError = std.mem.Allocator.Error || ReadOnlyError || error{AlreadyDefined};
 
 pub fn init(allocator: std.mem.Allocator) VarMap {
-    return VarMap{
+    return .{
         .allocator = allocator,
-        .map = .init(allocator),
+        .readonly = .init(allocator),
+        .readwrite = .init(allocator),
     };
 }
 
-pub fn get(self: *VarMap, name: []const u8) ?Value {
-    return self.map.get(name);
+pub fn default(allocator: std.mem.Allocator) std.mem.Allocator.Error!VarMap {
+    var map: VarMap = .{
+        .allocator = allocator,
+        .readonly = .init(allocator),
+        .readwrite = .init(allocator),
+    };
+    inline for (@typeInfo(Value.Func.builtin).@"struct".decls) |decl| {
+        const d = @field(Value.Func.builtin, decl.name);
+        try map.readonly.put(decl.name, .{ .func = comptime .new(&d) });
+    }
+    try map.readonly.put("pi", .{ .number = std.math.pi });
+    return map;
 }
 
-pub fn set(self: *VarMap, name: []const u8, value: Value) std.mem.Allocator.Error!void {
-    try self.map.put(name, value);
+pub fn get(self: *VarMap, name: []const u8) GetError!Value {
+    std.debug.assert(!self.readonly.contains(name) or !self.readwrite.contains(name));
+    return self.readwrite.get(name) orelse self.readonly.get(name) orelse error.UndefinedVariable;
 }
 
-pub fn has(self: *VarMap, name: []const u8) bool {
-    return self.map.contains(name);
+pub fn set(self: *VarMap, name: []const u8, value: Value) SetError!void {
+    if (self.readonly.contains(name)) {
+        return error.ReadOnly;
+    }
+    if (!self.readwrite.contains(name)) {
+        return error.UndefinedVariable;
+    }
+    try self.readwrite.put(name, value);
+}
+
+pub fn define(self: *VarMap, name: []const u8, value: Value) DefineError!void {
+    if (self.readonly.contains(name)) {
+        return error.ReadOnly;
+    }
+    if (self.readwrite.contains(name)) {
+        return error.AlreadyDefined;
+    }
+    try self.readwrite.put(name, value);
 }

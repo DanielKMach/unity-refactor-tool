@@ -2,7 +2,7 @@ const std = @import("std");
 const testing = std.testing;
 const usrl = @import("usrl");
 
-const ComponentIterator = usrl.runtime.ComponentIterator;
+const ObjIterator = usrl.runtime.ObjIterator;
 
 const data1 = @import("data1/info.zig");
 const test_prefab = data1.test_prefab;
@@ -12,13 +12,15 @@ test "component iteration" {
     const file = try std.fs.cwd().openFile(test_prefab.path, .{ .mode = .read_only });
     defer file.close();
 
-    var iterator = try ComponentIterator.init(file, testing.allocator);
+    var iterator = try ObjIterator.init(file, testing.allocator);
     defer iterator.deinit();
 
     inline for (test_prefab.components) |comp| {
-        const got = try iterator.next();
-        try testing.expect(got != null);
-        try testing.expectEqualStrings(comp.content, got.?.document);
+        const entry = try iterator.next();
+        try testing.expect(entry != null);
+        try testing.expectEqual(comp.file_id, entry.?.info.file_id);
+        try testing.expectEqual(comp.class_id, entry.?.info.class_id);
+        try testing.expectEqualStrings(comp.content, entry.?.content);
     }
     try testing.expectEqual(null, try iterator.next());
 }
@@ -27,7 +29,7 @@ test "empty asset" {
     const file = try std.fs.cwd().openFile(empty_prefab.path, .{ .mode = .read_only });
     defer file.close();
 
-    var iterator = try ComponentIterator.init(file, testing.allocator);
+    var iterator = try ObjIterator.init(file, testing.allocator);
     defer iterator.deinit();
 
     try testing.expectEqual(null, try iterator.next());
@@ -37,7 +39,7 @@ test "free on early return" {
     const file = try std.fs.cwd().openFile(test_prefab.path, .{ .mode = .read_only });
     defer file.close();
 
-    var iterator = try ComponentIterator.init(file, testing.allocator);
+    var iterator = try ObjIterator.init(file, testing.allocator);
     defer iterator.deinit();
 
     try testing.expect(try iterator.next() != null);
@@ -48,6 +50,6 @@ test "out of memory" {
     const file = try std.fs.cwd().openFile(test_prefab.path, .{ .mode = .read_only });
     defer file.close();
 
-    const iterator = ComponentIterator.init(file, testing.failing_allocator);
+    const iterator = ObjIterator.init(file, testing.failing_allocator);
     try testing.expectError(error.OutOfMemory, iterator);
 }

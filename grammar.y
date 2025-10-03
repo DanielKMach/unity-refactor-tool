@@ -10,7 +10,7 @@ evaluate <- 'EVAL' expr of in? where?
 of <- 'OF' asset ( ',' asset )*
 in <- 'IN' literal / string
 where <- 'WHERE' expr
-having <- 'HAVING' asset literal? ( 'ON' target )?
+having <- 'HAVING' asset variable? ( 'ON' target )?
 
 # === constructs ===
 asset <- literal / string / 'GUID' guid
@@ -21,7 +21,7 @@ search <- 'refs' / ( 'direct' / 'indirect' )? 'uses'
 
 # === expressions ===
 expr <- assignment
-assignment <- access '=' assignment / ternary
+assignment <- access ( '=' / '+=' / '-=' / '*=' / '/=' / ':=' ) assignment / ternary
 ternary <- or ( '?' or ':' ternary )?
 or <- and ( 'OR' and )*
 and <- equality ( 'AND' equality )*
@@ -31,13 +31,14 @@ term <- factor ( ( '+' / '-' ) factor )*
 factor <- coalesce ( ( '*' / '/' ) coalesce )*
 coalesce <- unary ( '??' unary )*
 unary <- ( '-' / '!' ) unary / access
-access <- literal ( '.' literal / '[' expr ']' / '(' ( expr ( ',' expr )* )? ')' )* / value 
+access <- ( literal / variable ) ( '.' literal / '[' expr ']' / '(' ( expr ( ',' expr )* )? ')' )* / value 
 value <- string / number / '(' expr ')'
 
 # === words ===
 string <- '"' [^"]* '"'
 number <- digit+ ( '.' digit+ )?
 literal <- ( alpha / '_' ) ( alpha / digit / '_' )*
+variable <- '$' ( alpha / digit / '_' )+
 
 # === single characters ===
 hex <- [0-9a-fA-F]

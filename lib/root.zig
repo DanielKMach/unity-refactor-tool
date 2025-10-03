@@ -5,6 +5,7 @@ pub const Expr = @import("expr.zig").Expr;
 pub const runtime = @import("runtime.zig");
 pub const profiling = @import("profiling.zig");
 pub const util = @import("util.zig");
+pub const yaml = @import("yaml.zig");
 
 pub const Source = @import("Source.zig");
 pub const Token = @import("Token.zig");
@@ -86,6 +87,61 @@ pub const RuntimeProblem = union(enum) {
         right_loc: Token.Location,
     },
     division_by_zero: struct {
+        location: Token.Location,
+    },
+    invalid_argument_count: struct {
+        mode: enum { exact, at_least, at_most },
+        expected: usize,
+        found: usize,
+        location: Token.Location,
+    },
+    invalid_argument: struct {
+        reason: []const u8,
+        location: Token.Location,
+    },
+    undefined_variable: struct {
+        varr: Token,
+        location: Token.Location,
+    },
+    already_defined_variable: struct {
+        varr: Token,
+        location: Token.Location,
+    },
+    overriding_readonly: struct {
+        varr: Token,
+        location: Token.Location,
+    },
+    out_of_bounds: struct {
+        index: isize,
+        len: usize,
+        location: Token.Location,
+    },
+    invalid_index: struct {
+        index: f32,
+        location: Token.Location,
+    },
+    invalid_asset_reference: struct {
+        guid: runtime.GUID,
+        location: Token.Location,
+    },
+    asset_not_found: struct {
+        guid: runtime.GUID,
+        location: Token.Location,
+    },
+    object_definition_not_found: struct {
+        guid: runtime.GUID,
+        file_id: u64,
+        location: Token.Location,
+    },
+    null_object_definition_reference: struct {
+        location: Token.Location,
+    },
+    search_failed: struct {
+        guid: runtime.GUID,
+    },
+    unassignable_value: struct {
+        value_type: Expr.Value.Type,
+        assigned_to: enum { variable, property, array },
         location: Token.Location,
     },
 

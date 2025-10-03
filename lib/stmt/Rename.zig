@@ -7,7 +7,7 @@ const Stmt = core.Stmt;
 const clse = core.Stmt.clse;
 const TokenIterator = core.Token.Iterator;
 const Scanner = core.runtime.Scanner;
-const ComponentIterator = core.runtime.ComponentIterator;
+const ObjIterator = core.runtime.ObjIterator;
 const Yaml = core.runtime.Yaml;
 const GUID = core.runtime.GUID;
 const Token = core.Token;
@@ -58,7 +58,6 @@ pub fn run(self: This, env: Stmt.RunEnv) Stmt.RunError!void {
 
     const guids = try self.of.getGUID(env);
     defer env.allocator.free(guids);
-    defer for (guids) |g| g.deinit(env.allocator);
 
     const show = core.Stmt.Show{
         .mode = .indirect_uses,
@@ -111,12 +110,12 @@ pub fn findAndReplace(self: This, asset: std.fs.File, out: std.fs.File, guids: [
     core.profiling.begin(findAndReplace);
     defer core.profiling.stop();
 
-    var iterator = try ComponentIterator.init(asset, allocator);
+    var iterator = try ObjIterator.init(asset, allocator);
     defer iterator.deinit();
 
     const changes = try self.computeChanges(&iterator, guids, allocator);
     defer allocator.free(changes);
-    defer for (changes) |c| allocator.free(c.document);
+    defer for (changes) |c| allocator.free(c.content);
 
     var buf: [4096]u8 = undefined;
     var fwriter = out.writer(&buf);
@@ -128,19 +127,19 @@ pub fn findAndReplace(self: This, asset: std.fs.File, out: std.fs.File, guids: [
     return changes.len != 0;
 }
 
-pub fn computeChanges(self: This, iterator: *ComponentIterator, guid: []const GUID, allocator: std.mem.Allocator) ![]ComponentIterator.Component {
+pub fn computeChanges(self: This, iterator: *ObjIterator, guid: []const GUID, allocator: std.mem.Allocator) ![]ObjIterator.Entry {
     core.profiling.begin(computeChanges);
     defer core.profiling.stop();
 
-    var modified = try std.ArrayList(ComponentIterator.Component).initCapacity(allocator, 1);
+    var modified = try std.ArrayList(ObjIterator.Entry).initCapacity(allocator, 1);
     defer modified.deinit(allocator);
 
-    while (try iterator.next()) |comp| {
-        var yaml = Yaml.init(.{ .string = comp.document }, null, allocator);
+    while (try iterator.next()) |e| {
+        var yaml = Yaml.init(.{ .string = e.content }, null, allocator);
 
         if (!(core.Stmt.Show.matchScriptOrPrefabGUID(guid, &yaml) catch false)) continue;
 
-        var buf = try allocator.alloc(u8, comp.len * 2);
+        var buf = try allocator.alloc(u8, e.content.len * 2);
         defer allocator.free(buf);
         var out = buf[0..];
 
@@ -151,9 +150,8 @@ pub fn computeChanges(self: This, iterator: *ComponentIterator, guid: []const GU
         errdefer allocator.free(doc);
 
         try modified.append(allocator, .{
-            .index = comp.index,
-            .len = comp.len,
-            .document = doc,
+            .info = e.info,
+            .content = doc,
         });
     }
 

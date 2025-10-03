@@ -309,6 +309,68 @@ pub fn printRuntimeProblem(runtime_error: usrl.RuntimeProblem, source: usrl.Sour
             }
             try printLineHighlight(err.location, source, fw);
         },
+        .invalid_argument_count => |err| {
+            const mode_str = switch (err.mode) {
+                .exact => "exactly",
+                .at_least => "at least",
+                .at_most => "at most",
+            };
+            try ansi.print(e, "Invalid argument count: expected {s} {d}, found {d}\r\n", .{ mode_str, err.expected, err.found });
+            try printLineHighlight(err.location, source, fw);
+        },
+        .invalid_argument => |err| {
+            try ansi.print(e, "Invalid argument: {s}\r\n", .{err.reason});
+            try printLineHighlight(err.location, source, fw);
+        },
+        .undefined_variable => |err| {
+            try ansi.print(e, "Undefined {f}. Use '{f} := (...)' to define it.\r\n", .{
+                err.varr.value,
+                std.fmt.alt(err.varr.value, .raw),
+            });
+            try printLineHighlight(err.location, source, fw);
+        },
+        .already_defined_variable => |err| {
+            try ansi.print(e, "{f} is already defined. Use '{f} = (...)' to update it.\r\n", .{
+                err.varr.value,
+                std.fmt.alt(err.varr.value, .raw),
+            });
+            try printLineHighlight(err.location, source, fw);
+        },
+        .overriding_readonly => |err| {
+            try ansi.print(e, "Cannot override read-only {f}\r\n", .{err.varr.value});
+            try printLineHighlight(err.location, source, fw);
+        },
+        .invalid_index => |err| {
+            try ansi.print(e, "Invalid index {d}\r\n", .{err.index});
+            try printLineHighlight(err.location, source, fw);
+        },
+        .out_of_bounds => |err| {
+            try ansi.print(e, "Index {d} out of bounds (length: {d})\r\n", .{ err.index, err.len });
+            try printLineHighlight(err.location, source, fw);
+        },
+        .invalid_asset_reference => |err| {
+            try ansi.print(e, "Invalid asset with GUID '{f}'. This could be because the asset could not be opened properly or it wasn't properly configured.\r\n", .{err.guid});
+            try printLineHighlight(err.location, source, fw);
+        },
+        .asset_not_found => |err| {
+            try ansi.print(e, "Asset with GUID '{f}' was not found.\r\n", .{err.guid});
+            try printLineHighlight(err.location, source, fw);
+        },
+        .object_definition_not_found => |err| {
+            try ansi.print(e, "Object definition with file ID {d} was not found in asset with GUID '{f}'.\r\n", .{ err.file_id, err.guid });
+            try printLineHighlight(err.location, source, fw);
+        },
+        .null_object_definition_reference => |err| {
+            try ansi.print(e, "Object definition is null\r\n", .{});
+            try printLineHighlight(err.location, source, fw);
+        },
+        .unassignable_value => |err| {
+            try ansi.print(e, "Value of type {t} cannot be assigned to {t}\r\n", .{ err.value_type, err.assigned_to });
+            try printLineHighlight(err.location, source, fw);
+        },
+        .search_failed => |err| {
+            try ansi.print(e, "Search for object with GUID '{f}' failed.\r\n", .{err.guid});
+        },
         .unexpected => |err| {
             try ansi.print(e, "Unexpected {t}\r\n", .{err});
         },
