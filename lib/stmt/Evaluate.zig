@@ -153,7 +153,7 @@ pub fn scanAndPrint(self: This, path: []const u8, guids: []const GUID, assets: *
             .type = 3, // TODO: determine type
         };
 
-        const doc = try objs.new(guid, e.info.file_id, e.info.class_id);
+        const doc = try objs.new(guid, e.info.file_id, @enumFromInt(e.info.class_id));
         try yaml.loadDocument(doc);
 
         var vars: Expr.VarMap = try .default(env.allocator);

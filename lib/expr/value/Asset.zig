@@ -47,7 +47,7 @@ fn findObjDef(path: []const u8, guid: GUID, file_id: u64, env: Expr.eval.Env) Fi
 
     while (iterator.next() catch return error.InvalidAsset) |o| {
         if (o.info.file_id != file_id) continue;
-        const doc = env.objs.new(guid, file_id, o.info.class_id) catch |err| switch (err) {
+        const doc = env.objs.new(guid, file_id, @enumFromInt(o.info.class_id)) catch |err| switch (err) {
             error.AlreadyExists => unreachable,
             else => |e| return e,
         };
