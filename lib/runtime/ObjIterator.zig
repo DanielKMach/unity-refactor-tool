@@ -1,6 +1,7 @@
 //! Iterates through all Unity object definitions in a file.
 
 const std = @import("std");
+const core = @import("core");
 
 const log = std.log.scoped(.component_iterator);
 
@@ -14,8 +15,9 @@ pub const PatchError = IterateError || std.Io.Writer.Error || std.Io.Reader.Stre
 pub const Info = struct {
     pos: usize,
     len: usize,
-    class_id: u32,
+    class_id: core.runtime.ClassID,
     file_id: u64,
+    stripped: bool,
 };
 
 pub const Entry = struct {
@@ -82,7 +84,7 @@ fn findNextComponent(freader: *std.fs.File.Reader) !Info {
         peek = try reader.peekDelimiterInclusive('\n');
     }
 
-    const ids = try parseClassFileID(line);
+    const header = try parseHeader(line);
 
     const index = freader.logicalPos();
     line = try reader.takeDelimiterInclusive('\n');
@@ -92,8 +94,9 @@ fn findNextComponent(freader: *std.fs.File.Reader) !Info {
             error.EndOfStream => return .{
                 .pos = index,
                 .len = freader.logicalPos() - index,
-                .class_id = ids[0],
-                .file_id = ids[1],
+                .class_id = @enumFromInt(header[0]),
+                .file_id = header[1],
+                .stripped = header[2],
             },
             else => return err,
         };
@@ -102,12 +105,13 @@ fn findNextComponent(freader: *std.fs.File.Reader) !Info {
     return .{
         .pos = index,
         .len = freader.logicalPos() - line.len - index,
-        .class_id = ids[0],
-        .file_id = ids[1],
+        .class_id = @enumFromInt(header[0]),
+        .file_id = header[1],
+        .stripped = header[2],
     };
 }
 
-fn parseClassFileID(line: []const u8) !struct { u32, u64 } {
+fn parseHeader(line: []const u8) !struct { u32, u64, bool } {
     if (!std.mem.startsWith(u8, line, "--- !u!")) return error.InvalidHeader;
     var i: usize = 7;
     while (std.ascii.isDigit(line[i])) i += 1;
@@ -116,7 +120,9 @@ fn parseClassFileID(line: []const u8) !struct { u32, u64 } {
     const s = i;
     while (i < line.len and std.ascii.isDigit(line[i])) i += 1;
     const file_id = std.fmt.parseInt(u64, line[s..i], 10) catch return error.InvalidHeader;
-    return .{ class_id, file_id };
+    const stripped = (i + 8 == line.len and std.mem.eql(u8, line[i..], " stripped"));
+
+    return .{ class_id, file_id, stripped };
 }
 
 pub fn patch(self: *This, out: *std.Io.Writer, entries: []const Entry) PatchError!void {
