@@ -16,6 +16,7 @@ const Expr = core.Expr;
 expr: *Expr,
 of: clse.Of,
 in: ?clse.In,
+where: ?clse.Where = null,
 
 pub fn parse(tokens: *TokenIterator, env: Stmt.ParseEnv) Stmt.ParseError!This {
     core.profiling.begin(parse);
@@ -29,21 +30,24 @@ pub fn parse(tokens: *TokenIterator, env: Stmt.ParseEnv) Stmt.ParseError!This {
     });
 
     const Clauses = struct {
-        OF: clse.Of,
-        IN: ?clse.In = null,
+        of: clse.Of,
+        in: ?clse.In = null,
+        where: ?clse.Where = null,
     };
     const clauses = try clse.parse(Clauses, tokens, env);
 
     return .{
         .expr = expr,
-        .of = clauses.OF,
-        .in = clauses.IN,
+        .of = clauses.of,
+        .in = clauses.in,
+        .where = clauses.where,
     };
 }
 
 pub fn cleanup(self: This, allocator: std.mem.Allocator) void {
     self.of.cleanup(allocator);
     if (self.in) |in| in.cleanup(allocator);
+    if (self.where) |where| where.cleanup(allocator);
     self.expr.cleanup(allocator);
 }
 
@@ -58,6 +62,7 @@ pub fn run(self: This, env: core.Stmt.RunEnv) core.Stmt.RunError!void {
         .mode = .indirect_uses,
         .of = self.of,
         .in = self.in,
+        .where = self.where,
     };
 
     log.info("Searching for references...", .{});
@@ -107,6 +112,7 @@ pub fn scanAndPrint(self: This, path: []const u8, guids: []const GUID, assets: *
     defer iter.deinit();
 
     while (try iter.next()) |e| {
+        if (e.info.stripped or e.info.class_id != .MonoBehaviour) continue;
         var yaml = Yaml.init(.{ .string = e.content }, null, env.allocator);
 
         if (try Stmt.Show.matchGUID(guids, &yaml) == null) continue;
@@ -121,7 +127,26 @@ pub fn scanAndPrint(self: This, path: []const u8, guids: []const GUID, assets: *
         const doc = try objs.new(guid, e.info.file_id, e.info.class_id);
         try yaml.loadDocument(doc);
 
+        if (self.where) |where| {
+            var vars: Expr.VarMap = try .default(env.allocator);
+            defer vars.deinit();
+
+            const result = try where.expr.evaluateAuto(.{
+                .allocator = env.allocator,
+                .root = undefined, // Will be set by evaluateAuto
+                .diag = env.diag,
+                .context = ctx,
+                .assets = assets,
+                .objs = objs,
+                .vars = &vars,
+            });
+            defer result.cleanup(env.allocator);
+
+            if (!result.isTruthy()) continue;
+        }
+
         var vars: Expr.VarMap = try .default(env.allocator);
+        defer vars.deinit();
         const value = try self.expr.evaluateAuto(.{
             .allocator = env.allocator,
             .root = undefined, // Will be set by evaluateAuto

@@ -22,6 +22,16 @@ pub fn init(allocator: std.mem.Allocator) VarMap {
     };
 }
 
+pub fn deinit(self: *VarMap) void {
+    var iterator = self.readwrite.iterator();
+    while (iterator.next()) |entry| {
+        self.allocator.free(entry.key_ptr.*);
+        entry.value_ptr.cleanup(self.allocator);
+    }
+    self.readwrite.deinit();
+    self.readonly.deinit();
+}
+
 pub fn default(allocator: std.mem.Allocator) std.mem.Allocator.Error!VarMap {
     var map: VarMap = .{
         .allocator = allocator,
@@ -48,7 +58,11 @@ pub fn set(self: *VarMap, name: []const u8, value: Value) SetError!void {
     if (!self.readwrite.contains(name)) {
         return error.UndefinedVariable;
     }
-    try self.readwrite.put(name, value);
+    const varname = try self.allocator.dupe(u8, name);
+    errdefer self.allocator.free(varname);
+    const varvalue = try value.dupe(self.allocator);
+    errdefer varvalue.cleanup(self.allocator);
+    try self.readwrite.put(varname, varvalue);
 }
 
 pub fn define(self: *VarMap, name: []const u8, value: Value) DefineError!void {
@@ -58,5 +72,9 @@ pub fn define(self: *VarMap, name: []const u8, value: Value) DefineError!void {
     if (self.readwrite.contains(name)) {
         return error.AlreadyDefined;
     }
-    try self.readwrite.put(name, value);
+    const varname = try self.allocator.dupe(u8, name);
+    errdefer self.allocator.free(varname);
+    const varvalue = try value.dupe(self.allocator);
+    errdefer varvalue.cleanup(self.allocator);
+    try self.readwrite.put(varname, varvalue);
 }

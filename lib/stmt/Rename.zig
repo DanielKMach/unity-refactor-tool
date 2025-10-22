@@ -64,6 +64,7 @@ pub fn run(self: This, env: Stmt.RunEnv) Stmt.RunError!void {
         .mode = .indirect_uses,
         .of = self.of,
         .in = self.in,
+        .where = null,
     };
 
     const targets = try show.search(null, null, env);
