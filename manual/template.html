@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <style>
+        body {
+            color-scheme: light;
+            display: flex;
+            flex-flow: column nowrap;
+            margin: 0;
+            font-family: system-ui, -apple-system, Arial, sans-serif;
+            font-size: 16px;
+        }
+
+        article {
+            box-sizing: border-box;
+            padding: 20px;
+        }
+
+        nav {
+            box-sizing: border-box;
+            padding: 20px;
+        }
+
+        nav h2 {
+            margin-top: 0;
+            text-align: center;
+        }
+
+        nav ul,
+        nav ol {
+            padding-left: 1em;
+        }
+
+        nav li {
+            margin-top: 5px;
+        }
+
+        @media screen and (width >=1000px) {
+            body {
+                flex-flow: row nowrap;
+            }
+
+            nav {
+                top: 0;
+                position: sticky;
+                max-height: 100vh;
+                overflow-y: auto;
+                width: 350px;
+                min-width: 350px;
+                background-color: #8881;
+            }
+
+            article {
+                width: min(800px, 100%);
+                margin: auto;
+            }
+        }
+
+        code {
+            background-color: #8883;
+            padding: 0 3px;
+            border: 1px dotted #8884;
+            font-size: 0.95em;
+            vertical-align: middle;
+            font-family: monospace;
+        }
+
+        pre {
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+            padding: 10px 15px;
+            font-size: 14px;
+            margin: 0;
+        }
+
+        pre>code {
+            background: none;
+            padding: 0;
+            border: none;
+            color: inherit;
+            font-size: inherit;
+        }
+
+        .hl {
+            border: 1px dashed #8884;
+        }
+
+        p {
+            text-align: justify;
+        }
+
+        h1 {
+            text-align: center;
+            break-before: always;
+        }
+
+        h2 {
+            text-transform: uppercase;
+            border-bottom: solid 1px #8883;
+            padding-bottom: 3px;
+            margin-top: 2cm;
+            counter-increment: h2;
+            counter-reset: h3;
+        }
+
+        h3 {
+            counter-increment: h3;
+        }
+
+        table {
+            background: #8883;
+            border-spacing: 1px;
+            width: 100%;
+        }
+
+        table th {
+            padding: 5px 10px;
+        }
+
+        table td {
+            padding: 5px 10px;
+            background: white;
+        }
+
+        table tr:nth-child(odd) td {
+            background: #f4f4f4;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            body {
+                color-scheme: dark;
+                background-color: #121212;
+                color: #eee;
+            }
+
+            table td {
+                background: #121212;
+            }
+
+            table tr:nth-child(odd) td {
+                background: #181818;
+            }
+        }
+    </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light dark">
+    <title>Manual USRL</title>
+    {{HEAD}}
+</head>
+
+<body>
+    <nav>
+        <h2>SUMÁRIO</h2>
+        {{TOC}}
+    </nav>
+    <article>
+        {{CONTENT}}
+    </article>
+
+</body>
+
+</html>

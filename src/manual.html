@@ -1,306 +1,111 @@
-<style>
-    @font-face {
-        font-family: 'Roboto Slab';
-        src: url('https://raw.githubusercontent.com/google/fonts/refs/heads/main/apache/robotoslab/RobotoSlab%5Bwght%5D.ttf');
-    }
+<!DOCTYPE html><html lang=pt-br><head><style>body{color-scheme:light;display:flex;flex-flow:column nowrap;margin:0;font-family:system-ui,-apple-system,Arial,sans-serif;font-size:16px}article{box-sizing:border-box;padding:20px}nav{box-sizing:border-box;padding:20px}nav h2{margin-top:0;text-align:center}nav ul,nav ol{padding-left:1em}nav li{margin-top:5px}@media screen and (width>=1000px){body{flex-flow:row nowrap}nav{top:0;position:sticky;max-height:100vh;overflow-y:auto;width:350px;min-width:350px;background-color:#8881}article{width:min(800px,100%);margin:auto}}code{background-color:#8883;padding:0 3px;border:1px dotted #8884;font-size:0.95em;vertical-align:middle;font-family:monospace}pre{overflow-x:auto;white-space:pre-wrap;word-break:break-all;padding:10px 15px;font-size:14px;margin:0}pre>code{background:none;padding:0;border:none;color:inherit;font-size:inherit}.hl{border:1px dashed #8884}p{text-align:justify}h1{text-align:center;break-before:always}h2{text-transform:uppercase;border-bottom:solid 1px #8883;padding-bottom:3px;margin-top:2cm;counter-increment:h2;counter-reset:h3}h3{counter-increment:h3}table{background:#8883;border-spacing:1px;width:100%}table th{padding:5px 10px}table td{padding:5px 10px;background:white}table tr:nth-child(odd) td{background:#f4f4f4}@media (prefers-color-scheme:dark){body{color-scheme:dark;background-color:#121212;color:#eee}table td{background:#121212}table tr:nth-child(odd) td{background:#181818}}</style><meta charset=utf-8><meta content="width=device-width, initial-scale=1.0" name=viewport><meta content="light dark" name=color-scheme><title>Manual USRL</title><style>pre{line-height:125%}td.linenos .normal{color:#666666;background-color:transparent;padding-left:5px;padding-right:5px}span.linenos{color:#666666;background-color:transparent;padding-left:5px;padding-right:5px}td.linenos .special{color:#000000;background-color:#ffffc0;padding-left:5px;padding-right:5px}span.linenos.special{color:#000000;background-color:#ffffc0;padding-left:5px;padding-right:5px}.hl .hll{background-color:#ffffcc}.hl{background:#f0f0f0}.hl .c{color:#60A0B0;font-style:italic}.hl .err{border:1px solid #F00}.hl .k{color:#007020;font-weight:bold}.hl .o{color:#666}.hl .ch{color:#60A0B0;font-style:italic}.hl .cm{color:#60A0B0;font-style:italic}.hl .cp{color:#007020}.hl .cpf{color:#60A0B0;font-style:italic}.hl .c1{color:#60A0B0;font-style:italic}.hl .cs{color:#60A0B0;background-color:#FFF0F0}.hl .gd{color:#A00000}.hl .ge{font-style:italic}.hl .ges{font-weight:bold;font-style:italic}.hl .gr{color:#F00}.hl .gh{color:#000080;font-weight:bold}.hl .gi{color:#00A000}.hl .go{color:#888}.hl .gp{color:#C65D09;font-weight:bold}.hl .gs{font-weight:bold}.hl .gu{color:#800080;font-weight:bold}.hl .gt{color:#04D}.hl .kc{color:#007020;font-weight:bold}.hl .kd{color:#007020;font-weight:bold}.hl .kn{color:#007020;font-weight:bold}.hl .kp{color:#007020}.hl .kr{color:#007020;font-weight:bold}.hl .kt{color:#902000}.hl .m{color:#40A070}.hl .s{color:#4070A0}.hl .na{color:#4070A0}.hl .nb{color:#007020}.hl .nc{color:#0E84B5;font-weight:bold}.hl .no{color:#60ADD5}.hl .nd{color:#555;font-weight:bold}.hl .ni{color:#D55537;font-weight:bold}.hl .ne{color:#007020}.hl .nf{color:#06287E}.hl .nl{color:#002070;font-weight:bold}.hl .nn{color:#0E84B5;font-weight:bold}.hl .nt{color:#062873;font-weight:bold}.hl .nv{color:#BB60D5}.hl .ow{color:#007020;font-weight:bold}.hl .w{color:#BBB}.hl .mb{color:#40A070}.hl .mf{color:#40A070}.hl .mh{color:#40A070}.hl .mi{color:#40A070}.hl .mo{color:#40A070}.hl .sa{color:#4070A0}.hl .sb{color:#4070A0}.hl .sc{color:#4070A0}.hl .dl{color:#4070A0}.hl .sd{color:#4070A0;font-style:italic}.hl .s2{color:#4070A0}.hl .se{color:#4070A0;font-weight:bold}.hl .sh{color:#4070A0}.hl .si{color:#70A0D0;font-style:italic}.hl .sx{color:#C65D09}.hl .sr{color:#235388}.hl .s1{color:#4070A0}.hl .ss{color:#517918}.hl .bp{color:#007020}.hl .fm{color:#06287E}.hl .vc{color:#BB60D5}.hl .vg{color:#BB60D5}.hl .vi{color:#BB60D5}.hl .vm{color:#BB60D5}.hl .il{color:#40A070}@media (prefers-color-scheme:dark){pre{line-height:125%}td.linenos .normal{color:inherit;background-color:transparent;padding-left:5px;padding-right:5px}span.linenos{color:inherit;background-color:transparent;padding-left:5px;padding-right:5px}td.linenos .special{color:#000000;background-color:#ffffc0;padding-left:5px;padding-right:5px}span.linenos.special{color:#000000;background-color:#ffffc0;padding-left:5px;padding-right:5px}.hl .hll{background-color:#49483e}.hl{background:#232629;color:#CCC}.hl .c{color:#777;font-style:italic}.hl .err{color:#A61717;background-color:#E3D2D2}.hl .esc{color:#CCC}.hl .g{color:#CCC}.hl .k{color:#7686BB;font-weight:bold}.hl .l{color:#CCC}.hl .n{color:#CCC}.hl .o{color:#CCC}.hl .x{color:#CCC}.hl .p{color:#CCC}.hl .ch{color:#777;font-style:italic}.hl .cm{color:#777;font-style:italic}.hl .cp{color:#777;font-style:italic}.hl .cpf{color:#777;font-style:italic}.hl .c1{color:#777;font-style:italic}.hl .cs{color:#777;font-style:italic}.hl .gd{color:#CCC}.hl .ge{color:#CCC}.hl .ges{color:#CCC}.hl .gr{color:#CCC}.hl .gh{color:#CCC}.hl .gi{color:#CCC}.hl .go{color:#CCC}.hl .gp{color:#FFF}.hl .gs{color:#CCC}.hl .gu{color:#CCC}.hl .gt{color:#CCC}.hl .kc{color:#7686BB;font-weight:bold}.hl .kd{color:#7686BB;font-weight:bold}.hl .kn{color:#7686BB;font-weight:bold}.hl .kp{color:#7686BB;font-weight:bold}.hl .kr{color:#7686BB;font-weight:bold}.hl .kt{color:#7686BB;font-weight:bold}.hl .ld{color:#CCC}.hl .m{color:#4FB8CC}.hl .s{color:#51CC99}.hl .na{color:#CCC}.hl .nb{color:#CCC}.hl .nc{color:#CCC}.hl .no{color:#CCC}.hl .nd{color:#CCC}.hl .ni{color:#CCC}.hl .ne{color:#CCC}.hl .nf{color:#6A6AFF}.hl .nl{color:#CCC}.hl .nn{color:#CCC}.hl .nx{color:#E2828E}.hl .py{color:#CCC}.hl .nt{color:#CCC}.hl .nv{color:#7AB4DB;font-weight:bold}.hl .ow{color:#CCC}.hl .pm{color:#CCC}.hl .w{color:#BBB}.hl .mb{color:#4FB8CC}.hl .mf{color:#4FB8CC}.hl .mh{color:#4FB8CC}.hl .mi{color:#4FB8CC}.hl .mo{color:#4FB8CC}.hl .sa{color:#51CC99}.hl .sb{color:#51CC99}.hl .sc{color:#51CC99}.hl .dl{color:#51CC99}.hl .sd{color:#51CC99}.hl .s2{color:#51CC99}.hl .se{color:#51CC99}.hl .sh{color:#51CC99}.hl .si{color:#51CC99}.hl .sx{color:#51CC99}.hl .sr{color:#51CC99}.hl .s1{color:#51CC99}.hl .ss{color:#51CC99}.hl .bp{color:#CCC}.hl .fm{color:#6A6AFF}.hl .vc{color:#7AB4DB;font-weight:bold}.hl .vg{color:#BE646C;font-weight:bold}.hl .vi{color:#7AB4DB;font-weight:bold}.hl .vm{color:#7AB4DB;font-weight:bold}.hl .il{color:#4FB8CC}}</style></head><body><nav><h2>SUMÁRIO</h2><div class=toc><ul><li><a href=#usrl>USRL</a><ul><li><a href=#introducao>Introdução</a><ul><li><a href=#gramatica>Gramática</a></li></ul></li><li><a href=#expressoes>Expressões</a><ul><li><a href=#valores>Valores</a></li><li><a href=#operadores>Operadores</a></li><li><a href=#funcoes>Funções</a></li></ul></li><li><a href=#clausulas>Cláusulas</a><ul><li><a href=#clausula-of>Cláusula OF</a></li><li><a href=#clausula-in>Cláusula IN</a></li><li><a href=#clausula-where>Cláusula WHERE</a></li></ul></li><li><a href=#statements>Statements</a><ul><li><a href=#statement-show>Statement SHOW</a></li><li><a href=#statement-rename>Statement RENAME</a></li><li><a href=#statement-eval>Statement EVAL</a></li></ul></li><li><a href=#interface-de-linha-de-comando>Interface de Linha de Comando</a><ul><li><a href=#executando-consultas>Executando consultas</a></li><li><a href=#modo-interativo>Modo interativo</a></li><li><a href=#acesso-ao-manual>Acesso ao manual</a></li></ul></li><li><a href=#exemplos>Exemplos</a><ul><li><a href=#verificando-referencias>Verificando referências</a></li><li><a href=#renomeando-propriedades>Renomeando propriedades</a></li><li><a href=#atualizando-valores>Atualizando valores</a></li></ul></li></ul></li></ul></div></nav><article><h1 id=usrl>USRL</h1><center>Unity Structured Refactoring Language</center><h2 id=introducao>Introdução</h2><h3 id=gramatica>Gramática</h3><div class=hl><pre><span></span><code>program &lt;- statement ( ';' statement )* ';'?
+statement &lt;- show / rename / evaluate
 
-    article {
-        width: min(800px, 100%);
-        margin: auto;
-        font-size: 18px;
-        font-family: 'Roboto Slab', Georgia, 'Times New Roman', Times, serif, system;
-    }
+show &lt;- 'SHOW' search of in? where?
+rename &lt;- 'RENAME' member 'FOR' ( literal / string ) of in? where?
+evaluate &lt;- 'EVAL' expr of in? where?
 
-    pre,
-    code {
-        font-family: monospace;
-    }
+of &lt;- 'OF' asset ( ',' asset )*
+in &lt;- 'IN' literal / string
+where &lt;- 'WHERE' expr
+having &lt;- 'HAVING' asset variable? ( 'ON' target )?
 
-    code {
-        background-color: #eee;
-        padding: 2px 4px;
-        border-radius: 4px;
-        font-size: 0.9em;
-        vertical-align: middle;
-    }
+asset &lt;- literal / string / 'GUID' guid
+guid &lt;- hex{32}
+target &lt;- 'self' / 'parent' / 'anychild'
+member &lt;- literal ( '.' literal )*
+search &lt;- 'refs' / ( 'direct' / 'indirect' )? 'uses'
 
-    pre {
-        overflow-x: auto;
-        white-space: pre-wrap;
-        word-break: break-all;
-        padding: 10px 15px;
-        background-color: #272822;
-        color: #ebf8f2;
-        border-radius: 8px;
-        font-size: 16px;
-    }
+expr &lt;- assignment
+assignment &lt;- access ( '=' / '+=' / '-=' / '*=' / '/=' / ':=' ) assignment / ternary
+ternary &lt;- or ( '?' or ':' ternary )?
+or &lt;- and ( 'OR' and )*
+and &lt;- equality ( 'AND' equality )*
+equality &lt;- comparison ( ( '==' / '!=' ) comparison )*
+comparison &lt;- term ( ( '&gt;=' / '&gt;' / '&lt;=' / '&lt;' ) term )*
+term &lt;- factor ( ( '+' / '-' ) factor )*
+factor &lt;- coalesce ( ( '*' / '/' ) coalesce )*
+coalesce &lt;- unary ( '??' unary )*
+unary &lt;- ( '-' / '!' ) unary / access
+access &lt;- ( literal / variable ) ( '.' literal / '[' expr ']' / '(' ( expr ( ',' expr )* )? ')' )* / value 
+value &lt;- string / number / '(' expr ')'
 
-    pre .comment {
-        color: #88846f;
-    }
+string &lt;- '"' [^"]* '"'
+number &lt;- digit+ ( '.' digit+ )?
+literal &lt;- ( alpha / '_' ) ( alpha / digit / '_' )*
+variable &lt;- '$' ( alpha / digit / '_' )+
 
-    pre .chave {
-        color: #f92672;
-    }
+hex &lt;- [0-9a-fA-F]
+alpha &lt;- [a-zA-Z]
+digit &lt;- [0-9]
+</code></pre></div><h2 id=expressoes>Expressões</h2><h3 id=valores>Valores</h3><h3 id=operadores>Operadores</h3><p>A seguir está a lista de operadores utilizados pela USRL.</p><table><thead><tr><th>Precedência</th><th>Sequência</th><th>Descrição</th><th>Associatividade</th></tr></thead><tbody><tr><td><center>0</center></td><td>.<br>( )<br>[ ]</td><td>Acesso<br>Chamada de função<br>Indexação</td><td>esquerda à direita</td></tr><tr><td><center>1</center></td><td>-<br>!</td><td>Negação<br>Negação lógica</td><td>direita à esquerda</td></tr><tr><td><center>2</center></td><td>??</td><td>Null Coalescing</td><td>esquerda à direita</td></tr><tr><td><center>3</center></td><td>*<br>/</td><td>Multiplicação<br>Divisão</td><td>esquerda à direita</td></tr><tr><td><center>4</center></td><td>+<br>-</td><td>Adição<br>Subtração</td><td>esquerda à direita</td></tr><tr><td><center>5</center></td><td>&gt;<br>&gt;=<br>&lt;<br>&lt;=</td><td>Maior que<br>Maior ou igual a<br>Menor que<br>Menor ou igual a</td><td>esquerda à direita</td></tr><tr><td><center>6</center></td><td>==<br>!=</td><td>Igualdade<br>Desigualdade</td><td>esquerda à direita</td></tr><tr><td><center>7</center></td><td>AND</td><td>“E” lógico</td><td>esquerda à direita</td></tr><tr><td><center>8</center></td><td>OR</td><td>“OU” lógico</td><td>esquerda à direita</td></tr><tr><td><center>9</center></td><td>? :</td><td>Condicional</td><td>esquerda à direita</td></tr><tr><td><center>10</center></td><td>= += -= *= /= :=</td><td>Atribuição</td><td>direita à esquerda</td></tr></tbody></table><h3 id=funcoes>Funções</h3><h2 id=clausulas>Cláusulas</h2><h3 id=clausula-of>Cláusula <code>OF</code></h3><p>Com a cláusula <code>OF</code>, é possível especificar um ou mais <em>assets</em> como alvo da consulta. Em muitos <em>statements</em>, esta cláusula é obrigatória, apesar de não haver a necessidade de ser a primeira.</p><p>A cláusula <code>OF</code> pode ser utilizada com qualquer <em>asset</em> do projeto, como imagens, clipes de áudio, componente, prefabs, etc. Esta cláusula necessita do caminho ao <em>asset</em> relativo ao diretório atual de trabalho. Se o <em>asset</em> alvo for um componente, não há necessidade de especificar o caminho, apenas o nome do componente como um literal é o suficiente.</p><div class=hl><pre><span></span><code><span class=k>OF</span><span class=w> </span><span class=s>"Imagens/Logo.png"</span>
+<span class=k>OF</span><span class=w> </span><span class=s>'Audio/Musica.mp3'</span>
 
-    pre .string {
-        color: #e6db74;
-    }
+<span class=c1># Os exemplos abaixo são equivalentes</span>
+<span class=k>OF</span><span class=w> </span><span class=n>PlayerController</span>
+<span class=k>OF</span><span class=w> </span><span class=s>'Scripts/PlayerController.cs'</span>
+</code></pre></div><p>Também é possível utilizar o operador <code>,</code> (vírgula) para especificar mais de um <em>asset</em>.</p><div class=hl><pre><span></span><code><span class=k>OF</span><span class=w> </span><span class=s>'Scripts/Player.png'</span><span class=p>,</span><span class=w> </span><span class=s>'Scripts/Enemy.png'</span><span class=w> </span>
 
-    pre .number {
-        color: #ae81ff;
-    }
+<span class=c1># Os exemplos abaixo são equivalentes</span>
+<span class=k>OF</span><span class=w> </span><span class=n>PlayerController</span><span class=p>,</span><span class=w> </span><span class=n>EnemyController</span>
+<span class=k>OF</span><span class=w> </span><span class=n>PlayerController</span><span class=p>,</span><span class=w> </span><span class=s>'Scripts/EnemyController.cs'</span><span class=w> </span>
+<span class=k>OF</span><span class=w> </span><span class=s>'Scripts/PlayerController.cs'</span><span class=p>,</span><span class=w> </span><span class=s>'Scripts/EnemyController.cs'</span>
+</code></pre></div><p>Se houver alguma situação que não seja possível obter o nome ou caminho ao <em>asset</em>, é possível utilizar seu GUID como substituto. Para especificar o GUID de um <em>asset</em>, deve-se utilizar a palavra-chave <code>GUID</code> seguida do GUID como uma string.</p><div class=hl><pre><span></span><code><span class=k>OF</span><span class=w> </span><span class=k>GUID</span><span class=w> </span><span class=s>'e1f42f24601a32ac81a9776a50927ee6'</span>
+<span class=k>OF</span><span class=w> </span><span class=k>GUID</span><span class=w> </span><span class=s>'e1f42f24601a32ac81a9776a50927ee6'</span><span class=p>,</span><span class=w> </span><span class=k>GUID</span><span class=w> </span><span class=s>'9ce307d03d67b8de97dbaa43ce7ec8fe'</span>
+<span class=k>OF</span><span class=w> </span><span class=n>PlayerController</span><span class=p>,</span><span class=w> </span><span class=k>GUID</span><span class=w> </span><span class=s>'9ce307d03d67b8de97dbaa43ce7ec8fe'</span>
+</code></pre></div><h3 id=clausula-in>Cláusula <code>IN</code></h3><p>A cláusula <code>IN</code> serve para especificar o diretório alvo da operação, relativo ao diretório de trabalho atual. Se o diretório especificado for filho direto do diretório de trabalho atual, é possível especificá-lo como um literal.</p><div class=hl><pre><span></span><code><span class=k>IN</span><span class=w> </span><span class=s>'./Scenes/Levels'</span>
+<span class=k>IN</span><span class=w> </span><span class=s>'./Resources/Textures/Player'</span>
 
-    p {
-        text-align: justify;
-    }
+<span class=c1># Os exemplos abaixo são equivalentes</span>
+<span class=k>IN</span><span class=w> </span><span class=n>Prefabs</span>
+<span class=k>IN</span><span class=w> </span><span class=s>'Prefabs'</span>
+<span class=k>IN</span><span class=w> </span><span class=s>'./Prefabs'</span>
+<span class=k>IN</span><span class=w> </span><span class=s>'Prefabs/'</span>
+</code></pre></div><h3 id=clausula-where>Cláusula <code>WHERE</code></h3><p>A cláusula <code>WHERE</code> é utilizada para filtrar os resultados de uma operação, permitindo que apenas os assets que atendem a uma determinada condição sejam incluídos. Para utilizá-la, basta especificar a expressão desejada após a palavra-chave <code>WHERE</code>.</p><div class=hl><pre><span></span><code><span class=k>WHERE</span><span class=w> </span><span class=n>_speed</span><span class=w> </span><span class=o>&gt;</span><span class=w> </span><span class=m>10</span>
+<span class=k>WHERE</span><span class=w> </span><span class=n>_health</span><span class=w> </span><span class=o>&lt;</span><span class=w> </span><span class=m>100</span>
+<span class=k>WHERE</span><span class=w> </span><span class=n>_speed</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=n>_health</span>
+</code></pre></div><h2 id=statements>Statements</h2><h3 id=statement-show>Statement <code>SHOW</code></h3><p>O statement <code>SHOW</code> é utilizado para buscar referências de assets específicos em cenas ou prefabs. Este statement tem dois modos de busca: <strong>referências</strong> e <strong>usos</strong>.</p><p>O modo de <strong>busca por referência</strong> é simples: Este modo realiza uma busca por qualquer utilização do asset especificado, incluindo referências através de campos, através de todas as cenas, prefabs e assets do projeto.</p><p>O modo de <strong>busca por uso</strong> é um pouco diferente. É importante deixar claro que este modo apenas funciona se o asset especificado for um componente ou prefab. Este modo pesquisa pelas utilizações do componente/prefab especificado, inclusive a utilização dos prefabs que utilizam o asset especificado, de forma recursiva. Por exemplo, se o asset especificado para a busca for o componente <code>Player.cs</code> e um prefab chamado <code>Player.prefab</code> utilizar este componente, o prefab será incluído na busca, juntamente com o componente originalmente especificado.</p><p>É possível modificar o modo de busca utilizando a palavra-chave <code>REFS</code> para modo de busca por referência, ou <code>USES</code> para o modo de busca por uso</p><div class=hl><pre><span></span><code><span class=k>SHOW</span><span class=w> </span><span class=k>USES</span><span class=w> </span><span class=k>OF</span><span class=w> </span><span class=n>PlayerController</span><span class=w> </span><span class=k>IN</span><span class=w> </span><span class=n>Assets</span><span class=p>;</span>
+<span class=k>SHOW</span><span class=w> </span><span class=k>USES</span><span class=w> </span><span class=k>OF</span><span class=w> </span><span class=s>'Assets/Prefabs/Player.prefab'</span><span class=w> </span><span class=k>IN</span><span class=w> </span><span class=n>Assets</span><span class=p>;</span>
+<span class=k>SHOW</span><span class=w> </span><span class=k>REFS</span><span class=w> </span><span class=k>OF</span><span class=w> </span><span class=s>"Assets/Textures/Player.png"</span>
+</code></pre></div><p>A recursão do modo de <strong>busca por uso</strong> pode ser explicitamente determinada utilizando as palavras-chave <code>DIRECT</code> ou <code>INDIRECT</code>. Sendo <code>INDIRECT</code> o modo padrão, que realiza a busca recursivamente.</p><div class=hl><pre><span></span><code><span class=k>SHOW</span><span class=w> </span><span class=k>DIRECT</span><span class=w> </span><span class=k>USES</span><span class=w> </span><span class=k>OF</span><span class=w> </span><span class=n>PlayerController</span><span class=p>;</span>
+<span class=k>SHOW</span><span class=w> </span><span class=k>INDIRECT</span><span class=w> </span><span class=k>USES</span><span class=w> </span><span class=k>OF</span><span class=w> </span><span class=n>PlayerController</span>
+</code></pre></div><h3 id=statement-rename>Statement <code>RENAME</code></h3><p>O statement <code>RENAME</code> é utilizado para renomear os campos dos componentes especificados. Este statement foi criado para facilitar a renomeação de campos de componentes, evitando a necessidade de renomear manualmente cada campo de cada componente de cada prefab de cada cena, o que pode ser um processo tedioso e propenso a erros.</p><p>Para utilizar o statement <code>RENAME</code>, é necessário especificar o nome do campo a ser renomeado, o novo nome do campo e, entre eles, a palavra-chave <code>FOR</code>. Também é necessário especificar o componente alvo, utilizando a cláusula <code>OF</code>.</p><div class=hl><pre><span></span><code><span class=k>RENAME</span><span class=w> </span><span class=n>_spd</span><span class=w> </span><span class=k>FOR</span><span class=w> </span><span class=n>_speed</span><span class=w> </span><span class=k>OF</span><span class=w> </span><span class=n>PlayerController</span><span class=p>;</span>
+<span class=k>RENAME</span><span class=w> </span><span class=n>_life</span><span class=w> </span><span class=k>FOR</span><span class=w> </span><span class=n>_health</span><span class=w> </span><span class=k>OF</span><span class=w> </span><span class=n>PlayerController</span>
+</code></pre></div><p>Em caso de classes com hierarquia, é possível especificar mais de um componente, utilizando a cláusula <code>OF</code> com mais de um componente, separados por vírgula. O statement <code>RENAME</code> irá renomear o campo especificado em todos os componentes especificados.</p><div class=hl><pre><span></span><code><span class=k>RENAME</span><span class=w> </span><span class=n>_spd</span><span class=w> </span><span class=k>FOR</span><span class=w> </span><span class=n>_speed</span><span class=w> </span><span class=k>OF</span><span class=w> </span><span class=n>PlayerController</span><span class=p>,</span><span class=w> </span><span class=n>EntityController</span><span class=p>;</span>
+<span class=k>RENAME</span><span class=w> </span><span class=n>_life</span><span class=w> </span><span class=k>FOR</span><span class=w> </span><span class=n>_health</span><span class=w> </span><span class=k>OF</span><span class=w> </span><span class=n>PlayerController</span><span class=p>,</span><span class=w> </span><span class=n>EntityController</span>
+</code></pre></div><p><strong>ATENÇÃO:</strong> Se utilizado no momento incorreto, o statement <code>RENAME</code> pode causar a perda dos valores dos campos renomeados. Este statement deve ser utilizado <strong>após</strong> o renomeamento dos campos da classe do componente, ou seja, após a modificação do código fonte do componente, e <strong>antes</strong> de focar na janela do editor. Somente assim é possível garantir que a integridade dos dados seja mantida e que os valores dos campos renomeados não sejam perdidos.</p><h3 id=statement-eval>Statement <code>EVAL</code></h3><p>O statement <code>EVAL</code> é utilizado para avaliar expressões matemáticas, lógicas e de comparação com base nos valores dos campos dos componentes especificados.</p><div class=hl><pre><span></span><code><span class=k>EVAL</span><span class=w> </span><span class=n>_speed</span><span class=w> </span><span class=k>OF</span><span class=w> </span><span class=n>PlayerController</span><span class=p>;</span>
+<span class=k>EVAL</span><span class=w> </span><span class=n>_speed</span><span class=w> </span><span class=o>/</span><span class=w> </span><span class=m>3.6</span><span class=w> </span><span class=k>OF</span><span class=w> </span><span class=n>PlayerController</span>
+</code></pre></div><p>Este statement também permite a reatribuição de valores aos campos.</p><div class=hl><pre><span></span><code><span class=k>EVAL</span><span class=w> </span><span class=n>_speed</span><span class=w> </span><span class=o>/=</span><span class=w> </span><span class=n>_speed</span><span class=w> </span><span class=o>*</span><span class=w> </span><span class=m>3.6</span><span class=w> </span><span class=k>OF</span><span class=w> </span><span class=n>PlayerController</span><span class=p>;</span>
+<span class=k>EVAL</span><span class=w> </span><span class=n>_speed</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=m>100</span><span class=w> </span><span class=o>/</span><span class=w> </span><span class=n>_health</span><span class=w> </span><span class=k>OF</span><span class=w> </span><span class=n>PlayerController</span>
+</code></pre></div><p>Este statement pode ser combinado com a cláusula <code>WHERE</code> para limitar o escopo das mudanças.</p><div class=hl><pre><span></span><code><span class=k>EVAL</span><span class=w> </span><span class=n>_speed</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=m>10</span><span class=w> </span><span class=k>OF</span><span class=w> </span><span class=n>PlayerController</span><span class=w> </span><span class=k>WHERE</span><span class=w> </span><span class=n>_speed</span><span class=w> </span><span class=o>&gt;</span><span class=w> </span><span class=m>10</span>
+</code></pre></div><h2 id=interface-de-linha-de-comando>Interface de Linha de Comando</h2><p>A interface de linha de comando (CLI) é o sistema que permite a execução de código USRL. Ela serve de janela entre o usuário e o sistema de interpretação e execução da linguagem.</p><div class=hl><pre><span></span><code>$ usrl
+Usage:
+    usrl help          Print this message
+    usrl manual        Open the language manual
+    usrl interactive   Start interactive mode
+    usrl &lt;args...&gt;     Execute queries (see list below)
 
-    h2 {
-        text-transform: uppercase;
-        border-bottom: solid 1px #0002;
-        padding-bottom: 3px;
-        margin-top: 3em;
-        counter-increment: h2;
-        counter-reset: h3;
-    }
+Options:
+    --file &lt;files...&gt;  Specify one or more files to execute
+    --output &lt;file&gt;    Specify the file to output to
+    --                 Executes script through the stdin
+    &lt;queries...&gt;       Run the specified queries
 
-    h2::before {
-        content: counter(h2) ". ";
-    }
-
-    h3 {
-        counter-increment: h3;
-    }
-
-    h3::before {
-        content: counter(h2) "." counter(h3) " ";
-    }
-
-    .compatibilidade {
-        font-weight: bold;
-        font-family: monospace;
-        vertical-align: middle;
-        font-size: 12px;
-        border-radius: 999em;
-        padding: 2px 6px;
-        margin-left: 10px;
-    }
-
-    .compatibilidade.compativel {
-        color: green;
-        background-color: #5fdd4644;
-    }
-
-    .compatibilidade.experimental {
-        color: rgb(166, 133, 0);
-        background-color: #f0d80044;
-    }
-
-    .compatibilidade.pendente {
-        color: #9f5f00;
-        background-color: #dc753544;
-    }
-</style>
-
-<article>
-    <h1>USRL</h1>
-
-    <h2>Cláusulas</h2>
-
-    <h3>Cláusula <code>OF</code> <span class="compatibilidade compativel">Compatível</span> </h3>
-
-    <p>
-        Com a cláusula <code>OF</code>, é possível especificar um ou mais <em>assets</em> como alvo da consulta.
-        Em muitos <em>statements</em>, esta cláusula é obrigatória, apesar de não haver a necessidade de ser a primeira.
-    </p>
-
-    <p>
-        A cláusula <code>OF</code> pode ser utilizada com qualquer <em>asset</em> do projeto, como imagens, clipes de
-        áudio, componente, prefabs, etc.
-        Esta cláusula necessita do caminho ao <em>asset</em> relativo ao diretório atual de trabalho. Se o
-        <em>asset</em> alvo for um componente, não há necessidade de especificar o caminho, apenas o nome do componente
-        como um literal é o suficiente.
-    </p>
-
-    <pre>
-<span class="chave">OF</span> <span class="string">"Imagens/Logo.png"</span> 
-<span class="chave">OF</span> <span class="string">'Audio/Musica.mp3'</span> 
-
-<span class="comment"># Os exemplos abaixo são equivalentes</span>
-<span class="chave">OF</span> PlayerController
-<span class="chave">OF</span> <span class="string">'Scripts/PlayerController.cs'</span></pre>
-
-    <p>
-        Também é possível utilizar o operador <code>,</code> (vírgula) para especificar mais de um <em>asset</em>.
-    </p>
-
-    <pre>
-<span class="chave">OF</span> <span class="string">'Scripts/Player.png'</span>, <span class="string">'Scripts/Enemy.png'</span> 
-
-<span class="comment"># Os exemplos abaixo são equivalentes</span>
-<span class="chave">OF</span> PlayerController, EnemyController
-<span class="chave">OF</span> PlayerController, <span class="string">'Scripts/EnemyController.cs'</span> 
-<span class="chave">OF</span> <span class="string">'Scripts/PlayerController.cs'</span>, <span class="string">'Scripts/EnemyController.cs'</span></pre>
-
-    <p>
-        Se houver alguma situação que não seja possível obter o nome ou caminho ao <em>asset</em>, é possível utilizar
-        seu GUID como substituto. Para especificar o GUID de um <em>asset</em>, deve-se utilizar a palavra-chave
-        <code>GUID</code> seguida do
-        GUID como uma string.
-    </p>
-
-    <pre>
-<span class="chave">OF</span> <span class="chave">GUID</span> <span class="string">'e1f42f24601a32ac81a9776a50927ee6'</span>
-<span class="chave">OF</span> <span class="chave">GUID</span> <span class="string">'e1f42f24601a32ac81a9776a50927ee6'</span>, <span class="chave">GUID</span> <span class="string">'9ce307d03d67b8de97dbaa43ce7ec8fe'</span>
-<span class="chave">OF</span> PlayerController, <span class="chave">GUID</span> <span class="string">'9ce307d03d67b8de97dbaa43ce7ec8fe'</span></pre>
-
-    <h3>Cláusula <code>IN</code> <span class="compatibilidade compativel">Compatível</span></h3>
-
-    <p>
-        A cláusula <code>IN</code> serve para especificar o diretório alvo da operação, relativo ao diretório de
-        trabalho atual. Se o diretório especificado for filho direto do diretório de trabalho atual, é possível
-        especificá-lo como um literal.
-    </p>
-
-    <pre>
-<span class="chave">IN</span> <span class="string">'./Scenes/Levels'</span>
-<span class="chave">IN</span> <span class="string">'./Resources/Textures/Player'</span>
-
-<span class="comment"># Os exemplos abaixo são equivalentes</span>
-<span class="chave">IN</span> Prefabs
-<span class="chave">IN</span> <span class="string">'Prefabs'</span>
-<span class="chave">IN</span> <span class="string">'./Prefabs'</span>
-<span class="chave">IN</span> <span class="string">'Prefabs/'</span></pre>
-
-    <h3>Cláusula <code>WHERE</code> <span class="compatibilidade pendente">Pendente</span></h3>
-
-    <p>
-        A cláusula <code>WHERE</code> é utilizada para filtrar os resultados de uma operação, permitindo que apenas
-        os assets que atendem a uma determinada condição sejam incluídos. Para utilizá-la, basta especificar a expressão
-        desejada após a palavra-chave <code>WHERE</code>.
-    </p>
-
-    <pre>
-<span class="chave">WHERE</span> _speed &gt; <span class="number">10</span>
-<span class="chave">WHERE</span> _health &lt; <span class="number">100</span>
-<span class="chave">WHERE</span> _speed == _health
-</pre>
-
-
-
-    <h2><em>Statements</em></h2>
-
-    <h3><em>Statement</em> <code>SHOW</code> <span class="compatibilidade compativel">Compatível</span></h3>
-
-    <p>
-        O statement <code>SHOW</code> é utilizado para buscar referências de assets específicos em cenas ou prefabs.
-        Este statement tem dois modos de busca: <strong>referências</strong> e <strong>usos</strong>.
-    </p>
-
-    <p>
-        O modo de <strong>busca por referência</strong> é simples: Este modo realiza uma busca por qualquer utilização
-        do asset especificado, incluindo referências através de campos, através de todas as cenas, prefabs e assets do
-        projeto.
-    </p>
-
-    <p>
-        O modo de <strong>busca por uso</strong> é um pouco diferente. É importante deixar claro que este modo apenas
-        funciona se o asset especificado for um componente ou prefab. Este modo pesquisa pelas utilizações do
-        componente/prefab especificado, inclusive a utilização dos prefabs que utilizam o asset especificado, de forma
-        recursiva. Por exemplo, se o asset especificado para a busca for o componente <code>Player.cs</code> e um prefab
-        chamado <code>Player.prefab</code> utilizar este componente, o prefab será incluído na busca, juntamente com o
-        componente originalmente especificado.
-    </p>
-
-    <p>
-        É possível modificar o modo de busca utilizando a palavra-chave <code>REFS</code> para modo de busca por
-        referência, ou <code>USES</code> para o modo de busca por uso
-    </p>
-
-
-    <pre>
-<span class="chave">SHOW</span> <span class="chave">USES</span> <span class="chave">OF</span> PlayerController <span class="chave">IN</span> Assets;
-<span class="chave">SHOW</span> <span class="chave">USES</span> <span class="chave">OF</span> <span class="string">'Assets/Prefabs/Player.prefab'</span> <span class="chave">IN</span> Assets;
-<span class="chave">SHOW</span> <span class="chave">REFS</span> <span class="chave">OF</span> <span class="string">"Assets/Textures/Player.png"</span>
-</pre>
-
-    <p>
-        A recursão do modo de <strong>busca por uso</strong> pode ser explicitamente determinada utilizando as
-        palavras-chave <code>DIRECT</code> ou <code>INDIRECT</code>. Sendo <code>INDIRECT</code> o modo padrão, que
-        realiza a busca recursivamente.
-    </p>
-
-    <pre>
-<span class="chave">SHOW</span> <span class="chave">DIRECT</span> <span class="chave">USES</span> <span class="chave">OF</span> PlayerController;
-<span class="chave">SHOW</span> <span class="chave">INDIRECT</span> <span class="chave">USES</span> <span class="chave">OF</span> PlayerController
-</pre>
-
-    <h3><em>Statement</em> <code>RENAME</code> <span class="compatibilidade compativel">Compatível</span></h3>
-
-    <p>
-        O statement <code>RENAME</code> é utilizado para renomear os campos dos componentes especificados.
-        Este statement foi criado para facilitar a renomeação de campos de componentes, evitando a necessidade de
-        renomear manualmente cada campo de cada componente de cada prefab de cada cena, o que pode ser um processo
-        tedioso e propenso a erros.
-    </p>
-
-    <p>
-        Para utilizar o statement <code>RENAME</code>, é necessário especificar o nome do campo a ser renomeado, o novo
-        nome do campo e, entre eles, a palavra-chave <code>FOR</code>. Também é necessário especificar o componente
-        alvo, utilizando a cláusula <code>OF</code>.
-    </p>
-
-    <pre>
-<span class="chave">RENAME</span> _spd <span class="chave">FOR</span> _speed <span class="chave">OF</span> PlayerController;
-<span class="chave">RENAME</span> _life <span class="chave">FOR</span> _health <span class="chave">OF</span> PlayerController
-</pre>
-
-    <p>
-        Em caso de classes com hierarquia, é possível especificar mais de um componente, utilizando a cláusula
-        <code>OF</code> com mais de um componente, separados por vírgula. O statement <code>RENAME</code> irá renomear o
-        campo especificado em todos os componentes especificados.
-    </p>
-
-    <pre>
-<span class="chave">RENAME</span> _spd <span class="chave">FOR</span> _speed <span class="chave">OF</span> PlayerController, EntityController;
-<span class="chave">RENAME</span> _life <span class="chave">FOR</span> _health <span class="chave">OF</span> PlayerController, EntityController
-</pre>
-
-    <p>
-        <strong>ATENÇÃO:</strong> Se utilizado no momento incorreto, o statement <code>RENAME</code> pode causar a perda
-        dos valores dos campos renomeados. Este statement deve ser utilizado <strong>após</strong> o renomeamento dos
-        campos da classe do componente, ou seja, após a modificação do código fonte do componente, e
-        <strong>antes</strong> de focar na janela do editor. Somente assim é possível garantir que a integridade dos
-        dados seja mantida e que os valores dos campos renomeados não sejam perdidos.
-    </p>
-
-    <h3><em>Statement</em> <code>EVAL</code> <span class="compatibilidade experimental">Experimental</span></h3>
-
-    <p>
-        O statement <code>EVAL</code> é utilizado para avaliar expressões matemáticas, lógicas e de comparação com base
-        nos valores dos campos dos componentes especificados.
-    </p>
-
-    <pre>
-<span class="chave">EVAL</span> _speed <span class="chave">OF</span> PlayerController;
-<span class="chave">EVAL</span> _speed / <span class="number">3.6</span> <span class="chave">OF</span> PlayerController
-</pre>
-
-    <p>
-        Este statement também permite a reatribuição de valores aos campos.
-    </p>
-
-    <pre>
-<span class="chave">EVAL</span> _speed = _speed * <span class="number">3.6</span> <span class="chave">OF</span> PlayerController;
-<span class="chave">EVAL</span> _speed = <span class="number">100</span> / _health <span class="chave">OF</span> PlayerController
-</pre>
-
-    <p>
-        Este statement pode ser combinado com a cláusula <code>WHERE</code> para limitar o escopo das mudanças.
-    </p>
-
-    <pre>
-<span class="chave">EVAL</span> _speed = <span class="number">10</span> <span class="chave">OF</span> PlayerController <span class="chave">WHERE</span> _speed &gt; <span class="number">10</span>
-</pre>
-
-</article>
+Examples:
+    usrl "SHOW uses OF Player"
+    usrl "RENAME _spd FOR _speed OF Player" "EVAL _speed OF Player"
+    usrl --file ./script.usrl ./script2.usrl
+    usrl "SHOW uses OF Player" -f ./script.usrl
+    usrl "SHOW uses OF Player" --output ./log.txt
+    usrl help
+    usrl manual
+    usrl interactive
+</code></pre></div><h3 id=executando-consultas>Executando consultas</h3><h3 id=modo-interativo>Modo interativo</h3><p>A CLI tem um modo REPL (Read, Eval, Print, Loop) chamado <em>modo interativo.</em> Para acessá-lo o modo interativo, basta inserir o comando <code>usrl interactive</code> ou um dos seus aliases (<code>usrl i</code>, <code>usrl int</code>) no shell de sua preferência.</p><p>Neste modo cada consulta inserida é executada imediatamente. Ao terminar o processamento de uma consulta, outra poderá ser inserida, de forma contínua sem interrupções.</p><p>Uma transaction é realizada a cada comando inserido, portanto, se ocorrer algum erro durante a execução de uma consulta, todas as modificações realizadas serão desfeitas e poderá inserir outra consulta normalmente.</p><div class=hl><pre><span></span><code>$ usrl i
+&gt;&gt; SHOW USES OF Player
+Assets/Prefabs/Player.prefab
+Assets/Scenes/Game.unity
+&gt;&gt; SHOW USES OF Enemy
+Assets/Prefabs/Enemy1.prefab
+Assets/Prefabs/Enemy2.prefab
+Assets/Scenes/Game.unity
+</code></pre></div><h3 id=acesso-ao-manual>Acesso ao manual</h3><p>A CLI vem com o manual da linguagem inserido dentro de seu binário. Para acessá-lo, basta executar o comando <code>usrl manual</code> no seu shell de preferência. Isso irá criar um arquivo novo no diretório de trabalho atual chamado <code>manual.html</code>.</p><h2 id=exemplos>Exemplos</h2><h3 id=verificando-referencias>Verificando referências</h3><h3 id=renomeando-propriedades>Renomeando propriedades</h3><h3 id=atualizando-valores>Atualizando valores</h3></article></body></html>
