@@ -80,7 +80,7 @@ pub fn run(self: This, env: Stmt.RunEnv) Stmt.RunError!void {
     try env.out.flush();
 }
 
-pub fn search(self: This, count: ?*usize, times: ?*usize, env: Stmt.RunEnv) ![][]u8 {
+pub fn search(self: This, count: ?*usize, times: ?*usize, env: Stmt.RunEnv) Stmt.RunError![][]u8 {
     core.profiling.begin(search);
     defer core.profiling.stop();
 
