@@ -13,7 +13,7 @@ const Yaml = core.runtime.Yaml;
 const GUID = core.runtime.GUID;
 const Expr = core.Expr;
 
-expr: *Expr,
+expr: []*Expr,
 of: clse.Of,
 in: ?clse.In,
 where: ?clse.Where = null,
@@ -24,10 +24,20 @@ pub fn parse(tokens: *TokenIterator, env: Stmt.ParseEnv) Stmt.ParseError!This {
 
     if (!tokens.match(.EVAL)) return error.TokenMismatch;
 
-    const expr = try Expr.parse(tokens, .{
-        .allocator = env.allocator,
-        .diag = env.diag,
-    });
+    var expressions = std.ArrayList(*Expr).empty;
+    defer expressions.deinit(env.allocator);
+    errdefer for (expressions.items) |e| e.cleanup(env.allocator);
+
+    while (true) {
+        const expr = try Expr.parse(tokens, .{
+            .allocator = env.allocator,
+            .diag = env.diag,
+        });
+        errdefer expr.cleanup(env.allocator);
+
+        try expressions.append(env.allocator, expr);
+        if (!tokens.match(.comma)) break;
+    }
 
     const Clauses = struct {
         of: clse.Of,
@@ -37,7 +47,7 @@ pub fn parse(tokens: *TokenIterator, env: Stmt.ParseEnv) Stmt.ParseError!This {
     const clauses = try clse.parse(Clauses, tokens, env);
 
     return .{
-        .expr = expr,
+        .expr = try expressions.toOwnedSlice(env.allocator),
         .of = clauses.of,
         .in = clauses.in,
         .where = clauses.where,
@@ -48,7 +58,8 @@ pub fn cleanup(self: This, allocator: std.mem.Allocator) void {
     self.of.cleanup(allocator);
     if (self.in) |in| in.cleanup(allocator);
     if (self.where) |where| where.cleanup(allocator);
-    self.expr.cleanup(allocator);
+    for (self.expr) |expr| expr.cleanup(allocator);
+    allocator.free(self.expr);
 }
 
 pub fn run(self: This, env: core.Stmt.RunEnv) core.Stmt.RunError!void {
@@ -145,19 +156,26 @@ pub fn scanAndPrint(self: This, path: []const u8, guids: []const GUID, assets: *
             if (!result.isTruthy()) continue;
         }
 
-        var vars: Expr.VarMap = try .default(env.allocator);
-        defer vars.deinit();
-        const value = try self.expr.evaluateAuto(.{
-            .allocator = env.allocator,
-            .root = undefined, // Will be set by evaluateAuto
-            .diag = env.diag,
-            .context = ctx,
-            .assets = assets,
-            .objs = objs,
-            .vars = &vars,
-        });
-        defer value.cleanup(env.allocator);
-        try print(path, value, env.out);
+        var results = try env.allocator.alloc(Expr.Value, self.expr.len);
+        defer env.allocator.free(results);
+        defer for (results) |v| v.cleanup(env.allocator);
+
+        for (self.expr, 0..) |expr, i| {
+            var vars: Expr.VarMap = try .default(env.allocator);
+            defer vars.deinit();
+            const value = try expr.evaluateAuto(.{
+                .allocator = env.allocator,
+                .root = undefined, // Will be set by evaluateAuto
+                .diag = env.diag,
+                .context = ctx,
+                .assets = assets,
+                .objs = objs,
+                .vars = &vars,
+            });
+            results[i] = value;
+        }
+
+        try print(path, results, env.out);
     }
 }
 
@@ -203,9 +221,14 @@ pub fn saveChanges(assetmap: core.runtime.AssetMap, objmap: core.runtime.ObjMap,
     }
 }
 
-pub fn print(path: []const u8, value: core.Expr.Value, out: *std.Io.Writer) !void {
+pub fn print(path: []const u8, value: []core.Expr.Value, out: *std.Io.Writer) !void {
     core.profiling.begin(print);
     defer core.profiling.stop();
 
-    try out.print("{s} => {f}\r\n", .{ path, value });
+    try out.print("{s}\r\n", .{Stmt.Show.trimCwd(path)});
+    for (value) |v| {
+        // if (i != 0) try out.writeByte(',');
+        try out.print(" =\t{f}\r\n", .{v});
+    }
+    try out.writeAll("\r\n");
 }
