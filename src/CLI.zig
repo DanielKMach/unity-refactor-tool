@@ -368,6 +368,10 @@ pub fn printRuntimeProblem(runtime_error: usrl.RuntimeProblem, source: usrl.Sour
             try ansi.print(e, "Value of type {t} cannot be assigned to {t}\r\n", .{ err.value_type, err.assigned_to });
             try printLineHighlight(err.location, source, fw);
         },
+        .undefinable_target => |err| {
+            try ansi.print(e, "Cannot define {t}. The ':=' operator can only be used with variables.\r\n", .{err.target});
+            try printLineHighlight(err.location, source, fw);
+        },
         .search_failed => |err| {
             try ansi.print(e, "Search for object with GUID '{f}' failed.\r\n", .{err.guid});
         },

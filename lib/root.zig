@@ -144,6 +144,10 @@ pub const RuntimeProblem = union(enum) {
         assigned_to: enum { variable, property, array },
         location: Token.Location,
     },
+    undefinable_target: struct {
+        target: enum { property, entry },
+        location: Token.Location,
+    },
     update_during_readonly_eval: struct {
         location: Token.Location,
     },

@@ -251,7 +251,15 @@ pub fn define(target: *Expr, init: *Expr, env: Env) Error!Value {
             };
             break :blk val;
         },
-        else => try assign(target, init, env),
+        else => return env.err(.{ .undefinable_target = .{
+            .target = switch (target.*) {
+                .property => .property,
+                .access => .property,
+                .indexing => .entry,
+                else => unreachable,
+            },
+            .location = .merge(&.{ target.loc(), init.loc() }),
+        } }),
     };
 }
 
