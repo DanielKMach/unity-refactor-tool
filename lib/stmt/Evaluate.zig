@@ -150,6 +150,7 @@ pub fn scanAndPrint(self: This, path: []const u8, guids: []const GUID, assets: *
                 .assets = assets,
                 .objs = objs,
                 .vars = &vars,
+                .readonly = true,
             });
             defer result.cleanup(env.allocator);
 
@@ -171,6 +172,7 @@ pub fn scanAndPrint(self: This, path: []const u8, guids: []const GUID, assets: *
                 .assets = assets,
                 .objs = objs,
                 .vars = &vars,
+                .readonly = false,
             });
             results[i] = value;
         }

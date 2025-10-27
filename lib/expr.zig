@@ -106,6 +106,7 @@ pub const Expr = union(enum) {
             .assets = env.assets,
             .objs = env.objs,
             .vars = env.vars,
+            .readonly = env.readonly,
         };
 
         const result = try eval.evaluate(self, new_env);
@@ -226,24 +227,21 @@ pub const Expr = union(enum) {
     pub fn format(self: Expr, writer: *std.Io.Writer) std.Io.Writer.Error!void {
         switch (self) {
             .literal => |l| try writer.print("{f}", .{std.fmt.alt(l.token.value, .raw)}),
-            .unary => |u| try writer.print("({f} {f})", .{ std.fmt.alt(u.op.value, .raw), u.operand }),
-            .binary => |b| try writer.print("({f} {f} {f})", .{ std.fmt.alt(b.op.value, .raw), b.left, b.right }),
-            .ternary => |t| try writer.print("(?: {f} {f} {f})", .{ t.left, t.middle, t.right }),
-            .grouping => |g| try writer.print("(group {f})", .{g.expr}),
-            .access => |a| try writer.print("(. {f} {f})", .{ a.base, std.fmt.alt(a.property.value, .raw) }),
-            .indexing => |i| try writer.print("(index {f} {f})", .{ i.base, i.index }),
+            .unary => |u| try writer.print("{f}({f})", .{ std.fmt.alt(u.op.value, .raw), u.operand }),
+            .binary => |b| try writer.print("{f}({f} {f})", .{ std.fmt.alt(b.op.value, .raw), b.left, b.right }),
+            .ternary => |t| try writer.print("?:({f} {f} {f})", .{ t.left, t.middle, t.right }),
+            .grouping => |g| try writer.print("g({f})", .{g.expr}),
+            .access => |a| try writer.print(".({f} {f})", .{ a.base, std.fmt.alt(a.property.value, .raw) }),
+            .indexing => |i| try writer.print("i({f} {f})", .{ i.base, i.index }),
             .property => |p| try writer.print("{f}", .{std.fmt.alt(p.name.value, .raw)}),
             .variable => |v| try writer.print("{f}", .{std.fmt.alt(v.name.value, .raw)}),
-            .assignment => |as| try writer.print("({f} {f} {f})", .{ std.fmt.alt(as.op.value, .raw), as.target, as.value }),
+            .assignment => |as| try writer.print("{f}({f} {f})", .{ std.fmt.alt(as.op.value, .raw), as.target, as.value }),
             .call => |c| {
-                try writer.print("(call {f} (", .{c.callee});
-                var first = true;
+                try writer.print("call({f}", .{c.callee});
                 for (c.args) |arg| {
-                    if (!first) try writer.print(", ", .{});
-                    try writer.print("{f}", .{arg});
-                    first = false;
+                    try writer.print(" {f}", .{arg});
                 }
-                try writer.print("))", .{});
+                try writer.writeByte(',');
             },
         }
     }

@@ -343,6 +343,7 @@ const Search = struct {
                         .assets = &assets,
                         .objs = &objs,
                         .vars = &vars,
+                        .readonly = true,
                     });
                     defer value.cleanup(allocator);
                     if (value.isTruthy()) break true;

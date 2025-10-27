@@ -371,6 +371,10 @@ pub fn printRuntimeProblem(runtime_error: usrl.RuntimeProblem, source: usrl.Sour
         .search_failed => |err| {
             try ansi.print(e, "Search for object with GUID '{f}' failed.\r\n", .{err.guid});
         },
+        .update_during_readonly_eval => |err| {
+            try ansi.print(e, "Cannot perform update during read-only evaluation.\r\n", .{});
+            try printLineHighlight(err.location, source, fw);
+        },
         .unexpected => |err| {
             try ansi.print(e, "Unexpected {t}\r\n", .{err});
         },
