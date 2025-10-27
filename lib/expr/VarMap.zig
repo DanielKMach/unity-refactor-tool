@@ -58,11 +58,10 @@ pub fn set(self: *VarMap, name: []const u8, value: Value) SetError!void {
     if (!self.readwrite.contains(name)) {
         return error.UndefinedVariable;
     }
-    const varname = try self.allocator.dupe(u8, name);
-    errdefer self.allocator.free(varname);
-    const varvalue = try value.dupe(self.allocator);
-    errdefer varvalue.cleanup(self.allocator);
-    try self.readwrite.put(varname, varvalue);
+    const new_value = try value.dupe(self.allocator);
+    const val = self.readwrite.getPtr(name) orelse unreachable;
+    val.cleanup(self.allocator);
+    val.* = new_value;
 }
 
 pub fn define(self: *VarMap, name: []const u8, value: Value) DefineError!void {

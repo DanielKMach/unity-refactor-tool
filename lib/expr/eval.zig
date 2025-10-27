@@ -66,6 +66,13 @@ pub fn evaluate(expr: *Expr, env: Env) Error!Value.Derived {
             else => unreachable,
         },
         .call => |*c| try call(c, env),
+        .block => |b| {
+            var result: Value.Derived = expr.derived(.nil);
+            for (b.children) |child| {
+                result = try evaluate(child, env);
+            }
+            return result;
+        },
     });
 }
 
