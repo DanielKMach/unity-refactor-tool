@@ -261,14 +261,14 @@ pub const Expr = union(enum) {
                 for (c.args) |arg| {
                     try writer.print(" {f}", .{arg});
                 }
-                try writer.writeByte(',');
+                try writer.writeByte(')');
             },
             .block => |b| {
                 try writer.writeAll("{ ");
                 for (b.children) |child| {
                     try writer.print("{f} ", .{child});
                 }
-                try writer.writeAll("}");
+                try writer.writeByte('}');
             },
         }
     }

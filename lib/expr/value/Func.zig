@@ -202,36 +202,26 @@ pub const builtin = struct {
 
     pub fn slice(val: []const u8, start: Value.Derived, length: Value.Derived, env: Expr.eval.Env) Error!Value {
         try Value.validate(start, &.{.number}, env.diag);
-        try Value.validate(length, &.{ .number, .nil }, env.diag);
+        try Value.validate(length, &.{.number}, env.diag);
 
         if (@rem(start.val.number, 1) != 0) return env.err(.{ .invalid_argument = .{
             .reason = "start index must be an integer",
             .location = start.src.loc(),
         } });
+        if (@rem(length.val.number, 1) != 0) return env.err(.{ .invalid_argument = .{
+            .reason = "substring length must be an integer",
+            .location = length.src.loc(),
+        } });
+        if (length.val.number == 0) return .{ .string = "" };
 
-        const l: usize = if (length.val == .number) blk: {
-            if (@rem(length.val.number, 1) != 0) return env.err(.{ .invalid_argument = .{
-                .reason = "substring length must be an integer",
-                .location = length.src.loc(),
-            } });
-            if (length.val.number < 0) return env.err(.{ .invalid_argument = .{
-                .reason = "substring length cannot be negative",
-                .location = length.src.loc(),
-            } });
-            break :blk @intFromFloat(length.val.number);
-        } else std.math.maxInt(usize);
-
-        if (start.val.number >= 0) {
-            const off: usize = @intFromFloat(start.val.number);
-            const index = if (off < val.len) off else val.len;
-            const end = if (off + l < val.len) off + l else val.len;
-            return .{ .string = val[index..end] };
-        } else {
-            const off: usize = @intFromFloat(@abs(start.val.number));
-            const end = if (off - 1 < val.len) val.len - (off - 1) else 0;
-            const index = if (l < end) end - l else 0;
-            return .{ .string = val[index..end] };
-        }
+        const vlen: isize = @intCast(val.len);
+        const tlen: isize = @intFromFloat(length.val.number);
+        const off: isize = @intFromFloat(start.val.number);
+        const ix: isize = @intCast(if (off < 0) vlen + off else off);
+        const iy: isize = @intCast(if (tlen < 0) ix + tlen + 1 else ix + tlen - 1);
+        const s: usize = @intCast(@min(@max(@min(ix, iy), 0), val.len));
+        const e: usize = @intCast(@min(@max(@max(ix, iy) + 1, 0), val.len));
+        return .{ .string = val[s..e] };
     }
 
     pub fn @"type"(any: Value.Derived, _: Expr.eval.Env) Error!Value {
