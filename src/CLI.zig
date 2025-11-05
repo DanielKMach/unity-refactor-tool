@@ -262,6 +262,10 @@ pub fn printParseProblem(parse_error: usrl.ParseProblem, source: usrl.Source, fw
             try ansi.print(e, "Invalid assignment target\r\n", .{});
             try printLineHighlight(err.location, source, fw);
         },
+        .invalid_mode_for_clause => |err| {
+            try ansi.print(e, "Cannot use search mode '{t}' with clause '{s}'\r\n", .{ err.mode, err.clause });
+            try printLineHighlight(err.location, source, fw);
+        },
         .unexpected => |err| {
             try ansi.print(e, "Unexpected {t}\r\n", .{err});
         },

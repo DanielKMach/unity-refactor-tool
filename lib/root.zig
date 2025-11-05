@@ -52,6 +52,11 @@ pub const ParseProblem = union(enum) {
         clause: []const u8,
         placement: Token,
     },
+    invalid_mode_for_clause: struct {
+        clause: []const u8,
+        mode: Stmt.Show.SearchMode,
+        location: Token.Location,
+    },
 
     // Expression related errors
     invalid_assignment_target: struct {

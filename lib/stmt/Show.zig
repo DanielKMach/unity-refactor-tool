@@ -42,6 +42,7 @@ pub fn parse(tokens: *TokenIterator, env: Stmt.ParseEnv) Stmt.ParseError!This {
         const t = try tokens.grabAny(&.{ .USES, .REFS }, env.diag);
         break :blk if (t.is(.USES)) .indirect_uses else .refs;
     };
+    const tkn = tokens.peek(0);
 
     const Clauses = struct {
         of: clse.Of,
@@ -49,6 +50,12 @@ pub fn parse(tokens: *TokenIterator, env: Stmt.ParseEnv) Stmt.ParseError!This {
         where: ?clse.Where = null,
     };
     const clauses = try clse.parse(Clauses, tokens, env);
+
+    if (clauses.where != null and mode == .refs) return env.err(.{ .invalid_mode_for_clause = .{
+        .clause = "WHERE",
+        .mode = mode,
+        .location = tkn.loc,
+    } });
 
     return .{
         .mode = mode,
