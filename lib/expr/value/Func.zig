@@ -4,6 +4,7 @@ const core = @import("core");
 const Func = @This();
 const Expr = core.Expr;
 const Value = Expr.Value;
+const yaml = core.yaml;
 
 pub const BuiltinFn = fn (*Expr.Call, []const Value.Derived, Expr.eval.Env) Expr.eval.Error!Value;
 
@@ -30,8 +31,12 @@ pub fn new(func: anytype) Func {
         } else param.type == Value.Derived;
         if (!valid) @compileError("All but last parameters of 'func' must be of type " ++ @typeName(Value.Derived) ++ " or one of its variants. Found " ++ @typeName(param.type) ++ ".");
     }
-    if (info.params[params.len].type != Expr.eval.Env) {
-        @compileError("The last parameter of 'func' must be of type " ++ @typeName(Expr.eval.Env) ++ ". Found " ++ @typeName(params[params.len].type) ++ ".");
+    switch (info.params[params.len].type.?) {
+        Expr.eval.Env => {},
+        builtin.FuncEnv => {},
+        else => {
+            @compileError("The last parameter of 'func' must be of type " ++ @typeName(Expr.eval.Env) ++ " or " ++ @typeName(Expr.eval.Env) ++ ". Found " ++ @typeName(params[params.len].type) ++ ".");
+        },
     }
 
     const Wrapper = struct {
@@ -55,7 +60,14 @@ pub fn new(func: anytype) Func {
                     tuple[i] = args[i];
                 }
             }
-            tuple[params.len] = env;
+            tuple[params.len] = switch (@TypeOf(tuple[params.len])) {
+                Expr.eval.Env => env,
+                builtin.FuncEnv => .{
+                    .call_expr = call_expr,
+                    .base = env,
+                },
+                else => unreachable,
+            };
 
             return @call(.auto, func, tuple);
         }
@@ -64,7 +76,7 @@ pub fn new(func: anytype) Func {
 }
 
 fn TupleFromParams(comptime params: []const std.builtin.Type.Fn.Param) type {
-    var fields = [_]std.builtin.Type.StructField{undefined} ** params.len;
+    var fields: [params.len]std.builtin.Type.StructField = undefined;
     for (params, 0..) |p, i| {
         const P = p.type orelse unreachable;
         fields[i] = .{
@@ -87,6 +99,10 @@ fn TupleFromParams(comptime params: []const std.builtin.Type.Fn.Param) type {
 /// Built-in functions.
 pub const builtin = struct {
     const Error = Expr.eval.Error;
+    const FuncEnv = struct {
+        call_expr: *Expr.Call,
+        base: Expr.eval.Env,
+    };
 
     pub fn min(x: f32, y: f32, _: Expr.eval.Env) Error!Value {
         return .{ .number = @min(x, y) };
@@ -185,9 +201,12 @@ pub const builtin = struct {
         }
     }
 
-    pub fn push(item: Value.Derived, list: Value.List, env: Expr.eval.Env) Error!Value {
+    pub fn push(item: Value.Derived, list: Value.List, fenv: FuncEnv) Error!Value {
+        if (fenv.base.readonly) return fenv.base.err(.{ .update_during_readonly_eval = .{
+            .location = @as(*Expr, @fieldParentPtr("call", fenv.call_expr)).loc(),
+        } });
         list.push(item.val) catch |err| switch (err) {
-            error.UnrepresentableValue => return env.err(.{ .invalid_argument = .{
+            error.UnrepresentableValue => return fenv.base.err(.{ .invalid_argument = .{
                 .reason = "cannot convert value into node",
                 .location = item.src.loc(),
             } }),
@@ -196,42 +215,35 @@ pub const builtin = struct {
         return .nil;
     }
 
-    pub fn pop(list: Value.List, _: Expr.eval.Env) Error!Value {
+    pub fn pop(list: Value.List, fenv: FuncEnv) Error!Value {
+        if (fenv.base.readonly) return fenv.base.err(.{ .update_during_readonly_eval = .{
+            .location = @as(*Expr, @fieldParentPtr("call", fenv.call_expr)).loc(),
+        } });
         return list.pop() orelse .nil;
     }
 
     pub fn slice(val: []const u8, start: Value.Derived, length: Value.Derived, env: Expr.eval.Env) Error!Value {
         try Value.validate(start, &.{.number}, env.diag);
-        try Value.validate(length, &.{ .number, .nil }, env.diag);
+        try Value.validate(length, &.{.number}, env.diag);
 
         if (@rem(start.val.number, 1) != 0) return env.err(.{ .invalid_argument = .{
             .reason = "start index must be an integer",
             .location = start.src.loc(),
         } });
+        if (@rem(length.val.number, 1) != 0) return env.err(.{ .invalid_argument = .{
+            .reason = "substring length must be an integer",
+            .location = length.src.loc(),
+        } });
+        if (length.val.number == 0) return .{ .string = "" };
 
-        const l: usize = if (length.val == .number) blk: {
-            if (@rem(length.val.number, 1) != 0) return env.err(.{ .invalid_argument = .{
-                .reason = "substring length must be an integer",
-                .location = length.src.loc(),
-            } });
-            if (length.val.number < 0) return env.err(.{ .invalid_argument = .{
-                .reason = "substring length cannot be negative",
-                .location = length.src.loc(),
-            } });
-            break :blk @intFromFloat(length.val.number);
-        } else std.math.maxInt(usize);
-
-        if (start.val.number >= 0) {
-            const off: usize = @intFromFloat(start.val.number);
-            const index = if (off < val.len) off else val.len;
-            const end = if (off + l < val.len) off + l else val.len;
-            return .{ .string = val[index..end] };
-        } else {
-            const off: usize = @intFromFloat(@abs(start.val.number));
-            const end = if (off - 1 < val.len) val.len - (off - 1) else 0;
-            const index = if (l < end) end - l else 0;
-            return .{ .string = val[index..end] };
-        }
+        const vlen: isize = @intCast(val.len);
+        const tlen: isize = @intFromFloat(length.val.number);
+        const off: isize = @intFromFloat(start.val.number);
+        const ix: isize = @intCast(if (off < 0) vlen + off else off);
+        const iy: isize = @intCast(if (tlen < 0) ix + tlen + 1 else ix + tlen - 1);
+        const s: usize = @intCast(@min(@max(@min(ix, iy), 0), val.len));
+        const e: usize = @intCast(@min(@max(@max(ix, iy) + 1, 0), val.len));
+        return .{ .string = val[s..e] };
     }
 
     pub fn @"type"(any: Value.Derived, _: Expr.eval.Env) Error!Value {
@@ -271,5 +283,41 @@ pub const builtin = struct {
 
     pub fn ctx(env: Expr.eval.Env) Error!Value {
         return .{ .asset = env.context };
+    }
+
+    pub fn addList(fenv: FuncEnv) Error!Value {
+        const env = fenv.base;
+        if (env.readonly) return env.err(.{ .update_during_readonly_eval = .{
+            .location = @as(*Expr, @fieldParentPtr("call", fenv.call_expr)).loc(),
+        } });
+        const ctx_obj = env.context.obj(env) catch |err| switch (err) {
+            error.OutOfMemory, error.USRLRuntimeError, error.LibyamlError => |e| return e,
+            else => unreachable,
+        };
+        const new_list = yaml.ly.yaml_document_add_sequence(ctx_obj.doc, null, yaml.ly.YAML_BLOCK_SEQUENCE_STYLE);
+        if (new_list == 0) return error.LibyamlError;
+        const nodes = yaml.fromStack(yaml.Node, ctx_obj.doc.nodes);
+        return .{ .array = .{
+            .node = &nodes[@intCast(new_list - 1)],
+            .doc = ctx_obj.doc,
+        } };
+    }
+
+    pub fn addObj(fenv: FuncEnv) Error!Value {
+        const env = fenv.base;
+        if (env.readonly) return env.err(.{ .update_during_readonly_eval = .{
+            .location = @as(*Expr, @fieldParentPtr("call", fenv.call_expr)).loc(),
+        } });
+        const ctx_obj = env.context.obj(env) catch |err| switch (err) {
+            error.OutOfMemory, error.USRLRuntimeError, error.LibyamlError => |e| return e,
+            else => unreachable,
+        };
+        const new_obj = yaml.ly.yaml_document_add_mapping(ctx_obj.doc, null, yaml.ly.YAML_BLOCK_MAPPING_STYLE);
+        if (new_obj == 0) return error.LibyamlError;
+        const nodes = yaml.fromStack(yaml.Node, ctx_obj.doc.nodes);
+        return .{ .array = .{
+            .node = &nodes[@intCast(new_obj - 1)],
+            .doc = ctx_obj.doc,
+        } };
     }
 };

@@ -183,13 +183,15 @@ fn vaif(tokens: *TokenIterator, env: Env) core.ParseAllocError!*Expr {
             defer args.deinit(env.allocator);
             errdefer for (args.items) |arg| arg.cleanup(env.allocator);
 
-            const rp = if (tokens.consume(.right_paren)) |p| p else while (true) {
+            while (!tokens.match(.right_paren)) {
                 const arg = try parse(tokens, env);
                 errdefer arg.cleanup(env.allocator);
                 try args.append(env.allocator, arg);
                 const end = try tokens.grabAny(&.{ .comma, .right_paren }, env.diag);
-                if (end.is(.right_paren)) break end;
-            };
+                if (end.is(.right_paren)) break;
+            }
+            const rp = tokens.peek(0);
+            std.debug.assert(rp.is(.right_paren));
 
             const expr = try env.allocator.create(Expr);
             errdefer env.allocator.destroy(expr);
@@ -219,6 +221,28 @@ fn value(tokens: *TokenIterator, env: Env) core.ParseAllocError!*Expr {
         expr.* = .{ .grouping = .{
             .loc = .merge(&.{ lp.loc, rp.loc }),
             .expr = group,
+        } };
+        return expr;
+    } else if (tokens.consume(.left_brace)) |lb| {
+        var children = std.ArrayList(*Expr).empty;
+        defer children.deinit(env.allocator);
+
+        while (!tokens.match(.right_brace)) {
+            const child = try parse(tokens, env);
+            errdefer child.cleanup(env.allocator);
+            try children.append(env.allocator, child);
+            const end = try tokens.grabAny(&.{ .semicolon, .right_brace }, env.diag);
+            if (end.is(.right_brace)) break;
+        }
+        const rb = tokens.peek(0);
+        std.debug.assert(rb.is(.right_brace));
+
+        const expr = try env.allocator.create(Expr);
+        errdefer env.allocator.destroy(expr);
+        expr.* = .{ .block = .{
+            .lbrace = try lb.dupe(env.allocator),
+            .rbrace = try rb.dupe(env.allocator),
+            .children = try children.toOwnedSlice(env.allocator),
         } };
         return expr;
     } else {

@@ -3,6 +3,7 @@ const core = @import("core");
 
 pub const Of = @import("clse/Of.zig");
 pub const In = @import("clse/In.zig");
+pub const Where = @import("clse/Where.zig");
 
 fn ParseFn(comptime T: type) type {
     return fn (*core.Token.Iterator, core.Stmt.ParseEnv) core.Stmt.ParseError!T;

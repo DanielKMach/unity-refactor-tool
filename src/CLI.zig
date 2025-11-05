@@ -134,6 +134,7 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
             return false;
         }
     }
+    if (i == 0) try printHelp(&self.out.interface);
     return true;
 }
 
@@ -261,6 +262,10 @@ pub fn printParseProblem(parse_error: usrl.ParseProblem, source: usrl.Source, fw
             try ansi.print(e, "Invalid assignment target\r\n", .{});
             try printLineHighlight(err.location, source, fw);
         },
+        .invalid_mode_for_clause => |err| {
+            try ansi.print(e, "Cannot use search mode '{t}' with clause '{s}'\r\n", .{ err.mode, err.clause });
+            try printLineHighlight(err.location, source, fw);
+        },
         .unexpected => |err| {
             try ansi.print(e, "Unexpected {t}\r\n", .{err});
         },
@@ -368,8 +373,25 @@ pub fn printRuntimeProblem(runtime_error: usrl.RuntimeProblem, source: usrl.Sour
             try ansi.print(e, "Value of type {t} cannot be assigned to {t}\r\n", .{ err.value_type, err.assigned_to });
             try printLineHighlight(err.location, source, fw);
         },
+        .undefinable_target => |err| {
+            try ansi.print(e, "Cannot define {t}. The ':=' operator can only be used with variables.\r\n", .{err.target});
+            try printLineHighlight(err.location, source, fw);
+        },
         .search_failed => |err| {
             try ansi.print(e, "Search for object with GUID '{f}' failed.\r\n", .{err.guid});
+        },
+        .update_during_readonly_eval => |err| {
+            try ansi.print(e, "Cannot perform update during read-only evaluation.\r\n", .{});
+            try printLineHighlight(err.location, source, fw);
+        },
+        .invalid_target_asset => |err| {
+            const filter_str = switch (err.filter) {
+                .any => "any asset",
+                .prefabs_and_components => "prefab or component",
+                .components_only => "component",
+            };
+            try ansi.print(e, "Invalid target asset. Expected {s} type.\r\n", .{filter_str});
+            try printLineHighlight(err.location, source, fw);
         },
         .unexpected => |err| {
             try ansi.print(e, "Unexpected {t}\r\n", .{err});
@@ -381,7 +403,6 @@ pub fn printRuntimeProblem(runtime_error: usrl.RuntimeProblem, source: usrl.Sour
 
 pub fn printLineHighlight(loc: usrl.Token.Location, source: usrl.Source, out: *std.fs.File.Writer) !void {
     const line_index = source.lineIndex(loc.index) orelse return error.InvalidLocation;
-    if (line_index != source.lineIndex(loc.index + @max(loc.len, 1) - 1)) return error.InvalidLocation;
     const line = source.line(line_index) orelse return error.InvalidLocation;
 
     var ansi = ANSI.init(out);
@@ -392,7 +413,7 @@ pub fn printLineHighlight(loc: usrl.Token.Location, source: usrl.Source, out: *s
 
     const index = loc.index - (source.lineStart(line_index) orelse unreachable);
     const start = offset(index, line);
-    const len = offset(index + @max(loc.len, 1) - 1, line) + 1 - start;
+    const len = offset(@min(index + @max(loc.len, 1) - 1, line.len - 1), line) + 1 - start;
 
     ansi.begin("g");
     defer ansi.end("g");

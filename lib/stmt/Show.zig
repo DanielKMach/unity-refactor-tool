@@ -18,11 +18,12 @@ pub const SearchMode = enum {
 };
 
 const uses_files = &.{ ".prefab", ".unity" };
-const refs_files = &.{ ".prefab", ".unity", ".asset", ".mat" };
+const refs_files = &.{ ".prefab", ".unity", ".asset", ".mat", ".controller", ".anim" };
 
 mode: SearchMode,
 of: clse.Of,
 in: ?clse.In,
+where: ?clse.Where,
 
 pub fn parse(tokens: *TokenIterator, env: Stmt.ParseEnv) Stmt.ParseError!This {
     core.profiling.begin(parse);
@@ -41,23 +42,33 @@ pub fn parse(tokens: *TokenIterator, env: Stmt.ParseEnv) Stmt.ParseError!This {
         const t = try tokens.grabAny(&.{ .USES, .REFS }, env.diag);
         break :blk if (t.is(.USES)) .indirect_uses else .refs;
     };
+    const tkn = tokens.peek(0);
 
     const Clauses = struct {
-        OF: clse.Of,
-        IN: ?clse.In = null,
+        of: clse.Of,
+        in: ?clse.In = null,
+        where: ?clse.Where = null,
     };
     const clauses = try clse.parse(Clauses, tokens, env);
 
+    if (clauses.where != null and mode == .refs) return env.err(.{ .invalid_mode_for_clause = .{
+        .clause = "WHERE",
+        .mode = mode,
+        .location = tkn.loc,
+    } });
+
     return .{
         .mode = mode,
-        .of = clauses.OF,
-        .in = clauses.IN,
+        .of = clauses.of,
+        .in = clauses.in,
+        .where = clauses.where,
     };
 }
 
 pub fn cleanup(self: This, allocator: std.mem.Allocator) void {
     self.of.cleanup(allocator);
     if (self.in) |in| in.cleanup(allocator);
+    if (self.where) |where| where.cleanup(allocator);
 }
 
 pub fn run(self: This, env: Stmt.RunEnv) Stmt.RunError!void {
@@ -71,17 +82,18 @@ pub fn run(self: This, env: Stmt.RunEnv) Stmt.RunError!void {
     const time = std.time.milliTimestamp() - start;
 
     sort(@ptrCast(results));
-    for (results) |path| try env.out.print("{s}\r\n", .{path});
-    try env.out.print("Scanned {d} files {d} times in {d} milliseconds \r\n", .{ fileCount, loops, time });
+    for (results) |path| try env.out.print("{s}\r\n", .{trimCwd(path)});
+    log.info("Scanned {d} files {d} times in {d} milliseconds", .{ fileCount, loops, time });
     try env.out.flush();
 }
 
-pub fn search(self: This, count: ?*usize, times: ?*usize, env: Stmt.RunEnv) ![][]u8 {
+pub fn search(self: This, count: ?*usize, times: ?*usize, env: Stmt.RunEnv) Stmt.RunError![][]u8 {
     core.profiling.begin(search);
     defer core.profiling.stop();
 
     const in = self.in orelse clse.In.default;
     const of = self.of;
+    const where = self.where;
 
     var guids = std.ArrayList(GUID).empty;
     defer guids.deinit(env.allocator);
@@ -97,7 +109,8 @@ pub fn search(self: This, count: ?*usize, times: ?*usize, env: Stmt.RunEnv) ![][
     var scanned: usize = 0;
 
     {
-        const starting_targets = try of.getGUID(env);
+        const filter: Stmt.clse.Of.Filter = if (self.where) |_| .components_only else if (self.mode == .refs) .any else .prefabs_and_components;
+        const starting_targets = try of.getGUID(filter, env);
         defer env.allocator.free(starting_targets);
 
         try guids.appendSlice(env.allocator, starting_targets);
@@ -107,7 +120,9 @@ pub fn search(self: This, count: ?*usize, times: ?*usize, env: Stmt.RunEnv) ![][
         var searchData = Search{
             .mode = self.mode,
             .dir = dir,
-            .guid = guids.items[searched..],
+            .condition = if (where) |w| w.expr else null,
+            .diag = env.diag,
+            .guids = guids.items[searched..],
             .references = &references,
         };
         searched = guids.items.len;
@@ -130,22 +145,6 @@ pub fn search(self: This, count: ?*usize, times: ?*usize, env: Stmt.RunEnv) ![][
     }
 
     return try references.toOwnedSlice();
-}
-
-/// Verify if a component or prefab instance of guid `guid` is being used within the file at `path`.
-///
-/// `cwd` is the directory relative to `path`.
-fn verifyUse(file: std.fs.File, guid: []const GUID, allocator: std.mem.Allocator) !bool {
-    core.profiling.begin(verifyUse);
-    defer core.profiling.stop();
-
-    var iterator = try ObjIterator.init(file, allocator);
-    defer iterator.deinit();
-
-    return while (try iterator.next()) |e| {
-        var yaml = Yaml.init(.{ .string = e.content }, null, allocator);
-        if (try matchScriptOrPrefabGUID(guid, &yaml)) break true;
-    } else false;
 }
 
 /// Check if the GUID of the document in `yaml` matches any of the GUIDs in `guids`.
@@ -184,9 +183,23 @@ fn sort(arr: [][]const u8) void {
     std.mem.sort([]const u8, arr, Context{}, Context.lessThanFn);
 }
 
+/// Trim the current working directory from the start of `path`, if possible and present.
+pub fn trimCwd(path: []const u8) []const u8 {
+    var buf: [std.fs.max_path_bytes]u8 = undefined;
+    const cwd = std.fs.cwd().realpath(".", &buf) catch return path;
+    if (std.mem.startsWith(u8, path, cwd)) {
+        const from = if (path.len > cwd.len and path[cwd.len] == std.fs.path.sep) cwd.len + 1 else cwd.len;
+        return path[from..];
+    } else {
+        return path;
+    }
+}
+
 const Search = struct {
     mode: SearchMode,
-    guid: []const GUID,
+    guids: []const GUID,
+    condition: ?*core.Expr,
+    diag: *core.RuntimeDiagnostics,
 
     dir: std.fs.Dir,
 
@@ -254,7 +267,7 @@ const Search = struct {
             }
 
             std.debug.assert(n == 32);
-            for (self.guid) |guid| {
+            for (self.guids) |guid| {
                 if (!guid.eql(&maybe_guid)) continue;
                 try self.addPath(path, file, allocator);
                 break :main;
@@ -285,7 +298,7 @@ const Search = struct {
 
         if (self.mode == .indirect_uses or self.mode == .direct_uses) {
             try file.seekTo(0);
-            if (!try verifyUse(file, self.guid, allocator)) {
+            if (!try self.verifyUse(file, abs_path, allocator)) {
                 return;
             }
         }
@@ -293,5 +306,62 @@ const Search = struct {
         self.refs_mtx.lock();
         defer self.refs_mtx.unlock();
         try self.references.push(abs_path);
+    }
+
+    /// Verify if a component or prefab instance of guid `guid` is being used within the file at `path`.
+    fn verifyUse(self: *Search, file: std.fs.File, fpath: []const u8, allocator: std.mem.Allocator) !bool {
+        core.profiling.begin(verifyUse);
+        defer core.profiling.stop();
+
+        var iterator = try ObjIterator.init(file, allocator);
+        defer iterator.deinit();
+
+        var assets: core.runtime.AssetMap = .init(allocator);
+        defer assets.deinit();
+        var objs: core.runtime.ObjMap = .init(allocator);
+        defer objs.deinit();
+
+        return while (try iterator.next()) |e| {
+            if (e.info.stripped or e.info.class_id != .MonoBehaviour and e.info.class_id != .PrefabInstance) continue;
+
+            var yaml = Yaml.init(.{ .string = e.content }, null, allocator);
+            switch (e.info.class_id) {
+                .MonoBehaviour => {
+                    if (try matchGUID(self.guids, &yaml) == null) continue;
+                    if (self.condition == null) break true;
+                    const guid = try assets.put(fpath);
+
+                    const ctx: core.Expr.Value.Asset = .{
+                        .file_id = e.info.file_id,
+                        .guid = guid,
+                        .type = 3, // TODO: determine type
+                    };
+
+                    const doc = try objs.new(guid, e.info.file_id, e.info.class_id);
+                    try yaml.loadDocument(doc);
+
+                    var vars: core.Expr.VarMap = try .default(allocator);
+                    defer vars.deinit();
+
+                    const value = try self.condition.?.evaluateAuto(.{
+                        .allocator = allocator,
+                        .root = undefined, // Will be set by evaluateAuto
+                        .diag = self.diag,
+                        .context = ctx,
+                        .assets = &assets,
+                        .objs = &objs,
+                        .vars = &vars,
+                        .readonly = true,
+                    });
+                    defer value.cleanup(allocator);
+                    if (value.isTruthy()) break true;
+                },
+                .PrefabInstance => {
+                    // Just checking prefab instance GUID usage is enough for now.
+                    if (try matchGUID(self.guids, &yaml) != null) break true;
+                },
+                else => unreachable,
+            }
+        } else false;
     }
 };

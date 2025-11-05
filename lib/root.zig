@@ -52,6 +52,11 @@ pub const ParseProblem = union(enum) {
         clause: []const u8,
         placement: Token,
     },
+    invalid_mode_for_clause: struct {
+        clause: []const u8,
+        mode: Stmt.Show.SearchMode,
+        location: Token.Location,
+    },
 
     // Expression related errors
     invalid_assignment_target: struct {
@@ -142,6 +147,17 @@ pub const RuntimeProblem = union(enum) {
     unassignable_value: struct {
         value_type: Expr.Value.Type,
         assigned_to: enum { variable, property, array },
+        location: Token.Location,
+    },
+    undefinable_target: struct {
+        target: enum { property, entry },
+        location: Token.Location,
+    },
+    update_during_readonly_eval: struct {
+        location: Token.Location,
+    },
+    invalid_target_asset: struct {
+        filter: Stmt.clse.Of.Filter,
         location: Token.Location,
     },
 

@@ -15,6 +15,7 @@ pub const Env = struct {
     assets: *core.runtime.AssetMap,
     objs: *core.runtime.ObjMap,
     vars: *Expr.VarMap,
+    readonly: bool,
 
     pub fn err(self: Env, p: core.RuntimeProblem) core.RuntimeDiagnostics.Error {
         return self.diag.push(p);
@@ -65,6 +66,13 @@ pub fn evaluate(expr: *Expr, env: Env) Error!Value.Derived {
             else => unreachable,
         },
         .call => |*c| try call(c, env),
+        .block => |b| {
+            var result: Value.Derived = expr.derived(.nil);
+            for (b.children) |child| {
+                result = try evaluate(child, env);
+            }
+            return result;
+        },
     });
 }
 
@@ -250,7 +258,15 @@ pub fn define(target: *Expr, init: *Expr, env: Env) Error!Value {
             };
             break :blk val;
         },
-        else => try assign(target, init, env),
+        else => return env.err(.{ .undefinable_target = .{
+            .target = switch (target.*) {
+                .property => .property,
+                .access => .property,
+                .indexing => .entry,
+                else => unreachable,
+            },
+            .location = .merge(&.{ target.loc(), init.loc() }),
+        } }),
     };
 }
 
@@ -258,6 +274,9 @@ pub fn assign(target: *Expr, value: *Expr, env: Env) Error!Value {
     const val = (try evaluate(value, env)).val;
     switch (target.*) {
         .access => |acc| {
+            if (env.readonly) return env.err(.{ .update_during_readonly_eval = .{
+                .location = .merge(&.{ target.loc(), value.loc() }),
+            } });
             const key = acc.property.value.literal;
             const objv = try evaluate(acc.base, env);
             try Value.validate(objv, &.{ .object, .asset }, env.diag);
@@ -272,6 +291,9 @@ pub fn assign(target: *Expr, value: *Expr, env: Env) Error!Value {
             };
         },
         .property => |prop| {
+            if (env.readonly) return env.err(.{ .update_during_readonly_eval = .{
+                .location = .merge(&.{ target.loc(), value.loc() }),
+            } });
             const key = prop.name.value.literal;
             const obj = env.context.obj(env) catch unreachable;
             obj.set(key, val) catch |err| switch (err) {
@@ -298,6 +320,9 @@ pub fn assign(target: *Expr, value: *Expr, env: Env) Error!Value {
             };
         },
         .indexing => |ind| {
+            if (env.readonly) return env.err(.{ .update_during_readonly_eval = .{
+                .location = .merge(&.{ target.loc(), value.loc() }),
+            } });
             const arr = try evaluate(ind.base, env);
             try Value.validate(arr, &.{.array}, env.diag);
             const idx_val = try evaluate(ind.index, env);

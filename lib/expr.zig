@@ -71,6 +71,12 @@ pub const Expr = union(enum) {
         paren: core.Token,
     };
 
+    pub const Block = struct {
+        lbrace: core.Token,
+        rbrace: core.Token,
+        children: []const *core.Expr,
+    };
+
     unary: Unary,
     literal: Literal,
     binary: Binary,
@@ -82,6 +88,7 @@ pub const Expr = union(enum) {
     variable: Variable,
     assignment: Assignment,
     call: Call,
+    block: Block,
 
     /// Parses an expression from the given token iterator.
     pub const parse = ast.parse;
@@ -106,6 +113,7 @@ pub const Expr = union(enum) {
             .assets = env.assets,
             .objs = env.objs,
             .vars = env.vars,
+            .readonly = env.readonly,
         };
 
         const result = try eval.evaluate(self, new_env);
@@ -133,6 +141,7 @@ pub const Expr = union(enum) {
             .variable => |v| v.name.loc,
             .assignment => |as| .merge(&.{ as.target.loc(), as.value.loc() }),
             .call => |c| .merge(&.{ c.callee.loc(), c.paren.loc }),
+            .block => |b| .merge(&.{ b.lbrace.loc, b.rbrace.loc }),
         };
     }
 
@@ -220,30 +229,46 @@ pub const Expr = union(enum) {
                 duped.call.args = duped_args;
                 return duped;
             },
+            .block => |b| {
+                const duped = try allocator.create(Expr);
+                duped.* = self;
+                duped.block.lbrace = try duped.block.lbrace.dupe(allocator);
+                duped.block.rbrace = try duped.block.rbrace.dupe(allocator);
+                const duped_children = try allocator.alloc(*Expr, b.children.len);
+                for (b.children, 0..) |child, i| {
+                    duped_children[i] = try child.dupe(allocator);
+                }
+                duped.block.children = duped_children;
+                return duped;
+            },
         }
     }
 
     pub fn format(self: Expr, writer: *std.Io.Writer) std.Io.Writer.Error!void {
         switch (self) {
             .literal => |l| try writer.print("{f}", .{std.fmt.alt(l.token.value, .raw)}),
-            .unary => |u| try writer.print("({f} {f})", .{ std.fmt.alt(u.op.value, .raw), u.operand }),
-            .binary => |b| try writer.print("({f} {f} {f})", .{ std.fmt.alt(b.op.value, .raw), b.left, b.right }),
-            .ternary => |t| try writer.print("(?: {f} {f} {f})", .{ t.left, t.middle, t.right }),
-            .grouping => |g| try writer.print("(group {f})", .{g.expr}),
-            .access => |a| try writer.print("(. {f} {f})", .{ a.base, std.fmt.alt(a.property.value, .raw) }),
-            .indexing => |i| try writer.print("(index {f} {f})", .{ i.base, i.index }),
+            .unary => |u| try writer.print("{f}({f})", .{ std.fmt.alt(u.op.value, .raw), u.operand }),
+            .binary => |b| try writer.print("{f}({f} {f})", .{ std.fmt.alt(b.op.value, .raw), b.left, b.right }),
+            .ternary => |t| try writer.print("?:({f} {f} {f})", .{ t.left, t.middle, t.right }),
+            .grouping => |g| try writer.print("group({f})", .{g.expr}),
+            .access => |a| try writer.print("access({f} {f})", .{ a.base, std.fmt.alt(a.property.value, .raw) }),
+            .indexing => |i| try writer.print("index({f} {f})", .{ i.base, i.index }),
             .property => |p| try writer.print("{f}", .{std.fmt.alt(p.name.value, .raw)}),
             .variable => |v| try writer.print("{f}", .{std.fmt.alt(v.name.value, .raw)}),
-            .assignment => |as| try writer.print("({f} {f} {f})", .{ std.fmt.alt(as.op.value, .raw), as.target, as.value }),
+            .assignment => |as| try writer.print("{f}({f} {f})", .{ std.fmt.alt(as.op.value, .raw), as.target, as.value }),
             .call => |c| {
-                try writer.print("(call {f} (", .{c.callee});
-                var first = true;
+                try writer.print("call({f}", .{c.callee});
                 for (c.args) |arg| {
-                    if (!first) try writer.print(", ", .{});
-                    try writer.print("{f}", .{arg});
-                    first = false;
+                    try writer.print(" {f}", .{arg});
                 }
-                try writer.print("))", .{});
+                try writer.writeByte(')');
+            },
+            .block => |b| {
+                try writer.writeAll("{ ");
+                for (b.children) |child| {
+                    try writer.print("{f} ", .{child});
+                }
+                try writer.writeByte('}');
             },
         }
     }
@@ -292,6 +317,14 @@ pub const Expr = union(enum) {
                 }
                 allocator.free(c.args);
                 c.paren.cleanup(allocator);
+            },
+            .block => |b| {
+                for (b.children) |child| {
+                    child.cleanup(allocator);
+                }
+                allocator.free(b.children);
+                b.lbrace.cleanup(allocator);
+                b.rbrace.cleanup(allocator);
             },
         }
         self.* = undefined;

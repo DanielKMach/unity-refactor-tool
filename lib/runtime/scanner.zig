@@ -12,9 +12,6 @@ pub fn Scanner(T: type) type {
         allocator: std.heap.ThreadSafeAllocator,
         dir: std.fs.Dir,
 
-        walker: ?std.fs.Dir.Walker = null,
-        walker_mtx: std.Thread.Mutex = .{},
-
         pub fn init(dir: std.fs.Dir, allocator: std.mem.Allocator) This {
             return This{
                 .dir = dir,
@@ -24,10 +21,13 @@ pub fn Scanner(T: type) type {
             };
         }
 
-        pub fn scan(self: *This, data: *T) !void {
+        pub fn scan(self: *This, data: *T) anyerror!void {
             const allocator = self.allocator.allocator();
             var walker = try self.dir.walk(allocator);
             defer walker.deinit();
+            var walker_mtx: std.Thread.Mutex = .{};
+            var has_error: ?anyerror = null;
+            var error_mtx: std.Thread.Mutex = .{};
 
             // var pool: std.Thread.Pool = undefined;
             // var wg: std.Thread.WaitGroup = .{};
@@ -45,17 +45,28 @@ pub fn Scanner(T: type) type {
                 t.* = try std.Thread.spawn(
                     .{ .allocator = allocator },
                     loop,
-                    .{ data, &walker, &self.walker_mtx, allocator },
+                    .{ data, &walker, &walker_mtx, &has_error, &error_mtx, allocator },
                 );
             }
 
             for (threads) |thread| {
                 thread.join();
             }
+
+            if (has_error != null) {
+                return has_error.?;
+            }
         }
 
-        fn loop(data: *T, walker: *std.fs.Dir.Walker, w_mtx: *std.Thread.Mutex, allocator: std.mem.Allocator) void {
-            while (true) {
+        fn loop(
+            data: *T,
+            walker: *std.fs.Dir.Walker,
+            w_mtx: *std.Thread.Mutex,
+            has_error: *?anyerror,
+            e_mtx: *std.Thread.Mutex,
+            allocator: std.mem.Allocator,
+        ) anyerror!void {
+            while (has_error.* == null) {
                 var file: ?std.fs.File = null;
                 defer if (file) |f| f.close();
                 var path: ?[:0]const u8 = null;
@@ -65,13 +76,18 @@ pub fn Scanner(T: type) type {
                     w_mtx.lock();
                     defer w_mtx.unlock();
 
-                    const entry = walker.next() catch unreachable orelse break;
+                    const entry = try walker.next() orelse break;
                     file = filterFn(data, entry, allocator);
-                    path = allocator.dupeZ(u8, entry.path) catch unreachable;
+                    path = try allocator.dupeZ(u8, entry.path);
                 }
 
                 if (file != null and path != null) {
-                    fragFn(data, path.?, file.?, allocator) catch unreachable;
+                    fragFn(data, path.?, file.?, allocator) catch |e| {
+                        e_mtx.lock();
+                        defer e_mtx.unlock();
+                        if (has_error.* == null) has_error.* = e;
+                        break;
+                    };
                 }
             }
         }
