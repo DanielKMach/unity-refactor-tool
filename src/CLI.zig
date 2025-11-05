@@ -399,7 +399,6 @@ pub fn printRuntimeProblem(runtime_error: usrl.RuntimeProblem, source: usrl.Sour
 
 pub fn printLineHighlight(loc: usrl.Token.Location, source: usrl.Source, out: *std.fs.File.Writer) !void {
     const line_index = source.lineIndex(loc.index) orelse return error.InvalidLocation;
-    if (line_index != source.lineIndex(loc.index + @max(loc.len, 1) - 1)) return error.InvalidLocation;
     const line = source.line(line_index) orelse return error.InvalidLocation;
 
     var ansi = ANSI.init(out);
@@ -410,7 +409,7 @@ pub fn printLineHighlight(loc: usrl.Token.Location, source: usrl.Source, out: *s
 
     const index = loc.index - (source.lineStart(line_index) orelse unreachable);
     const start = offset(index, line);
-    const len = offset(index + @max(loc.len, 1) - 1, line) + 1 - start;
+    const len = offset(@min(index + @max(loc.len, 1) - 1, line.len - 1), line) + 1 - start;
 
     ansi.begin("g");
     defer ansi.end("g");
