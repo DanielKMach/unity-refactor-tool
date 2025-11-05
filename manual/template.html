@@ -5,26 +5,31 @@
     <style>
         body {
             color-scheme: light;
-            display: flex;
-            flex-flow: column nowrap;
+            display: grid;
+            grid-template-areas:
+                "header"
+                "nav"
+                "article";
             margin: 0;
             font-family: system-ui, -apple-system, Arial, sans-serif;
             font-size: 16px;
+            line-height: 22px;
+            padding: 20px;
+            max-width: 100%;
+        }
+
+        header {
+            grid-area: header;
         }
 
         article {
             box-sizing: border-box;
-            padding: 20px;
+            grid-area: article;
         }
 
         nav {
             box-sizing: border-box;
-            padding: 20px;
-        }
-
-        nav h2 {
-            margin-top: 0;
-            text-align: center;
+            grid-area: nav;
         }
 
         nav ul,
@@ -33,27 +38,37 @@
         }
 
         nav li {
+            text-align: left;
             margin-top: 5px;
         }
 
         @media screen and (width >=1000px) {
             body {
-                flex-flow: row nowrap;
+                grid-template-areas:
+                    "nav header"
+                    "nav article";
+                padding: 0;
             }
 
             nav {
-                top: 0;
                 position: sticky;
+                top: 0;
                 max-height: 100vh;
                 overflow-y: auto;
                 width: 350px;
                 min-width: 350px;
                 background-color: #8881;
+                padding: 20px;
+            }
+
+            nav h2 {
+                margin-top: 0;
             }
 
             article {
                 width: min(800px, 100%);
-                margin: auto;
+                justify-self: center;
+                padding: 20px;
             }
         }
 
@@ -91,6 +106,11 @@
             text-align: justify;
         }
 
+        li {
+            text-align: justify;
+            margin-top: 10px;
+        }
+
         h1 {
             text-align: center;
             break-before: always;
@@ -101,12 +121,14 @@
             border-bottom: solid 1px #8883;
             padding-bottom: 3px;
             margin-top: 2cm;
-            counter-increment: h2;
-            counter-reset: h3;
         }
 
         h3 {
-            counter-increment: h3;
+            margin-top: 1cm;
+        }
+
+        h4 {
+            margin-top: 0.5cm;
         }
 
         table {
@@ -152,6 +174,10 @@
 </head>
 
 <body>
+    <header>
+        <h1>USRL</h1>
+        <center>Unity Structured Refactoring Language</center>
+    </header>
     <nav>
         <h2>SUMÁRIO</h2>
         {{TOC}}
@@ -159,7 +185,6 @@
     <article>
         {{CONTENT}}
     </article>
-
 </body>
 
 </html>
