@@ -134,6 +134,7 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
             return false;
         }
     }
+    if (i == 0) try printHelp(&self.out.interface);
     return true;
 }
 
