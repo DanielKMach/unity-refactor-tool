@@ -379,6 +379,15 @@ pub fn printRuntimeProblem(runtime_error: usrl.RuntimeProblem, source: usrl.Sour
             try ansi.print(e, "Cannot perform update during read-only evaluation.\r\n", .{});
             try printLineHighlight(err.location, source, fw);
         },
+        .invalid_target_asset => |err| {
+            const filter_str = switch (err.filter) {
+                .any => "any asset",
+                .prefabs_and_components => "prefab or component",
+                .components_only => "component",
+            };
+            try ansi.print(e, "Invalid target asset. Expected {s} type.\r\n", .{filter_str});
+            try printLineHighlight(err.location, source, fw);
+        },
         .unexpected => |err| {
             try ansi.print(e, "Unexpected {t}\r\n", .{err});
         },

@@ -18,7 +18,7 @@ pub const SearchMode = enum {
 };
 
 const uses_files = &.{ ".prefab", ".unity" };
-const refs_files = &.{ ".prefab", ".unity", ".asset", ".mat" };
+const refs_files = &.{ ".prefab", ".unity", ".asset", ".mat", ".controller", ".anim" };
 
 mode: SearchMode,
 of: clse.Of,
@@ -76,7 +76,7 @@ pub fn run(self: This, env: Stmt.RunEnv) Stmt.RunError!void {
 
     sort(@ptrCast(results));
     for (results) |path| try env.out.print("{s}\r\n", .{trimCwd(path)});
-    try env.out.print("Scanned {d} files {d} times in {d} milliseconds \r\n", .{ fileCount, loops, time });
+    log.info("Scanned {d} files {d} times in {d} milliseconds \r\n", .{ fileCount, loops, time });
     try env.out.flush();
 }
 
@@ -102,7 +102,8 @@ pub fn search(self: This, count: ?*usize, times: ?*usize, env: Stmt.RunEnv) Stmt
     var scanned: usize = 0;
 
     {
-        const starting_targets = try of.getGUID(env);
+        const filter: Stmt.clse.Of.Filter = if (self.where) |_| .components_only else if (self.mode == .refs) .any else .prefabs_and_components;
+        const starting_targets = try of.getGUID(filter, env);
         defer env.allocator.free(starting_targets);
 
         try guids.appendSlice(env.allocator, starting_targets);

@@ -151,6 +151,10 @@ pub const RuntimeProblem = union(enum) {
     update_during_readonly_eval: struct {
         location: Token.Location,
     },
+    invalid_target_asset: struct {
+        filter: Stmt.clse.Of.Filter,
+        location: Token.Location,
+    },
 
     unexpected: anyerror,
 };

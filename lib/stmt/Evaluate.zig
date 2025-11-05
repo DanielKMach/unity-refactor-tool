@@ -66,7 +66,7 @@ pub fn run(self: This, env: core.Stmt.RunEnv) core.Stmt.RunError!void {
     core.profiling.begin(run);
     defer core.profiling.stop();
 
-    const guid = try self.of.getGUID(env);
+    const guid = try self.of.getGUID(.components_only, env);
     defer env.allocator.free(guid);
 
     const show = Stmt.Show{

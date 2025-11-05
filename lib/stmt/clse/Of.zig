@@ -66,7 +66,7 @@ pub fn cleanup(self: This, allocator: std.mem.Allocator) void {
     allocator.free(self.targets);
 }
 
-pub fn getGUID(self: This, env: Stmt.RunEnv) Stmt.RunError![]GUID {
+pub fn getGUID(self: This, filter: Filter, env: Stmt.RunEnv) Stmt.RunError![]GUID {
     core.profiling.begin(getGUID);
     defer core.profiling.stop();
 
@@ -82,6 +82,8 @@ pub fn getGUID(self: This, env: Stmt.RunEnv) Stmt.RunError![]GUID {
                 };
                 defer env.allocator.free(path);
 
+                std.debug.assert(validatePath(path, filter));
+
                 break :blk GUID.fromFile(path, env.allocator) catch |err| switch (err) {
                     error.InvalidMetaFile, error.FileNotFound => {
                         return env.err(.{ .invalid_asset = .{ .path = name.loc } });
@@ -90,14 +92,24 @@ pub fn getGUID(self: This, env: Stmt.RunEnv) Stmt.RunError![]GUID {
                 };
             },
             .path => |path| blk: {
-                const abs_path = try env.cwd.realpathAlloc(env.allocator, path.value.string);
+                const abs_path = env.cwd.realpathAlloc(env.allocator, path.value.string) catch |e| switch (e) {
+                    error.FileNotFound => {
+                        return env.err(.{ .invalid_asset = .{ .path = path.loc } });
+                    },
+                    else => |err| return err,
+                };
                 defer env.allocator.free(abs_path);
 
-                break :blk GUID.fromFile(abs_path, env.allocator) catch |err| switch (err) {
+                if (!validatePath(abs_path, filter)) return env.err(.{ .invalid_target_asset = .{
+                    .filter = filter,
+                    .location = path.loc,
+                } });
+
+                break :blk GUID.fromFile(abs_path, env.allocator) catch |e| switch (e) {
                     error.InvalidMetaFile, error.FileNotFound => {
                         return env.err(.{ .invalid_asset = .{ .path = path.loc } });
                     },
-                    else => |e| return e,
+                    else => |err| return err,
                 };
             },
         });
@@ -135,8 +147,23 @@ fn searchComponent(name: []const u8, dir: std.fs.Dir, allocator: std.mem.Allocat
     return null;
 }
 
+fn validatePath(path: []const u8, filter: Filter) bool {
+    const ends = std.mem.endsWith;
+    return switch (filter) {
+        .prefabs_and_components => ends(u8, path, ".prefab.meta") or ends(u8, path, ".prefab") or ends(u8, path, ".cs.meta") or ends(u8, path, ".cs"),
+        .components_only => ends(u8, path, ".cs.meta") or ends(u8, path, ".cs"),
+        .any => true,
+    };
+}
+
 const AssetTarget = union(enum) {
     path: core.Token,
     name: core.Token,
     guid: core.Token,
+};
+
+pub const Filter = enum {
+    any,
+    prefabs_and_components,
+    components_only,
 };
