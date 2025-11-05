@@ -76,7 +76,7 @@ pub fn run(self: This, env: Stmt.RunEnv) Stmt.RunError!void {
 
     sort(@ptrCast(results));
     for (results) |path| try env.out.print("{s}\r\n", .{trimCwd(path)});
-    log.info("Scanned {d} files {d} times in {d} milliseconds \r\n", .{ fileCount, loops, time });
+    log.info("Scanned {d} files {d} times in {d} milliseconds", .{ fileCount, loops, time });
     try env.out.flush();
 }
 
