@@ -19,7 +19,7 @@ test "component iteration" {
         const entry = try iterator.next();
         try testing.expect(entry != null);
         try testing.expectEqual(comp.file_id, entry.?.info.file_id);
-        try testing.expectEqual(comp.class_id, entry.?.info.class_id);
+        try testing.expectEqual(@as(usrl.runtime.ClassID, @enumFromInt(comp.class_id)), entry.?.info.class_id);
         try testing.expectEqualStrings(comp.content, entry.?.content);
     }
     try testing.expectEqual(null, try iterator.next());
