@@ -77,29 +77,36 @@ fn freeLast(self: *This) void {
 fn findNextComponent(freader: *std.fs.File.Reader) !Info {
     var reader = &freader.interface;
     var line: []u8 = &.{};
-    var peek: []u8 = try reader.peekDelimiterInclusive('\n');
 
-    while (peek[0] == '%' or std.mem.startsWith(u8, peek, "--- ")) {
+    while (true) { // search for next obj instance header
+        var peek: std.Io.Reader.DelimiterError![]u8 = reader.peekDelimiterInclusive('\n');
+        while (peek == error.StreamTooLong) { // skip long lines
+            _ = try reader.discardDelimiterInclusive('\n');
+            peek = reader.peekDelimiterInclusive('\n');
+        }
+        const p = peek catch |e| return e;
+        if (p[0] != '%' and !std.mem.startsWith(u8, p, "--- ")) break;
         line = try reader.takeDelimiterInclusive('\n');
-        peek = try reader.peekDelimiterInclusive('\n');
     }
 
     const header = try parseHeader(line);
-
     const index = freader.logicalPos();
-    line = try reader.takeDelimiterInclusive('\n');
-
-    while (!std.mem.startsWith(u8, line, "--- ")) {
+    while (true) { // read until next obj instance header
         line = reader.takeDelimiterInclusive('\n') catch |err| switch (err) {
-            error.EndOfStream => return .{
+            error.EndOfStream => return .{ // return rest if doesnt find next obj instance header
                 .pos = index,
                 .len = freader.logicalPos() - index,
                 .class_id = @enumFromInt(header[0]),
                 .file_id = header[1],
                 .stripped = header[2],
             },
+            error.StreamTooLong => { // skip long lines
+                _ = try reader.discardDelimiterInclusive('\n');
+                continue;
+            },
             else => return err,
         };
+        if (std.mem.startsWith(u8, line, "--- ")) break; // break if header
     }
 
     return .{
