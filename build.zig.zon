@@ -1,7 +1,7 @@
 .{
     .name = .usrl,
     .fingerprint = 0x721f6fbc8c086a5a,
-    .version = "0.0.0",
+    .version = "1.0.0",
     .dependencies = .{
         .libyaml = .{
             .url = "git+https://github.com/DanielKMach/libyaml?ref=zig-build#ae56291dff4b6c6711363397679f300db76dcce7",
@@ -12,6 +12,9 @@
         "build.zig",
         "build.zig.zon",
         "src",
+        "lib",
+        "tests",
+        "MANUAL.md",
         // For example...
         //"LICENSE",
         //"README.md",
