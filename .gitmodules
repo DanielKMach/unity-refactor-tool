@@ -1,3 +1,0 @@
-[submodule "libyaml"]
-	path = vendor/libyaml/lib
-	url = https://github.com/yaml/libyaml
