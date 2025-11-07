@@ -2,7 +2,7 @@
 
 A Unity Structured Refactoring Language (USRL) é uma linguagem de consulta capaz de localizar e manipular instâncias de assets encontradas em projetos Unity, de forma fácil, rápida e segura.
 
-Visto que a Unity não oferece ferramentas de refatoração para seus usuários, a USRL foi desenvolvida com o objetivo de auxiliar desenvolvedores a refatorar e aplicar manutenção em seus projetos.
+Ela surgiu para suprir a falta de ferramentas de refatoração nativas e foi desenvolvida com o objetivo de auxiliar desenvolvedores a refatorar e aplicar manutenção em seus projetos.
 
 ```usrl
 SHOW REFS OF "Assets/Sprites/Player.png";
@@ -22,7 +22,7 @@ EVAL velocidade *= 2 OF PlayerController;
 
 ## Interface de Linha de Comando
 
-A interface de linha de comando (CLI) é o sistema que permite a execução de código USRL. Ela é a janela entre o usuário e o sistema de interpretação e execução da linguagem.
+A interface de linha de comando (CLI) da USRL é o principal meio de interação com a linguagem. Ela permite executar consultas USRL, acessar o manual da linguagem e tem a capacidade de exibir de mensagens de aviso em caso de erro. Para obtê-la, basta baixar o executável na [página de lançamentos do repositório da USRL](https://github.com/DanielKMach/USRL/releases). A CLI está disponível para os sistemas operacionais windows, linux e macOS.
 
 Ao executar a CLI sem argumentos, é possível ver um overview de todas as funcionalidades disponíveis no executável.
 
@@ -52,7 +52,7 @@ Examples:
 
 ### Realizando consultas
 
-Para realizar uma consulta, basta executar a CLI onde cada argumento é uma consulta a ser realizada.
+Para realizar uma consulta, basta executar a CLI onde cada argumento é uma consulta a ser executada.
 
 ```bash
 $ usrl "SHOW USES OF Player"
@@ -85,7 +85,7 @@ A CLI tem um modo REPL (Read, Eval, Print, Loop) chamado de *modo interativo.* P
 
 Neste modo cada consulta inserida é executada imediatamente. Ao terminar o processamento de uma consulta, outra poderá ser inserida, de forma contínua sem interrupções.
 
-Uma transação é realizada a cada consulta inserida, portanto, se ocorrer algum erro durante sua execução, todas as modificações realizadas serão desfeitas e uma mensagem de erro aparecerá no terminal. Após isso, outras consultas poderão ser inseridas normalmente.
+Uma transação é realizada a cada consulta inserida, portanto, se ocorrer algum erro durante sua execução, todas as modificações aplicadas serão desfeitas e uma mensagem de erro aparecerá no terminal. Após isso, outras consultas poderão ser inseridas normalmente.
 
 ```bash
 $ usrl i
@@ -104,11 +104,13 @@ A CLI vem com o manual da linguagem inserido dentro de seu executável. Para ace
 
 ## Statements
 
-Na USRL, consultas são executadas através de Statements, que funcionam como comandos, cada um com uma funcionalidade e objetivo diferente. Cada statement tem sua própria palavra-chave gatilho que compõem seu nome.
+Consultas na USRL são realizadas através de statements, que representam comandos executáveis responsáveis por buscar, avaliar ou modificar informações dentro dos arquivos de um projeto Unity. Cada statement possui uma função específica dentro da USRL, alguns têm função apenas informativa, enquanto outros aplicam alterações persistentes aos arquivos do projeto.
+
+Esses comandos são identificados por uma palavra-chave própria e funcionam de maneira declarativa, permitindo que o desenvolvedor especifique o quê deve ser feito (como mostrar referências, renomear um campo ou avaliar uma expressão) e quais arquivos serão afetados pela operação, utilizando cláusulas para delimitar o escopo da ação.
 
 ### Statement `SHOW`
 
-O statement `SHOW` é utilizado para encontrar referências de assets através do projeto. Este statement aceita qualquer tipo de asset, desde assets visuais como imagens e meshes até componentes e scriptable objects complexos.
+O statement `SHOW` é utilizado para encontrar referências de assets através do projeto. Este statement aceita qualquer tipo de asset, desde assets visuais como imagens e meshes até componentes e ScriptableObject complexos.
 
 O statement `SHOW` há dois modos de busca distintos: busca por uso e por referência. O modo de busca por referência busca por qualquer menção do asset especificado através dos arquivos do projeto, incluindo referências por campos ou utilização.
 
@@ -187,9 +189,9 @@ EVAL velocidade OF EntityController, PlayerController, EnemyController
 
 ### Cláusula `OF`
 
-Cláusulas na USRL são componentes sintáticos que permitem especificar parâmetros adicionais e refinar o escopo das operações realizadas pelos statements. Elas funcionam como modificadores que definem *onde* e *quais* assets serão afetados por uma determinada operação.
+Cláusulas na USRL são componentes sintáticos que permitem especificar parâmetros adicionais e refinar o escopo das operações realizadas pelos statements. Elas funcionam como modificadores que definem onde e quais assets serão afetados por uma determinada operação.
 
-Com a cláusula `OF`, é possível especificar um ou mais assets como alvo da operação. Esta cláusula pode ser utilizada com qualquer *asset* do projeto, como imagens, clipes de áudio, componentes, prefabs, etc. Esta cláusula necessita do caminho ao *asset* relativo ao diretório de trabalho atual. Se o *asset* alvo for um componente, não há necessidade de especificar o caminho, apenas o nome do componente como um literal é suficiente.
+Com a cláusula `OF`, é possível especificar um ou mais assets como alvo da operação. Esta cláusula pode ser utilizada com qualquer asset do projeto, como imagens, clipes de áudio, componentes, prefabs, etc. Esta cláusula necessita do caminho ao asset relativo ao diretório de trabalho atual. Se o asset alvo for um componente, não há necessidade de especificar o caminho, apenas o nome do componente como um literal é suficiente.
 
 ```usrl
 OF "Imagens/Logo.png"
@@ -245,11 +247,11 @@ WHERE vida < 100
 WHERE velocidade == vida
 ```
 
-Esta cláusula não é aceita pelo statement `RENAME`.
+Esta cláusula não é aceita pelo statement `RENAME` pois é uma operação que deve ser aplicada a todos os arquivos igualmente.
 
 ## Expressões
 
-O sistema de expressões é a parte da USRL que possibilita a computação de valores numéricos, textuais ou aninhados com base em propriedades e variáveis dadas pelo contexto da operação. A inclusão deste sistema à USRL tem o objetivo de potencializar as operações existentes de forma a facilitar a refatoração dos seus projetos.
+O sistema de expressões da USRL permite cálculos e operações lógicas dentro das consultas com base em propriedades e variáveis dadas pelo contexto da operação. Ele amplia as capacidades da linguagem, possibilitando manipulações diretas de valores numéricos, textuais e de propriedades de componentes.
 
 ```usrl
 1 + 2 + 3 == 6;
@@ -260,13 +262,13 @@ $min(1, 2) < 2;
 $pi := 3.1415;
 ```
 
-Os dois elementos principais para a formação de uma expressão são valores e operadores. Cada operação em uma expressão é realizada por um operador e os operandos e o resultado de uma operação são chamados de valores. Como cada operador aceita e resulta em um valor, é possível “acorrentar" operadores para realizar tarefas complexas.
+Expressões se baseiam em dois elementos principais: valores e operadores. Cada operação em uma expressão é realizada por um operador. Os operandos e o resultado de uma operação são chamados de valores. Como cada operador aceita e resulta em valores, é possível “aninhar" operadores para realizar tarefas complexas. Cada tipo de valor tem suas próprias características e operadores compatíveis.
 
 Expressões somente podem ser utilizadas quando permitidas pelo statement, assim como o contexto entregue. Atualmente somente o statement `EVAL` e a cláusula `WHERE` aceitam expressões em suas operações.
 
 ### Valores numéricos
 
-Valores numéricos são os valores mais básicos do sistema de expressões. Este valores representam números reais de alcance infinito e são utilizados para realizar operações matemáticas complexas.
+Valores numéricos são os valores mais básicos do sistema de expressões. Este valores representam números reais de alcance infinito e podem participar de operações matemáticas complexas.
 
 ```usrl
 1, 6.5, 3.14, 24, 0.333
@@ -276,7 +278,7 @@ Estes valores são internamente representados pelo padrão IEEE 754 de 32 bits.
 
 ### Operadores aritméticos
 
-Os operadores aritméticos são responsáveis por realizar operações aritméticas, como adição, subtração, multiplicação e divisão, representados pelos caracteres `+`, `-`, `*` e `/`, respectivamente. Estes operadores utilizam e resultam em valores numéricos.
+Os operadores aritméticos são responsáveis por realizar operações aritméticas, como adição, subtração, multiplicação e divisão, representados pelos caracteres `+`, `-`, `*` e `/`, respectivamente. Estes operadores são binários, portanto aceitam dois operandos e resultam em um único valor numérico.
 
 ```usrl
 1 + 2, # = 3
@@ -292,61 +294,21 @@ O operador de negação `-` é utilizado para inverter o sinal de um valor numé
 -(10 + 3), # = -13
 ```
 
-### Valores textuais
+### Booleanos
 
-Valores textuais, também conhecidos como strings, representam cadeias de caracteres delimitadas por aspas simples ou duplas.
+Apesar da linguagem de serialização utilizada pelo assets suportar valores booleanos, a Unity escolheu por representá-los através de valores numéricos, de forma que o valor `1` significa verdadeiro e `0` representa falso. A USRL escolheu por seguir este padrão, portanto, não há valores booleanos na linguagem.
 
-```usrl
-"abc", 'abc', 'ola mundo!'
-```
+Ao invés disso, todos os valores são implicitamente considerados verdadeiros ou falsos dependendo do seu estado. Valores numéricos são interpretados como verdadeiro quando seu valor é diferente de `0`, enquanto strings são verdadeiras quando não estão vazias.
 
-### Concatenação
-
-Ao utilizar o sinal `+` entre valores de texto, não será realizada uma operação de adição, mas sim uma operação de concatenação, onde os dois valores são unidos em uma única string.
-
-```usrl
-'ola' + 'mundo', # = 'olamundo'
-1 + '2', # = '12'
-'6' + 9 # = '69'
-```
-
-### Objetos e Referências
-
-Objetos são estrutura contendo propriedades nomeadas. Permite acesso hierárquico via o operador de acesso e pode conter valores de qualquer tipo.
-
-Referências são valores que apontam para instâncias de outros assets. Um exemplo de valor referência é a propriedade `m_GameObject`, disponível em todos os componentes. Esta propriedade faz referência ao GameObject que o contexto está anexado. Valores referências podem ser acessados da mesma maneira que objetos, utilizando o operador de acesso.
-
-Diferentemente dos valores anteriores, não é possível criar um objeto ou referência a partir de uma expressão, visto que ambos vivem dentro do contexto, mas é possível utilizar a função `$addObj()` para adicionar um novo objeto vazio ao contexto atual.
-
-### Acesso
-
-O operador de acesso `.` é utilizado para acessar propriedades de objetos ou referências. Este operador permite navegar através de estruturas hierárquicas de dados.
-
-```usrl
-m_GameObject.m_Name, # obtem o nome do GameObject
-tamanho.x, # acessa a componente 'x' de 'tamanho'
-stats.vida # acessa a propriedade 'vida' de 'stats'
-```
-
-A operação resultará em `NIL` se a propriedade acessada não existir.
-
-### **Listas**
-
-Representa uma coleção ordenada de valores, indexada numericamente a partir de 0. Pode ser manipulada com funções como `$push`, `$pop`, `$len`, `$idx`. Assim como objetos e referências, este tipo não pode ser criado, mas pode-se utilizar a função `$addList()` para adicionar uma nova lista vazia ao contexto atual.
-
-### Indexação
-
-O operador de indexação `[ ]` é utilizado para acessar um elemento específico de uma lista ou string através de seu índice numérico. Os índices começam em `0`, onde está o primeiro elemento, o segundo elemento está no índice `1`, o terceiro no índice `2`, e assim por diante.
-
-```usrl
-cores[0], # acessa o primeiro elemento da lista cores
-posicoes[2], # acessa o terceiro elemento da lista posicoes
-vertices[$i] # acessa o elemento no índice especificado pela variável
-```
-
-### Nulo (`NIL`)
-
-Representa a ausência de valor. Pode-se criar uma instância utilizando a palavra-chave `NIL`.
+| Valor | Verdadeiro quando |
+| --- | --- |
+| Valores numéricos | Diferente de 0 |
+| Valores textuais | Comprimento maior que 0 |
+| Listas | Sempre |
+| Objetos | Sempre |
+| Referências | `fileID` diferente de 0 |
+| Funções | Sempre |
+| Nulo | Nunca |
 
 ### Operadores relacionais
 
@@ -370,6 +332,24 @@ Para comparar a igualdade entre dois valores utiliza-se os operadores de igualda
 '2' != 2
 ```
 
+### Valores textuais
+
+Valores textuais, também conhecidos como strings, representam cadeias de caracteres de tamanho variável. Sintaticamente são delimitados por aspas simples ou duplas.
+
+```usrl
+"abc", 'abc', 'ola mundo!'
+```
+
+### Concatenação
+
+Ao utilizar o sinal `+` entre valores de texto, não será realizada uma operação de adição, mas sim uma operação de concatenação, onde os dois valores são unidos em uma única string.
+
+```usrl
+'ola' + 'mundo', # = 'olamundo'
+1 + '2', # = '12'
+'6' + 9 # = '69'
+```
+
 ### Operadores lógicos
 
 Os operadores lógicos `AND` e `OR` são utilizados para combinar múltiplas condições. O operador `AND` retorna `1` se ambas as condições forem verdadeiras, enquanto `OR` retorna `1` se pelo menos uma das condições for verdadeira.
@@ -389,6 +369,44 @@ Já o operador de negação lógica `!` é utilizado para inverter o valor lógi
 !vida # verdadeiro (1) se vida for igual a 0, caso contrário falso (0)
 ```
 
+### Objetos e Referências
+
+Objetos são estrutura contendo propriedades nomeadas. Permite acesso hierárquico via o operador de acesso e pode conter valores de qualquer tipo.
+
+Referências são valores que apontam para instâncias de outros assets. Um exemplo de valor referência é a propriedade `m_GameObject`, disponível em todos os componentes e faz referência ao GameObject que está anexado. Estes valores podem ser acessados da mesma forma que objetos, possibilitando o acesso às propriedades daquela instância que o valor faz referência.
+
+Diferentemente dos valores anteriores, não é possível criar um objeto ou referência a partir de uma expressão, visto que ambos vivem dentro do contexto, mas é possível utilizar a função `$addObj()` para adicionar um novo objeto vazio ao contexto atual.
+
+### Acesso
+
+O operador de acesso `.` é utilizado para acessar propriedades de objetos ou referências. Este operador permite navegar através de estruturas hierárquicas de dados.
+
+```usrl
+m_GameObject.m_Name, # obtem o nome do GameObject
+tamanho.x, # acessa a componente 'x' de 'tamanho'
+stats.vida # acessa a propriedade 'vida' de 'stats'
+```
+
+A operação resultará em `NIL` se a propriedade acessada não existir.
+
+### Listas
+
+Representa uma coleção ordenada de valores, indexada numericamente a partir de 0. Assim como objetos e referências, este tipo não pode ser criado, mas pode-se utilizar a função `$addList()` para adicionar uma nova lista vazia ao contexto atual.
+
+### Indexação
+
+O operador de indexação `[ ]` é utilizado para acessar um elemento específico de uma lista ou string através de seu índice numérico. Índices começam em `0`, onde está o primeiro elemento, o segundo elemento está no índice `1`, o terceiro no índice `2`, e assim por diante.
+
+```usrl
+cores[0], # acessa o primeiro elemento da lista cores
+posicoes[2], # acessa o terceiro elemento da lista posicoes
+vertices[$i] # acessa o elemento no índice especificado pela variável
+```
+
+### Nulo (`NIL`)
+
+Representa a ausência de valor e pode ser referenciado através da palavra-chave `NIL`.
+
 ### Operadores condicionais
 
 O operador condicional `? :` permite realizar uma operação condicional, retornando um valor se a condição for verdadeira e outro valor se for falsa.
@@ -398,7 +416,7 @@ vida > 0 ? 'vivo' : 'morto',
 velocidade > 10 ? velocidade : 10
 ```
 
-O operador de null coalescing `??` é utilizado para fornecer um valor padrão quando uma expressão resulta em `NIL`. Este operador avalia o operando à esquerda e, se o resultado for `NIL`, retorna o valor do operando à direita. Caso contrário, retorna o valor do operando à esquerda.
+O operador de null coalescing `??` é utilizado para fornecer um valor padrão quando uma expressão resulta em `NIL`. Este operador avalia o operando à esquerda e retorna o seu valor se for diferente de `NIL`, caso contrário, retorna o valor do operando à direita.
 
 ```usrl
 vida ?? 100, # retorna 100 se vida for NIL, caso contrário retorna o valor de vida
@@ -410,9 +428,9 @@ velocidade ?? 0 # retorna 0 se velocidade for NIL
 
 Na USRL, existem dois tipos principais de identificadores que podem ser utilizados em expressões: variáveis e propriedades. Embora ambos possam armazenar valores, eles possuem diferenças fundamentais em sua natureza e ciclo de vida.
 
-Propriedades são campos dos componentes que estão sendo manipulados pela operação. Elas são fornecidas pelo objeto de contexto da operação e representam valores reais armazenados nos assets do projeto.
+Propriedades são campos dos componentes que estão sendo manipulados pela operação. Elas são fornecidas pelo objeto de contexto da operação e representam valores reais armazenados nos arquivos do projeto.
 
-Quando você atribui um valor a uma propriedade, essa alteração é persistida ao final da operação, modificando permanentemente o asset correspondente. Isso torna as propriedades o mecanismo principal para realizar modificações efetivas nos assets do projeto.
+Quando você atribui um valor a uma propriedade, essa alteração é persistida ao final da operação, modificando permanentemente o asset correspondente.
 
 ```usrl
 velocidade = 10;
@@ -420,7 +438,7 @@ vida *= 2;
 nome = 'Player'
 ```
 
-Variáveis são identificadores temporários prefixados com o caractere `$`. Elas existem apenas durante a execução da operação e são descartadas ao final. Variáveis devem ser utilizadas para armazenar valores temporários durante a execução da expressão.
+Variáveis são identificadores temporários prefixados com o caractere `$`. Elas existem apenas durante a execução da expressão e são descartadas ao final. Variáveis devem ser utilizadas para armazenar valores temporários durante a execução da expressão.
 
 Por padrão, algumas variáveis vêm com valores predefinidos, como funções incorporadas à linguagem. Tentar reatribuir uma variável predefinida resultará em um erro durante a execução da operação.
 
@@ -452,7 +470,7 @@ O operador de atribuição possibilita atribuir um valor a uma propriedade ou va
 $diametro = raio * 2;
 ```
 
-Este operador contém cinco variações. Quatro dessas combinam os operadores aritméticos de adição, subtração, multiplicação e divisão ao operador de atribuição, de modo que atualize a propriedade ou variável com base no resultado do cálculo aritmético do operador equivalente.
+Este operador contém quatro variações que combinam os operadores aritméticos de adição, subtração, multiplicação e divisão ao operador de atribuição, de modo que atualize a propriedade ou variável com base no resultado do cálculo aritmético do operador equivalente.
 
 ```usrl
 $i += 1; # equivalente a $i = $i + 1
@@ -461,10 +479,10 @@ vida -= 10; # equivalente a vida = vida - 10
 pulo /= 2; # equivalente a pulo = pulo / 2
 ```
 
-A última variação deste operador é encarregada de inicializar uma variável dado um valor padrão. Este operador sempre deve ser utilizado antes de utilizar ou atribuir a variável.
+O operador de inicialização é encarregado de inicializar uma variável dado um valor padrão. Este operador sempre deve ser utilizado antes de utilizar ou atribuir a variável.
 
 ```usrl
-$i := NIL; # declarando a variável $i
+$i := NIL; # inicializando a variável $i
 $i = 10; # substituindo seu valor inicial
 $i + 2; # utilizando a variável com valor definido
 ```
@@ -544,7 +562,7 @@ $len(objeto) # retorna o número de pares contidos no objeto
 
 #### `$idx(elem, lista_str)`
 
-Retorna o primeiro índice do primeiro argumento dentro do segundo argumento. NIL
+Retorna o primeiro índice do primeiro argumento dentro do segundo argumento. `NIL`
 se não encontrado.
 
 ```usrl
@@ -556,7 +574,7 @@ $idx('d', 'abcabc') == NIL
 
 #### `$lastIdx(elem, lista_str)`
 
-Retorna o último índice do primeiro argumento dentro do segundo argumento. NIL
+Retorna o último índice do primeiro argumento dentro do segundo argumento. `NIL`
 se não encontrado.
 
 ```usrl
@@ -651,44 +669,126 @@ $area := {
 }
 ```
 
-### Booleanos
-
-Apesar da linguagem de serialização utilizada pelo assets suportar valores booleanos, a Unity escolheu por representá-los através de valores numéricos, de forma que o valor `1` significa verdadeiro e `0` representa falso. A USRL escolheu por seguir este padrão, portanto, não há valores booleanos na linguagem.
-
 ### Tabela de Operadores
 
 | Precedência | Associatividade | Caractere | Descrição |
 | --- | --- | --- | --- |
-| 0 | esquerda à direita | `.`<br>`( )`<br>`[ ]` | Acesso<br>Chamada de função<br>Indexação |
-| 1 | direita à esquerda | `-`<br>`!` | Negação<br>Negação lógica |
+| 0 | esquerda à direita | `.`<br> `( )`<br> `[ ]` | Acesso<br> Chamada de função<br> Indexação |
+| 1 | direita à esquerda | `-`<br> `!` | Negação<br> Negação lógica |
 | 2 | esquerda à direita | `??` | Null Coalescing |
-| 3 | esquerda à direita | `*`<br>`/` | Multiplicação<br>Divisão |
-| 4 | esquerda à direita | `+`<br>`-` | Adição<br>Subtração |
-| 5 | esquerda à direita | `>`<br>`>=`<br>`<`<br>`<=` | Maior que<br>Maior ou igual a<br>Menor que<br>Menor ou igual a |
-| 6 | esquerda à direita | `==`<br>`!=` | Igualdade<br>Desigualdade |
+| 3 | esquerda à direita | `*`<br> `/` | Multiplicação<br> Divisão |
+| 4 | esquerda à direita | `+`<br> `-` | Adição<br> Subtração |
+| 5 | esquerda à direita | `>`<br> `>=`<br> `<`<br> `<=` | Maior que<br> Maior ou igual a<br> Menor que<br> Menor ou igual a |
+| 6 | esquerda à direita | `==`<br> `!=` | Igualdade<br> Desigualdade |
 | 7 | esquerda à direita | `AND` | “E” lógico |
 | 8 | esquerda à direita | `OR` | “OU” lógico |
 | 9 | esquerda à direita | `? :` | Condicional |
 | 10 | direita à esquerda | `=` `+=` `-=` `*=` `/=` `:=` | Atribuição |
 
-## Exemplo
+## Casos de Uso
+
+Esta sessão do manual mostra um conjunto de exemplos práticos, contextualizando os problemas encontrados e demonstrando as capacidades da USRL em solucionar os problemas mencionados.
 
 ### Mostrando referências de um asset
 
+Vamos supor que temos um sprite `Gradiente.png` que é frequentemente utilizado para simular ambient occlusion, uma técnica de sombreamento para escurecer cantos onde a luz não chegaria.
+
+Conforme o desenvolvimento do projeto, este asset foi utilizado em algumas cenas diferentes, mas recentemente foi implementado uma solução de sombreamento muito superior comparado com o antigo `Gradiente.png`, portanto desejamos substitui-lo e remove-lo do projeto. Agora temos um problema, como vamos saber em quais cenas aquele asset específico foi utilizado?
+
+A USRL tem uma solução para isso. Podemos realizar uma consulta `SHOW` para mostrar todas as referências do `Gradiente.png` espalhados pelo projeto.
+
 ```usrl
-SHOW refs OF 'Assets/UI/Logo.png' IN Assets
+SHOW refs OF 'Sprites/Gradiente.png'
 ```
 
-### Convertendo propriedade string em enum
+O resultado será uma lista de cenas que utilizam o asset especificado.
+
+### Exibindo utilizações de componentes
+
+Digamos que temos um componente `Elevador` que é responsável por controlar a movimentação dos elevadores no jogo. Este componente é muito importante para o jogo, pois sem ele o jogador ficaria preso nos níveis que dependem do elevador para progredir.
+
+Ao realizar uma mudança neste script, seja introduzir um novo recurso ou até corrigir um bug, sempre há a chance de alterar o comportamento esperado de forma negativa, portanto se pudéssemos saber quais cenas utilizam o componente `Elevador`, poderiamos verificar se algum efeito colateral foi introduzido pelas mudanças.
+
+Podemos utilizar o statement `SHOW` para realizar uma varredura pelas cenas do projeto em busca das utilizações do componente.
 
 ```usrl
-EVAL tipo =
-	nome == 'poção' ? 1 :
-	nome == 'escudo' ? 2 :
-	nome == 'armadura' ? 3 :
-	0
-OF PerfilItem
+SHOW uses OF Elevador
 ```
+
+Ao realizar esta consulta, será exibida uma lista de cenas que utilizam o nosso componente `Elevador`.
+
+### Renomeando propriedades
+
+Digamos que temos um componente `Inimigo`, que contém propriedades como velocidade, vida máxima e força. Infelizmente o programador que desenvolveu o componente não sabia nomear variáveis. O resultado foi que a propriedade velocidade se chama `vel`, vida máxima se chama `hp` e força se chama `dano`.
+
+```csharp
+public class Inimigo : MonoBehaviour
+{
+  [SerializeField] float vel;
+  [SerializeField] int hp;
+  [SerializeField] int dano;
+}
+```
+
+O problema surge quando percebemos que este componente já foi utilizado vezes demais através do projeto para apenas renomearmos as propriedades, pois ao fazer isso, todos os valores serializados serão perdidos.
+
+A solução para isso é, logo após atualizar o código fonte do componente, realizar uma consulta `RENAME` para garantir que os dados das propriedades sejam mantidos.
+
+```usrl
+RENAME vel FOR velocidade OF Inimigo;
+RENAME hp FOR vidaMaxima OF Inimigo;
+RENAME dano FOR forca OF Inimigo
+```
+
+Esta consulta renomeia todas as três propriedades do componente `Inimigo` para cada instância encontrada no projeto.
+
+### Convertendo booleanos em enum
+
+Vamos supor que temos um componente `Moveset` que controla as habilidades de movimentação das entidades do jogo. Para cada habilidade há um campo booleano que dita se a instância do componente tem aquela habilidade. Conforme o desenvolvimento do projeto, o número de habilidades foi de dois: pular e correr, para cinco: pular, correr, escalar, rolar e nadar. Isso significa que quando antes tínhamos dois campos, agora temos cinco.
+
+```csharp
+public class Moveset : MonoBehaviour
+{
+  [SerializeField] bool podePular;
+  [SerializeField] bool podeCorrer;
+  [SerializeField] bool podeEscalar;
+  [SerializeField] bool podeRolar;
+  [SerializeField] bool podeNadar;
+  
+  /* ... */
+}
+```
+
+Para evitar a necessidade de criar um novo campo booleano a cada habilidade nova que implementamos no jogo, podemos atualizar esse sistema para utilizar um enum com flags. Um enum com flags é basicamente um número inteiro onde podemos aproveitar seus bits para armazenar valores binários em uma única variável, além de facilitar a adição de novas opções, pois podemos apenas adicionar uma nova flag ao enum existente.
+
+```csharp
+[System.Flags]
+public enum Habilidades
+{
+	Nenhuma = 0,
+	Pular = 1,
+	Correr = 2,
+	Escalar = 4,
+	Rolar = 8,
+	Nadar = 16
+}
+```
+
+Para isso precisaremos adicionar um novo campo `habilidades`, do tipo `Habilidades`, ao nosso componente `Moveset`. Como podemos ver no editor, o novo campo aparece como esperado no inspetor, mas há uma questão, o seu valor não corresponde aos valores dos campos booleanos. Isso significa que precisaremos atualizar todas as instâncias do componente `Moveset` pra cada cena e prefab que utiliza-o.
+
+Podemos utilizar o statement `EVAL` para efetuar esta atualização de forma automática para cada instância do nosso componente no projeto. Como cada campo booleano é serializado como um número de 0 a 1, podemos utilizar operadores aritméticos para concluir essa tarefa.
+
+```usrl
+EVAL habilidades =
+	podePular +
+	podeCorrer * 2 +
+	podeEscalar * 4 +
+	podeRolar * 8 +
+	podeNadar * 16
+OF Moveset
+```
+
+Esta consulta computa e atribui ao campo `habilidades` o valor esperado com base nos campos booleanos, de forma automática.
 
 ### Transformando referência em array de referências
 
@@ -703,9 +803,9 @@ public class SoundboardPlayer : MonoBehaviour
 }
 ```
 
-Mas agora havemos um problema. Atualmente não é possível reproduzir dois clipes de áudio de dois soundboards diferentes a partir do mesmo `SoundboardPlayer`, já que o componente somente faz referência a um `Soundboard`.
+Mas agora havemos um problema. Atualmente não é possível reproduzir dois clipes de áudio de dois soundboards diferentes a partir do mesmo `SoundboardPlayer`, já que o componente faz referência a somente um `Soundboard`.
 
-Para resolver este problema, precisamos substituir aquele campo `soundboard` por um campo novo, do tipo `Soundboard[]`. Chamaremos este novo campo de `soundboards`. Ao realizar esta mudança podemos notar que o novo campo aparece no inspetor, como desejado, mas está vazio. Isso significa que precisaremos reatribuir todos os soundboards utilizados como um elemento da nova lista. Precisaremos fazer isso para cada instância do componente `SoundboardPlayer` no projeto, o que pode ser demorado e problemático dependendo de quantas vezes o componente foi utilizado.
+Para resolver este problema, precisamos substituir o campo `soundboard` por um campo novo, do tipo `Soundboard[]`. Chamaremos este novo campo de `soundboards`. Ao realizar esta mudança podemos notar que o novo campo aparece no inspetor, como desejado, mas está vazio. Isso significa que precisaremos reatribuir todos os soundboards utilizados como um elemento da nova lista. Precisaremos fazer isso para cada instância do componente `SoundboardPlayer` no projeto, o que pode ser demorado e problemático dependendo de quantas vezes o componente foi utilizado.
 
 A USRL foi projetada para resolver estes problemas. Podemos utilizar o statement `EVAL` para realizar esta atualização de forma automática.
 
@@ -716,7 +816,7 @@ EVAL {
 } OF SoundboardPlayer
 ```
 
-Este script USRL atribuirá uma nova lista ao campo `soundboards` e adicionará o valor do antigo campo `soundboard` como um elemento dentro da lista. Esta operação será realizada para cada instância do componente no projeto.
+Esta consulta USRL atribuirá uma nova lista ao campo `soundboards` e adicionará o valor do antigo campo `soundboard` como um elemento dentro da lista. Esta operação será realizada para cada instância do componente no projeto.
 
 ## Apêndices
 
@@ -727,7 +827,7 @@ program <- statement ( ';' statement )* ';'?
 statement <- show / rename / evaluate
 
 show <- 'SHOW' search of in? where?
-rename <- 'RENAME' member 'FOR' ( literal / string ) of in? where?
+rename <- 'RENAME' member 'FOR' ( literal / string ) of in?
 evaluate <- 'EVAL' expr ( ',' expr )* of in? where?
 
 of <- 'OF' asset ( ',' asset )*

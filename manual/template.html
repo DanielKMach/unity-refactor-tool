@@ -5,17 +5,15 @@
     <style>
         body {
             color-scheme: light;
-            display: grid;
-            grid-template-areas:
-                "header"
-                "nav"
-                "article";
-            margin: 0;
             font-family: system-ui, -apple-system, Arial, sans-serif;
+            box-sizing: border-box;
+
+            width: 100%;
+            padding: 20px;
+            margin: 0;
+
             font-size: 16px;
             line-height: 22px;
-            padding: 20px;
-            max-width: 100%;
         }
 
         header {
@@ -44,9 +42,11 @@
 
         @media screen and (width >=1000px) {
             body {
+                display: grid;
                 grid-template-areas:
                     "nav header"
                     "nav article";
+                grid-template-columns: 350px auto;
                 padding: 0;
             }
 
@@ -113,28 +113,37 @@
 
         h1 {
             text-align: center;
-            break-before: always;
+            font-size: 44px;
         }
 
         h2 {
             text-transform: uppercase;
             border-bottom: solid 1px #8883;
-            padding-bottom: 3px;
-            margin-top: 2cm;
+            padding-bottom: 5px;
+            margin: 2cm 0 1cm 0;
+            font-size: 26px;
+            break-before: always;
         }
 
         h3 {
-            margin-top: 1cm;
+            margin: 1cm 0 0.5cm 0;
+            font-size: 22px;
         }
 
         h4 {
-            margin-top: 0.5cm;
+            margin: 0.8cm 0 0.4cm 0;
+            font-size: 18px;
         }
 
         table {
             background: #8883;
             border-spacing: 1px;
-            width: 100%;
+
+            /* https://stackoverflow.com/questions/19794211/horizontal-scroll-on-overflow-of-table */
+            display: block;
+            max-width: fit-content;
+            overflow-x: auto;
+            white-space: nowrap;
         }
 
         table th {
@@ -153,7 +162,7 @@
         @media (prefers-color-scheme: dark) {
             body {
                 color-scheme: dark;
-                background-color: #121212;
+                background-color: #121314;
                 color: #eee;
             }
 

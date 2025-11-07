@@ -32,7 +32,7 @@ def build(md: markdown.Markdown, md_file: str, template_file: str, output_file: 
         )
         dark = dark_formatter.get_style_defs('.hl')
         light = light_formatter.get_style_defs('.hl')
-        html = html.replace('{{HEAD}}', '<style> {0} @media (prefers-color-scheme: dark) {{ {1} }} </style>'.format(light, dark))
+        html = html.replace('{{HEAD}}', '<style> @media (prefers-color-scheme: light) {{ {0} }} @media (prefers-color-scheme: dark) {{ {1} }} </style>'.format(light, dark))
     except Exception as e:
         print(f"Pygments formatting failed: {e}")
         html = html.replace('{{HEAD}}', '')
