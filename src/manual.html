@@ -1,306 +1,302 @@
-<style>
-    @font-face {
-        font-family: 'Roboto Slab';
-        src: url('https://raw.githubusercontent.com/google/fonts/refs/heads/main/apache/robotoslab/RobotoSlab%5Bwght%5D.ttf');
-    }
+<!DOCTYPE html><html lang=pt-br><head><style>body{color-scheme:light;font-family:system-ui,-apple-system,Arial,sans-serif;box-sizing:border-box;width:100%;padding:20px;margin:0;font-size:16px;line-height:22px}header{grid-area:header}article{box-sizing:border-box;grid-area:article}nav{box-sizing:border-box;grid-area:nav}nav ul,nav ol{padding-left:1em}nav li{text-align:left;margin-top:5px}@media screen and (width>=1000px){body{display:grid;grid-template-areas:"nav header" "nav article";grid-template-columns:350px auto;padding:0}nav{position:sticky;top:0;max-height:100vh;overflow-y:auto;width:350px;min-width:350px;background-color:#8881;padding:20px}nav h2{margin-top:0}article{width:min(800px,100%);justify-self:center;padding:20px}}code{background-color:#8883;padding:0 3px;border:1px dotted #8884;font-size:0.95em;vertical-align:middle;font-family:monospace}pre{overflow-x:auto;white-space:pre-wrap;word-break:break-all;padding:10px 15px;font-size:14px;margin:0}pre>code{background:none;padding:0;border:none;color:inherit;font-size:inherit}.hl{border:1px dashed #8884}p{text-align:justify}li{text-align:justify;margin-top:10px}h1{text-align:center;font-size:44px}h2{text-transform:uppercase;border-bottom:solid 1px #8883;padding-bottom:5px;margin:2cm 0 1cm 0;font-size:26px;break-before:always}h3{margin:1cm 0 0.5cm 0;font-size:22px}h4{margin:0.8cm 0 0.4cm 0;font-size:18px}table{background:#8883;border-spacing:1px;display:block;max-width:fit-content;overflow-x:auto;white-space:nowrap}table th{padding:5px 10px}table td{padding:5px 10px;background:white}table tr:nth-child(odd) td{background:#f4f4f4}@media (prefers-color-scheme:dark){body{color-scheme:dark;background-color:#121314;color:#eee}table td{background:#121212}table tr:nth-child(odd) td{background:#181818}}</style><meta charset=utf-8><meta content="width=device-width, initial-scale=1.0" name=viewport><meta content="light dark" name=color-scheme><title>Manual USRL</title><style>@media (prefers-color-scheme:light){pre{line-height:125%}td.linenos .normal{color:#666666;background-color:transparent;padding-left:5px;padding-right:5px}span.linenos{color:#666666;background-color:transparent;padding-left:5px;padding-right:5px}td.linenos .special{color:#000000;background-color:#ffffc0;padding-left:5px;padding-right:5px}span.linenos.special{color:#000000;background-color:#ffffc0;padding-left:5px;padding-right:5px}.hl .hll{background-color:#ffffcc}.hl{background:#f0f0f0}.hl .c{color:#60A0B0;font-style:italic}.hl .err{border:1px solid #F00}.hl .k{color:#007020;font-weight:bold}.hl .o{color:#666}.hl .ch{color:#60A0B0;font-style:italic}.hl .cm{color:#60A0B0;font-style:italic}.hl .cp{color:#007020}.hl .cpf{color:#60A0B0;font-style:italic}.hl .c1{color:#60A0B0;font-style:italic}.hl .cs{color:#60A0B0;background-color:#FFF0F0}.hl .gd{color:#A00000}.hl .ge{font-style:italic}.hl .ges{font-weight:bold;font-style:italic}.hl .gr{color:#F00}.hl .gh{color:#000080;font-weight:bold}.hl .gi{color:#00A000}.hl .go{color:#888}.hl .gp{color:#C65D09;font-weight:bold}.hl .gs{font-weight:bold}.hl .gu{color:#800080;font-weight:bold}.hl .gt{color:#04D}.hl .kc{color:#007020;font-weight:bold}.hl .kd{color:#007020;font-weight:bold}.hl .kn{color:#007020;font-weight:bold}.hl .kp{color:#007020}.hl .kr{color:#007020;font-weight:bold}.hl .kt{color:#902000}.hl .m{color:#40A070}.hl .s{color:#4070A0}.hl .na{color:#4070A0}.hl .nb{color:#007020}.hl .nc{color:#0E84B5;font-weight:bold}.hl .no{color:#60ADD5}.hl .nd{color:#555;font-weight:bold}.hl .ni{color:#D55537;font-weight:bold}.hl .ne{color:#007020}.hl .nf{color:#06287E}.hl .nl{color:#002070;font-weight:bold}.hl .nn{color:#0E84B5;font-weight:bold}.hl .nt{color:#062873;font-weight:bold}.hl .nv{color:#BB60D5}.hl .ow{color:#007020;font-weight:bold}.hl .w{color:#BBB}.hl .mb{color:#40A070}.hl .mf{color:#40A070}.hl .mh{color:#40A070}.hl .mi{color:#40A070}.hl .mo{color:#40A070}.hl .sa{color:#4070A0}.hl .sb{color:#4070A0}.hl .sc{color:#4070A0}.hl .dl{color:#4070A0}.hl .sd{color:#4070A0;font-style:italic}.hl .s2{color:#4070A0}.hl .se{color:#4070A0;font-weight:bold}.hl .sh{color:#4070A0}.hl .si{color:#70A0D0;font-style:italic}.hl .sx{color:#C65D09}.hl .sr{color:#235388}.hl .s1{color:#4070A0}.hl .ss{color:#517918}.hl .bp{color:#007020}.hl .fm{color:#06287E}.hl .vc{color:#BB60D5}.hl .vg{color:#BB60D5}.hl .vi{color:#BB60D5}.hl .vm{color:#BB60D5}.hl .il{color:#40A070}}@media (prefers-color-scheme:dark){pre{line-height:125%}td.linenos .normal{color:inherit;background-color:transparent;padding-left:5px;padding-right:5px}span.linenos{color:inherit;background-color:transparent;padding-left:5px;padding-right:5px}td.linenos .special{color:#000000;background-color:#ffffc0;padding-left:5px;padding-right:5px}span.linenos.special{color:#000000;background-color:#ffffc0;padding-left:5px;padding-right:5px}.hl .hll{background-color:#49483e}.hl{background:#232629;color:#CCC}.hl .c{color:#777;font-style:italic}.hl .err{color:#A61717;background-color:#E3D2D2}.hl .esc{color:#CCC}.hl .g{color:#CCC}.hl .k{color:#7686BB;font-weight:bold}.hl .l{color:#CCC}.hl .n{color:#CCC}.hl .o{color:#CCC}.hl .x{color:#CCC}.hl .p{color:#CCC}.hl .ch{color:#777;font-style:italic}.hl .cm{color:#777;font-style:italic}.hl .cp{color:#777;font-style:italic}.hl .cpf{color:#777;font-style:italic}.hl .c1{color:#777;font-style:italic}.hl .cs{color:#777;font-style:italic}.hl .gd{color:#CCC}.hl .ge{color:#CCC}.hl .ges{color:#CCC}.hl .gr{color:#CCC}.hl .gh{color:#CCC}.hl .gi{color:#CCC}.hl .go{color:#CCC}.hl .gp{color:#FFF}.hl .gs{color:#CCC}.hl .gu{color:#CCC}.hl .gt{color:#CCC}.hl .kc{color:#7686BB;font-weight:bold}.hl .kd{color:#7686BB;font-weight:bold}.hl .kn{color:#7686BB;font-weight:bold}.hl .kp{color:#7686BB;font-weight:bold}.hl .kr{color:#7686BB;font-weight:bold}.hl .kt{color:#7686BB;font-weight:bold}.hl .ld{color:#CCC}.hl .m{color:#4FB8CC}.hl .s{color:#51CC99}.hl .na{color:#CCC}.hl .nb{color:#CCC}.hl .nc{color:#CCC}.hl .no{color:#CCC}.hl .nd{color:#CCC}.hl .ni{color:#CCC}.hl .ne{color:#CCC}.hl .nf{color:#6A6AFF}.hl .nl{color:#CCC}.hl .nn{color:#CCC}.hl .nx{color:#E2828E}.hl .py{color:#CCC}.hl .nt{color:#CCC}.hl .nv{color:#7AB4DB;font-weight:bold}.hl .ow{color:#CCC}.hl .pm{color:#CCC}.hl .w{color:#BBB}.hl .mb{color:#4FB8CC}.hl .mf{color:#4FB8CC}.hl .mh{color:#4FB8CC}.hl .mi{color:#4FB8CC}.hl .mo{color:#4FB8CC}.hl .sa{color:#51CC99}.hl .sb{color:#51CC99}.hl .sc{color:#51CC99}.hl .dl{color:#51CC99}.hl .sd{color:#51CC99}.hl .s2{color:#51CC99}.hl .se{color:#51CC99}.hl .sh{color:#51CC99}.hl .si{color:#51CC99}.hl .sx{color:#51CC99}.hl .sr{color:#51CC99}.hl .s1{color:#51CC99}.hl .ss{color:#51CC99}.hl .bp{color:#CCC}.hl .fm{color:#6A6AFF}.hl .vc{color:#7AB4DB;font-weight:bold}.hl .vg{color:#BE646C;font-weight:bold}.hl .vi{color:#7AB4DB;font-weight:bold}.hl .vm{color:#7AB4DB;font-weight:bold}.hl .il{color:#4FB8CC}}</style></head><body><header><h1>USRL</h1><center>Unity Structured Refactoring Language</center></header><nav><h2>SUMÁRIO</h2><div class=toc><ul><li><a href=#introducao>Introdução</a><ul><li><a href=#principais-recursos>Principais recursos</a></li></ul></li><li><a href=#interface-de-linha-de-comando>Interface de Linha de Comando</a><ul><li><a href=#realizando-consultas>Realizando consultas</a></li><li><a href=#opcoes-adicionais>Opções adicionais</a></li><li><a href=#modo-interativo>Modo interativo</a></li><li><a href=#acesso-ao-manual>Acesso ao manual</a></li></ul></li><li><a href=#statements>Statements</a><ul><li><a href=#statement-show>Statement SHOW</a></li><li><a href=#statement-rename>Statement RENAME</a></li><li><a href=#statement-eval>Statement EVAL</a></li><li><a href=#clausula-of>Cláusula OF</a></li><li><a href=#clausula-in>Cláusula IN</a></li><li><a href=#clausula-where>Cláusula WHERE</a></li></ul></li><li><a href=#expressoes>Expressões</a><ul><li><a href=#valores-numericos>Valores numéricos</a></li><li><a href=#operadores-aritmeticos>Operadores aritméticos</a></li><li><a href=#booleanos>Booleanos</a></li><li><a href=#operadores-relacionais>Operadores relacionais</a></li><li><a href=#valores-textuais>Valores textuais</a></li><li><a href=#concatenacao>Concatenação</a></li><li><a href=#operadores-logicos>Operadores lógicos</a></li><li><a href=#objetos-e-referencias>Objetos e Referências</a></li><li><a href=#acesso>Acesso</a></li><li><a href=#listas>Listas</a></li><li><a href=#indexacao>Indexação</a></li><li><a href=#nulo-nil>Nulo (NIL)</a></li><li><a href=#operadores-condicionais>Operadores condicionais</a></li><li><a href=#variaveis-e-propriedades>Variáveis e propriedades</a></li><li><a href=#atribuicao>Atribuição</a></li><li><a href=#funcoes>Funções</a><ul><li><a href=#minx-y>$min(x, y)</a></li><li><a href=#maxx-y>$max(x, y)</a></li><li><a href=#floorx>$floor(x)</a></li><li><a href=#ceilx>$ceil(x)</a></li><li><a href=#truncx>$trunc(x)</a></li><li><a href=#roundx>$round(x)</a></li><li><a href=#sqrtx>$sqrt(x)</a></li><li><a href=#absx>$abs(x)</a></li><li><a href=#sinx>$sin(x)</a></li><li><a href=#cosx>$cos(x)</a></li><li><a href=#propstr>$prop(str)</a></li><li><a href=#lenlista_str_obj>$len(lista_str_obj)</a></li><li><a href=#idxelem-lista_str>$idx(elem, lista_str)</a></li><li><a href=#lastidxelem-lista_str>$lastIdx(elem, lista_str)</a></li><li><a href=#addlist>$addList()</a></li><li><a href=#addobj>$addObj()</a></li><li><a href=#pushelem-lista>$push(elem, lista)</a></li><li><a href=#poplista>$pop(lista)</a></li><li><a href=#slicestr-indice-tamanho>$slice(str, indice, tamanho)</a></li><li><a href=#strx>$str(x)</a></li><li><a href=#numx>$num(x)</a></li><li><a href=#ctx>$ctx()</a></li></ul></li><li><a href=#blocos>Blocos</a></li><li><a href=#tabela-de-operadores>Tabela de Operadores</a></li></ul></li><li><a href=#casos-de-uso>Casos de Uso</a><ul><li><a href=#mostrando-referencias-de-um-asset>Mostrando referências de um asset</a></li><li><a href=#exibindo-utilizacoes-de-componentes>Exibindo utilizações de componentes</a></li><li><a href=#renomeando-propriedades>Renomeando propriedades</a></li><li><a href=#convertendo-booleanos-em-enum>Convertendo booleanos em enum</a></li><li><a href=#transformando-referencia-em-array-de-referencias>Transformando referência em array de referências</a></li></ul></li><li><a href=#apendices>Apêndices</a><ul><li><a href=#gramatica>Gramática</a></li></ul></li></ul></div></nav><article><h2 id=introducao>Introdução</h2><p>A Unity Structured Refactoring Language (USRL) é uma linguagem de consulta capaz de localizar e manipular instâncias de assets encontradas em projetos Unity, de forma fácil, rápida e segura.</p><p>Ela surgiu para suprir a falta de ferramentas de refatoração nativas e foi desenvolvida com o objetivo de auxiliar desenvolvedores a refatorar e aplicar manutenção em seus projetos.</p><div class=hl><pre><span></span><code><span class=k>SHOW</span><span class=w> </span><span class=k>REFS</span><span class=w> </span><span class=k>OF</span><span class=w> </span><span class=s>"Assets/Sprites/Player.png"</span><span class=p>;</span>
+<span class=k>SHOW</span><span class=w> </span><span class=k>USES</span><span class=w> </span><span class=k>OF</span><span class=w> </span><span class=n>PlayerController</span><span class=p>;</span>
 
-    article {
-        width: min(800px, 100%);
-        margin: auto;
-        font-size: 18px;
-        font-family: 'Roboto Slab', Georgia, 'Times New Roman', Times, serif, system;
-    }
+<span class=k>RENAME</span><span class=w> </span><span class=n>vel</span><span class=w> </span><span class=k>FOR</span><span class=w> </span><span class=n>velocidade</span><span class=w> </span><span class=k>OF</span><span class=w> </span><span class=n>PlayerController</span><span class=p>;</span>
 
-    pre,
-    code {
-        font-family: monospace;
-    }
+<span class=k>EVAL</span><span class=w> </span><span class=n>velocidade</span><span class=p>,</span><span class=w> </span><span class=n>vida</span><span class=w> </span><span class=k>OF</span><span class=w> </span><span class=n>PlayerController</span><span class=p>;</span>
+<span class=k>EVAL</span><span class=w> </span><span class=n>velocidade</span><span class=w> </span><span class=o>*=</span><span class=w> </span><span class=m>2</span><span class=w> </span><span class=k>OF</span><span class=w> </span><span class=n>PlayerController</span><span class=p>;</span>
+</code></pre></div><h3 id=principais-recursos>Principais recursos</h3><ul><li>Localizar referências de assets especificados de forma recursiva, podendo especificar expressões como condições para filtrar os resultados.</li><li>Renomear campos de componentes mantendo seus valores após a operação.</li><li>Mostrar e atualizar propriedades com base em valores calculados a partir de expressões lógicas e aritméticas, permitindo a especificação de condições para limitar o escopo das mudanças.</li></ul><h2 id=interface-de-linha-de-comando>Interface de Linha de Comando</h2><p>A interface de linha de comando (CLI) da USRL é o principal meio de interação com a linguagem. Ela permite executar consultas USRL, acessar o manual da linguagem e tem a capacidade de exibir de mensagens de aviso em caso de erro. Para obtê-la, basta baixar o executável na <a href=https://github.com/DanielKMach/USRL/releases>página de lançamentos do repositório da USRL</a>. A CLI está disponível para os sistemas operacionais windows, linux e macOS.</p><p>Ao executar a CLI sem argumentos, é possível ver um overview de todas as funcionalidades disponíveis no executável.</p><div class=hl><pre><span></span><code>$<span class=w> </span>usrl
+Usage:
+<span class=w>    </span>usrl<span class=w> </span><span class=nb>help</span><span class=w>          </span>Print<span class=w> </span>this<span class=w> </span>message
+<span class=w>    </span>usrl<span class=w> </span>manual<span class=w>        </span>Open<span class=w> </span>the<span class=w> </span>language<span class=w> </span>manual
+<span class=w>    </span>usrl<span class=w> </span>interactive<span class=w>   </span>Start<span class=w> </span>interactive<span class=w> </span>mode
+<span class=w>    </span>usrl<span class=w> </span>&lt;args...&gt;<span class=w>     </span>Execute<span class=w> </span>queries<span class=w> </span><span class=o>(</span>see<span class=w> </span>list<span class=w> </span>below<span class=o>)</span>
 
-    code {
-        background-color: #eee;
-        padding: 2px 4px;
-        border-radius: 4px;
-        font-size: 0.9em;
-        vertical-align: middle;
-    }
+Options:
+<span class=w>    </span>--file<span class=w> </span>&lt;files...&gt;<span class=w>  </span>Specify<span class=w> </span>one<span class=w> </span>or<span class=w> </span>more<span class=w> </span>files<span class=w> </span>to<span class=w> </span>execute
+<span class=w>    </span>--output<span class=w> </span>&lt;file&gt;<span class=w>    </span>Specify<span class=w> </span>the<span class=w> </span>file<span class=w> </span>to<span class=w> </span>output<span class=w> </span>to
+<span class=w>    </span>--<span class=w>                 </span>Executes<span class=w> </span>script<span class=w> </span>through<span class=w> </span>the<span class=w> </span>stdin
+<span class=w>    </span>&lt;queries...&gt;<span class=w>       </span>Run<span class=w> </span>the<span class=w> </span>specified<span class=w> </span>queries
 
-    pre {
-        overflow-x: auto;
-        white-space: pre-wrap;
-        word-break: break-all;
-        padding: 10px 15px;
-        background-color: #272822;
-        color: #ebf8f2;
-        border-radius: 8px;
-        font-size: 16px;
-    }
+Examples:
+<span class=w>    </span>usrl<span class=w> </span><span class=s2>"SHOW uses OF Player"</span>
+<span class=w>    </span>usrl<span class=w> </span><span class=s2>"RENAME _spd FOR _speed OF Player"</span><span class=w> </span><span class=s2>"EVAL _speed OF Player"</span>
+<span class=w>    </span>usrl<span class=w> </span>--file<span class=w> </span>./script.usrl<span class=w> </span>./script2.usrl
+<span class=w>    </span>usrl<span class=w> </span><span class=s2>"SHOW uses OF Player"</span><span class=w> </span>--output<span class=w> </span>./log.txt
+<span class=w>    </span>usrl<span class=w> </span><span class=nb>help</span>
+<span class=w>    </span>usrl<span class=w> </span>manual
+<span class=w>    </span>usrl<span class=w> </span>interactive
+</code></pre></div><h3 id=realizando-consultas>Realizando consultas</h3><p>Para realizar uma consulta, basta executar a CLI onde cada argumento é uma consulta a ser executada.</p><div class=hl><pre><span></span><code>$<span class=w> </span>usrl<span class=w> </span><span class=s2>"SHOW USES OF Player"</span>
+$<span class=w> </span>usrl<span class=w> </span><span class=s2>"SHOW USES OF Player"</span><span class=w> </span><span class=s2>"SHOW USES OF Enemy"</span>
+</code></pre></div><p>Para executar um arquivo como um script USRL, é possível usar a opção <code>--file</code> (ou <code>-f</code>) em seguida o caminho até o arquivo contendo o código USRL.</p><div class=hl><pre><span></span><code>$<span class=w> </span>usrl<span class=w> </span>--file<span class=w> </span>meu_script.usrl
+</code></pre></div><p>A execução de consultas através de <em>piping</em> também é uma possibilidade utilizando a opção <code>--</code>.</p><div class=hl><pre><span></span><code>$<span class=w> </span>cat<span class=w> </span>script.usrl<span class=w> </span><span class=p>|</span><span class=w> </span>usrl<span class=w> </span>--
+</code></pre></div><h3 id=opcoes-adicionais>Opções adicionais</h3><p>Por padrão, os resultados das consultas realizadas são exibidos no terminal. Utilizando a opção <code>--output</code> (ou <code>-o</code>), é possível especificar um arquivo de saída para os resultados das consultas.</p><div class=hl><pre><span></span><code>$<span class=w> </span>usrl<span class=w> </span><span class=s2>"SHOW USES OF Player"</span><span class=w> </span>--output<span class=w> </span>referencias_player.txt
+</code></pre></div><h3 id=modo-interativo>Modo interativo</h3><p>A CLI tem um modo REPL (Read, Eval, Print, Loop) chamado de <em>modo interativo.</em> Para acessá-lo, basta inserir o comando <code>usrl interactive</code> ou um dos seus aliases (<code>usrl i</code>, <code>usrl int</code>) no terminal de sua preferência.</p><p>Neste modo cada consulta inserida é executada imediatamente. Ao terminar o processamento de uma consulta, outra poderá ser inserida, de forma contínua sem interrupções.</p><p>Uma transação é realizada a cada consulta inserida, portanto, se ocorrer algum erro durante sua execução, todas as modificações aplicadas serão desfeitas e uma mensagem de erro aparecerá no terminal. Após isso, outras consultas poderão ser inseridas normalmente.</p><div class=hl><pre><span></span><code>$<span class=w> </span>usrl<span class=w> </span>i
+&gt;&gt;<span class=w> </span>SHOW<span class=w> </span>USES<span class=w> </span>OF<span class=w> </span>Player
+Assets/Prefabs/Player.prefab
+Assets/Scenes/Game.unity
+&gt;&gt;<span class=w> </span>SHOW<span class=w> </span>USES<span class=w> </span>OF<span class=w> </span>Enemy
+Assets/Prefabs/Enemy1.prefab
+Assets/Prefabs/Enemy2.prefab
+Assets/Scenes/Game.unity
+</code></pre></div><h3 id=acesso-ao-manual>Acesso ao manual</h3><p>A CLI vem com o manual da linguagem inserido dentro de seu executável. Para acessá-lo, basta executar o comando <code>usrl manual</code> no seu terminal de preferência. Isso criará um novo arquivo no diretório de trabalho atual chamado <code>manual.html</code> que, quando aberto em um navegador, servirá como manual da linguagem.</p><h2 id=statements>Statements</h2><p>Consultas na USRL são realizadas através de statements, que representam comandos executáveis responsáveis por buscar, avaliar ou modificar informações dentro dos arquivos de um projeto Unity. Cada statement possui uma função específica dentro da USRL, alguns têm função apenas informativa, enquanto outros aplicam alterações persistentes aos arquivos do projeto.</p><p>Esses comandos são identificados por uma palavra-chave própria e funcionam de maneira declarativa, permitindo que o desenvolvedor especifique o quê deve ser feito (como mostrar referências, renomear um campo ou avaliar uma expressão) e quais arquivos serão afetados pela operação, utilizando cláusulas para delimitar o escopo da ação.</p><h3 id=statement-show>Statement <code>SHOW</code></h3><p>O statement <code>SHOW</code> é utilizado para encontrar referências de assets através do projeto. Este statement aceita qualquer tipo de asset, desde assets visuais como imagens e meshes até componentes e ScriptableObject complexos.</p><p>O statement <code>SHOW</code> há dois modos de busca distintos: busca por uso e por referência. O modo de busca por referência busca por qualquer menção do asset especificado através dos arquivos do projeto, incluindo referências por campos ou utilização.</p><p>O modo de busca por uso é um pouco diferente. Primeiramente é importante destacar que este modo apenas funciona se os assets especificados são componentes ou prefabs, pois são os únicos que podem haver uma instância dentro de um prefab ou cena. Este modo de busca pesquisa pelas instâncias dos componentes/prefabs especificados, incluindo os prefabs que utilizam os assets especificados, de forma recursiva. Por exemplo, se o asset especificado para a busca for o componente <code>Player.cs</code> e um prefab chamado <code>Player.prefab</code> utiliza este componente, o prefab será incluído na busca, juntamente com o componente originalmente especificado.</p><p>É possível modificar o modo de busca utilizando a palavra-chave <code>REFS</code> para modo de busca por referência, ou <code>USES</code> para o modo de busca por uso.</p><div class=hl><pre><span></span><code><span class=c1># busca por referências</span>
+<span class=k>SHOW</span><span class=w> </span><span class=k>REFS</span><span class=w> </span><span class=k>OF</span><span class=w> </span><span class=s>"Assets/Textures/Player.png"</span><span class=p>;</span>
+<span class=k>SHOW</span><span class=w> </span><span class=k>REFS</span><span class=w> </span><span class=k>OF</span><span class=w> </span><span class=s>"Assets/Sounds/Hit.ogg"</span><span class=p>;</span>
 
-    pre .comment {
-        color: #88846f;
-    }
+<span class=c1># busca por instâncias</span>
+<span class=k>SHOW</span><span class=w> </span><span class=k>USES</span><span class=w> </span><span class=k>OF</span><span class=w> </span><span class=n>PlayerController</span><span class=p>;</span>
+<span class=k>SHOW</span><span class=w> </span><span class=k>USES</span><span class=w> </span><span class=k>OF</span><span class=w> </span><span class=n>ObstacleScript</span><span class=p>,</span><span class=w> </span><span class=n>EnemyController</span><span class=p>;</span>
+</code></pre></div><p>A recursão do modo de busca por uso pode ser explicitamente determinada utilizando as palavras-chave <code>DIRECT</code> ou <code>INDIRECT</code>. Sendo <code>INDIRECT</code> o modo padrão, que realiza a busca recursivamente.</p><div class=hl><pre><span></span><code><span class=c1># consulta sem recursão</span>
+<span class=k>SHOW</span><span class=w> </span><span class=k>DIRECT</span><span class=w> </span><span class=k>USES</span><span class=w> </span><span class=k>OF</span><span class=w> </span><span class=n>PlayerController</span><span class=p>;</span>
 
-    pre .chave {
-        color: #f92672;
-    }
+<span class=c1># consulta com recursão</span>
+<span class=k>SHOW</span><span class=w> </span><span class=k>INDIRECT</span><span class=w> </span><span class=k>USES</span><span class=w> </span><span class=k>OF</span><span class=w> </span><span class=n>PlayerController</span>
+</code></pre></div><h3 id=statement-rename>Statement <code>RENAME</code></h3><p>O statement <code>RENAME</code> é utilizado para renomear os campos dos componentes especificados. Este statement foi desenvolvido para facilitar a renomeação de campos de componentes, evitando a necessidade de renomear manualmente cada campo de cada componente de cada prefab de cada cena, o que pode ser um processo tedioso e propenso a erros.</p><p>Para utilizar o statement <code>RENAME</code>, é necessário especificar o nome do campo a ser renomeado, o novo nome do campo e, entre eles, a palavra-chave <code>FOR</code>. Também é necessário especificar os componentes alvos, utilizando a cláusula <code>OF</code>. Note que este statement somente aceita componentes como alvos da operação.</p><p><strong>ATENÇÃO:</strong> Se utilizado no momento incorreto, o statement <code>RENAME</code> pode causar a perda dos valores dos campos renomeados. É recomendado executar este statement <strong>após</strong> a modificação do código fonte do componente e <strong>antes</strong> de focar na janela do editor. Somente assim é possível garantir que a integridade dos dados seja mantida e que os valores dos campos renomeados não sejam perdidos.</p><div class=hl><pre><span></span><code><span class=c1># renomeia o campo 'vel' para se chamar 'velocidade'</span>
+<span class=k>RENAME</span><span class=w> </span><span class=n>vel</span><span class=w> </span><span class=k>FOR</span><span class=w> </span><span class=n>velocidade</span><span class=w> </span><span class=k>OF</span><span class=w> </span><span class=n>PlayerController</span><span class=p>;</span>
 
-    pre .string {
-        color: #e6db74;
-    }
+<span class=c1># renomeia o campo 'pulo' para se chamar 'forcaPulo'</span>
+<span class=k>RENAME</span><span class=w> </span><span class=n>pulo</span><span class=w> </span><span class=k>FOR</span><span class=w> </span><span class=n>forcaPulo</span><span class=w> </span><span class=k>OF</span><span class=w> </span><span class=n>PlayerController</span>
+</code></pre></div><p>A USRL não é capaz de detectar se um componente é herdado por ou herda alguma outra classe, portanto, nos casos onde algum componente deriva de um dos componentes especificados, é necessário incluir todos os componentes filhos para que a operação seja realizada de forma correta.</p><div class=hl><pre><span></span><code><span class=c1># PlayerController e EnemyController herdam de EntityController</span>
+<span class=k>RENAME</span><span class=w> </span><span class=n>vel</span><span class=w> </span><span class=k>FOR</span><span class=w> </span><span class=n>velocidade</span><span class=w> </span><span class=k>OF</span><span class=w> </span><span class=n>EntityController</span><span class=p>,</span><span class=w> </span><span class=n>PlayerController</span><span class=p>,</span><span class=w> </span><span class=n>EnemyController</span><span class=p>;</span>
+<span class=k>RENAME</span><span class=w> </span><span class=n>pulo</span><span class=w> </span><span class=k>FOR</span><span class=w> </span><span class=n>forcaPulo</span><span class=w> </span><span class=k>OF</span><span class=w> </span><span class=n>EntityController</span><span class=p>,</span><span class=w> </span><span class=n>PlayerController</span><span class=p>,</span><span class=w> </span><span class=n>EnemyController</span>
+</code></pre></div><h3 id=statement-eval>Statement <code>EVAL</code></h3><p>O statement <code>EVAL</code> é utilizado para avaliar expressões lógicas e aritméticas com base nas propriedades dos componentes especificados, incluindo a possibilidade de reatribuir os valores calculados aos campos de origem. Assim como o statement <code>RENAME</code>, este statement apenas aceita componentes como alvos da operação.</p><div class=hl><pre><span></span><code><span class=c1># mostra o valor do campo 'velocidade' para cada instância de PlayerController encontrada no projeto</span>
+<span class=k>EVAL</span><span class=w> </span><span class=n>velocidade</span><span class=w> </span><span class=k>OF</span><span class=w> </span><span class=n>PlayerController</span><span class=p>;</span>
 
-    pre .number {
-        color: #ae81ff;
-    }
+<span class=c1># mostra o valor do campo 'velocidade' multiplicado por 3.6 para cada instância de PlayerController encontrada no projeto</span>
+<span class=k>EVAL</span><span class=w> </span><span class=n>velocidade</span><span class=w> </span><span class=o>*</span><span class=w> </span><span class=m>3.6</span><span class=w> </span><span class=k>OF</span><span class=w> </span><span class=n>PlayerController</span><span class=p>;</span>
 
-    p {
-        text-align: justify;
-    }
+<span class=c1># atualiza o valor de 'velocidade' para ser metade do que era</span>
+<span class=k>EVAL</span><span class=w> </span><span class=n>velocidade</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>velocidade</span><span class=w> </span><span class=o>/</span><span class=w> </span><span class=m>2</span><span class=w> </span><span class=k>OF</span><span class=w> </span><span class=n>PlayerController</span><span class=p>;</span>
 
-    h2 {
-        text-transform: uppercase;
-        border-bottom: solid 1px #0002;
-        padding-bottom: 3px;
-        margin-top: 3em;
-        counter-increment: h2;
-        counter-reset: h3;
-    }
+<span class=c1># é possível realizar mais de uma expressão por statement, utilizando vírgulas</span>
+<span class=k>EVAL</span><span class=w> </span><span class=n>velocidade</span><span class=p>,</span><span class=w> </span><span class=n>vida</span><span class=p>,</span><span class=w> </span><span class=n>fome</span><span class=w> </span><span class=k>OF</span><span class=w> </span><span class=n>PlayerController</span><span class=p>;</span>
+</code></pre></div><p>Assim como mencionado no statement <code>RENAME</code>, no caso de herança, é indicado incluir explicitamente todos os componentes derivados na operação.</p><div class=hl><pre><span></span><code><span class=c1># PlayerController e EnemyController herdam de EntityController</span>
+<span class=k>EVAL</span><span class=w> </span><span class=n>velocidade</span><span class=w> </span><span class=k>OF</span><span class=w> </span><span class=n>EntityController</span><span class=p>,</span><span class=w> </span><span class=n>PlayerController</span><span class=p>,</span><span class=w> </span><span class=n>EnemyController</span>
+</code></pre></div><h3 id=clausula-of>Cláusula <code>OF</code></h3><p>Cláusulas na USRL são componentes sintáticos que permitem especificar parâmetros adicionais e refinar o escopo das operações realizadas pelos statements. Elas funcionam como modificadores que definem onde e quais assets serão afetados por uma determinada operação.</p><p>Com a cláusula <code>OF</code>, é possível especificar um ou mais assets como alvo da operação. Esta cláusula pode ser utilizada com qualquer asset do projeto, como imagens, clipes de áudio, componentes, prefabs, etc. Esta cláusula necessita do caminho ao asset relativo ao diretório de trabalho atual. Se o asset alvo for um componente, não há necessidade de especificar o caminho, apenas o nome do componente como um literal é suficiente.</p><div class=hl><pre><span></span><code><span class=k>OF</span><span class=w> </span><span class=s>"Imagens/Logo.png"</span>
+<span class=k>OF</span><span class=w> </span><span class=s>'Audio/Musica.mp3'</span>
 
-    h2::before {
-        content: counter(h2) ". ";
-    }
+<span class=c1># os exemplos abaixo são equivalentes</span>
+<span class=k>OF</span><span class=w> </span><span class=n>PlayerController</span>
+<span class=k>OF</span><span class=w> </span><span class=s>'Scripts/PlayerController.cs'</span>
+</code></pre></div><p>Se não for possível obter o nome ou caminho ao asset alvo, é possível utilizar seu GUID como substituto. Para especificar o GUID de um asset, deve-se utilizar a palavra-chave <code>GUID</code> seguida do GUID como uma string.</p><div class=hl><pre><span></span><code><span class=k>OF</span><span class=w> </span><span class=k>GUID</span><span class=w> </span><span class=s>'e1f42f24601a32ac81a9776a50927ee6'</span>
+<span class=k>OF</span><span class=w> </span><span class=k>GUID</span><span class=w> </span><span class=s>'9ce307d03d67b8de97dbaa43ce7ec8fe'</span>
+</code></pre></div><p>Se houver a necessidade de especificar mais de um asset como alvo da consulta, é possível utilizar vírgulas para este fim. Esta funcionalidade também possibilita a combinação de todos os três métodos de declaração em uma única cláusula.</p><div class=hl><pre><span></span><code><span class=k>OF</span><span class=w> </span><span class=s>'Scripts/Player.png'</span><span class=p>,</span><span class=w> </span><span class=s>'Scripts/Enemy.png'</span>
+<span class=k>OF</span><span class=w> </span><span class=n>PlayerController</span><span class=p>,</span><span class=w> </span><span class=n>EnemyController</span>
+<span class=k>OF</span><span class=w> </span><span class=n>ObstacleScript</span><span class=p>,</span><span class=w> </span><span class=s>'Textures/obstacle.png'</span><span class=p>,</span><span class=w> </span><span class=k>GUID</span><span class=w> </span><span class=s>'a61cf42ea3094c00a7b56d0d270c6f4a'</span>
+</code></pre></div><h3 id=clausula-in>Cláusula <code>IN</code></h3><p>A cláusula <code>IN</code> serve para especificar o diretório alvo da operação, relativo ao diretório de trabalho atual. Se o diretório desejado for filho direto do diretório de trabalho atual, é possível especificá-lo como um literal.</p><div class=hl><pre><span></span><code><span class=k>IN</span><span class=w> </span><span class=s>'./Scenes/Levels'</span>
+<span class=k>IN</span><span class=w> </span><span class=s>'./Resources/Textures/Player'</span>
 
-    h3 {
-        counter-increment: h3;
-    }
+<span class=c1># os exemplos abaixo são equivalentes</span>
+<span class=k>IN</span><span class=w> </span><span class=n>Prefabs</span>
+<span class=k>IN</span><span class=w> </span><span class=s>'Prefabs'</span>
+<span class=k>IN</span><span class=w> </span><span class=s>'./Prefabs'</span>
+<span class=k>IN</span><span class=w> </span><span class=s>'Prefabs/'</span>
+</code></pre></div><h3 id=clausula-where>Cláusula <code>WHERE</code></h3><p>A cláusula <code>WHERE</code> é utilizada para filtrar os alvos de uma operação, permitindo que apenas os assets que atendem a uma determinada condição sejam incluídos. Para utilizá-la, basta especificar a expressão desejada após a palavra-chave <code>WHERE</code>. Esta clausula somente pode ser utilizada se todos os assets alvos forem componentes.</p><div class=hl><pre><span></span><code><span class=c1># apenas aqueles nos quais 'velocidade' é maior que 10 serão afetados pela operação</span>
+<span class=k>WHERE</span><span class=w> </span><span class=n>velocidade</span><span class=w> </span><span class=o>&gt;</span><span class=w> </span><span class=m>10</span><span class=w> </span>
 
-    h3::before {
-        content: counter(h2) "." counter(h3) " ";
-    }
+<span class=c1># apenas aqueles nos quais 'vida' é menor que 100 serão afetados pela operação</span>
+<span class=k>WHERE</span><span class=w> </span><span class=n>vida</span><span class=w> </span><span class=o>&lt;</span><span class=w> </span><span class=m>100</span>
 
-    .compatibilidade {
-        font-weight: bold;
-        font-family: monospace;
-        vertical-align: middle;
-        font-size: 12px;
-        border-radius: 999em;
-        padding: 2px 6px;
-        margin-left: 10px;
-    }
+<span class=c1># apenas aqueles nos quais 'vida' e 'velocidade' tem o mesmo valor serão afetados pela operação</span>
+<span class=k>WHERE</span><span class=w> </span><span class=n>velocidade</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=n>vida</span>
+</code></pre></div><p>Esta cláusula não é aceita pelo statement <code>RENAME</code> pois é uma operação que deve ser aplicada a todos os arquivos igualmente.</p><h2 id=expressoes>Expressões</h2><p>O sistema de expressões da USRL permite cálculos e operações lógicas dentro das consultas com base em propriedades e variáveis dadas pelo contexto da operação. Ele amplia as capacidades da linguagem, possibilitando manipulações diretas de valores numéricos, textuais e de propriedades de componentes.</p><div class=hl><pre><span></span><code><span class=m>1</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=m>2</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=m>3</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=m>6</span><span class=p>;</span>
+<span class=s>'abc'</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=s>"def"</span><span class=p>;</span>
+<span class=n>velocidade</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=m>10</span><span class=p>;</span>
+<span class=n>vida</span><span class=w> </span><span class=o>*=</span><span class=w> </span><span class=m>3</span><span class=p>;</span>
+<span class=nv>$min</span><span class=p>(</span><span class=m>1</span><span class=p>,</span><span class=w> </span><span class=m>2</span><span class=p>)</span><span class=w> </span><span class=o>&lt;</span><span class=w> </span><span class=m>2</span><span class=p>;</span>
+<span class=nv>$pi</span><span class=w> </span><span class=o>:=</span><span class=w> </span><span class=m>3.1415</span><span class=p>;</span>
+</code></pre></div><p>Expressões se baseiam em dois elementos principais: valores e operadores. Cada operação em uma expressão é realizada por um operador. Os operandos e o resultado de uma operação são chamados de valores. Como cada operador aceita e resulta em valores, é possível “aninhar" operadores para realizar tarefas complexas. Cada tipo de valor tem suas próprias características e operadores compatíveis.</p><p>Expressões somente podem ser utilizadas quando permitidas pelo statement, assim como o contexto entregue. Atualmente somente o statement <code>EVAL</code> e a cláusula <code>WHERE</code> aceitam expressões em suas operações.</p><h3 id=valores-numericos>Valores numéricos</h3><p>Valores numéricos são os valores mais básicos do sistema de expressões. Este valores representam números reais de alcance infinito e podem participar de operações matemáticas complexas.</p><div class=hl><pre><span></span><code><span class=m>1</span><span class=p>,</span><span class=w> </span><span class=m>6.5</span><span class=p>,</span><span class=w> </span><span class=m>3.14</span><span class=p>,</span><span class=w> </span><span class=m>24</span><span class=p>,</span><span class=w> </span><span class=m>0.333</span>
+</code></pre></div><p>Estes valores são internamente representados pelo padrão IEEE 754 de 32 bits.</p><h3 id=operadores-aritmeticos>Operadores aritméticos</h3><p>Os operadores aritméticos são responsáveis por realizar operações aritméticas, como adição, subtração, multiplicação e divisão, representados pelos caracteres <code>+</code>, <code>-</code>, <code>*</code> e <code>/</code>, respectivamente. Estes operadores são binários, portanto aceitam dois operandos e resultam em um único valor numérico.</p><div class=hl><pre><span></span><code><span class=m>1</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=m>2</span><span class=p>,</span><span class=w> </span><span class=c1># = 3</span>
+<span class=m>8</span><span class=w> </span><span class=o>*</span><span class=w> </span><span class=m>2</span><span class=p>,</span><span class=w> </span><span class=c1># = 16</span>
+<span class=m>10</span><span class=w> </span><span class=o>/</span><span class=w> </span><span class=m>2</span><span class=w> </span><span class=o>-</span><span class=w> </span><span class=m>3</span><span class=w> </span><span class=c1># = 2</span>
+</code></pre></div><p>O operador de negação <code>-</code> é utilizado para inverter o sinal de um valor numérico, transformando valores positivos em negativos e vice-versa. Este é um operador unário, o que significa que atua sobre apenas um operando.</p><div class=hl><pre><span></span><code><span class=o>-</span><span class=m>5</span><span class=p>,</span><span class=w> </span><span class=c1># = -5</span>
+<span class=o>--</span><span class=m>5</span><span class=p>,</span><span class=w> </span><span class=c1># = 5</span>
+<span class=o>-</span><span class=p>(</span><span class=m>10</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=m>3</span><span class=p>),</span><span class=w> </span><span class=c1># = -13</span>
+</code></pre></div><h3 id=booleanos>Booleanos</h3><p>Apesar da linguagem de serialização utilizada pelo assets suportar valores booleanos, a Unity escolheu por representá-los através de valores numéricos, de forma que o valor <code>1</code> significa verdadeiro e <code>0</code> representa falso. A USRL escolheu por seguir este padrão, portanto, não há valores booleanos na linguagem.</p><p>Ao invés disso, todos os valores são implicitamente considerados verdadeiros ou falsos dependendo do seu estado. Valores numéricos são interpretados como verdadeiro quando seu valor é diferente de <code>0</code>, enquanto strings são verdadeiras quando não estão vazias.</p><table><thead><tr><th>Valor</th><th>Verdadeiro quando</th></tr></thead><tbody><tr><td>Valores numéricos</td><td>Diferente de 0</td></tr><tr><td>Valores textuais</td><td>Comprimento maior que 0</td></tr><tr><td>Listas</td><td>Sempre</td></tr><tr><td>Objetos</td><td>Sempre</td></tr><tr><td>Referências</td><td><code>fileID</code> diferente de 0</td></tr><tr><td>Funções</td><td>Sempre</td></tr><tr><td>Nulo</td><td>Nunca</td></tr></tbody></table><h3 id=operadores-relacionais>Operadores relacionais</h3><p>Operadores de comparação são utilizados para comparar a diferença entre dois valores numéricos, havendo quatro disponível na linguagem. O resultado dessas operações é <code>1</code>, se a comparação é verdadeira ou <code>0</code> se é falso.</p><div class=hl><pre><span></span><code><span class=c1># Todos são verdadeiros </span>
+<span class=m>10</span><span class=w> </span><span class=o>&gt;</span><span class=w> </span><span class=m>3</span><span class=p>,</span>
+<span class=m>2</span><span class=w> </span><span class=o>&lt;</span><span class=w> </span><span class=m>8</span><span class=p>,</span>
+<span class=m>7</span><span class=w> </span><span class=o>&gt;=</span><span class=w> </span><span class=m>7</span><span class=p>,</span>
+<span class=m>7</span><span class=w> </span><span class=o>&lt;=</span><span class=w> </span><span class=m>7</span>
+</code></pre></div><p>Para comparar a igualdade entre dois valores utiliza-se os operadores de igualdade. Assim como as operações de comparação, essas operações resultam em <code>1</code> se verdadeiro ou <code>0</code> se falso.</p><div class=hl><pre><span></span><code><span class=c1># Todos são verdadeiros</span>
+<span class=s>'23'</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=s>"23"</span><span class=p>,</span>
+<span class=m>23</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=m>23</span><span class=p>,</span>
+<span class=m>42</span><span class=w> </span><span class=o>!=</span><span class=w> </span><span class=m>35</span><span class=p>,</span>
+<span class=s>'2'</span><span class=w> </span><span class=o>!=</span><span class=w> </span><span class=m>2</span>
+</code></pre></div><h3 id=valores-textuais>Valores textuais</h3><p>Valores textuais, também conhecidos como strings, representam cadeias de caracteres de tamanho variável. Sintaticamente são delimitados por aspas simples ou duplas.</p><div class=hl><pre><span></span><code><span class=s>"abc"</span><span class=p>,</span><span class=w> </span><span class=s>'abc'</span><span class=p>,</span><span class=w> </span><span class=s>'ola mundo!'</span>
+</code></pre></div><h3 id=concatenacao>Concatenação</h3><p>Ao utilizar o sinal <code>+</code> entre valores de texto, não será realizada uma operação de adição, mas sim uma operação de concatenação, onde os dois valores são unidos em uma única string.</p><div class=hl><pre><span></span><code><span class=s>'ola'</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=s>'mundo'</span><span class=p>,</span><span class=w> </span><span class=c1># = 'olamundo'</span>
+<span class=m>1</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=s>'2'</span><span class=p>,</span><span class=w> </span><span class=c1># = '12'</span>
+<span class=s>'6'</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=m>9</span><span class=w> </span><span class=c1># = '69'</span>
+</code></pre></div><h3 id=operadores-logicos>Operadores lógicos</h3><p>Os operadores lógicos <code>AND</code> e <code>OR</code> são utilizados para combinar múltiplas condições. O operador <code>AND</code> retorna <code>1</code> se ambas as condições forem verdadeiras, enquanto <code>OR</code> retorna <code>1</code> se pelo menos uma das condições for verdadeira.</p><div class=hl><pre><span></span><code><span class=m>10</span><span class=w> </span><span class=o>&gt;</span><span class=w> </span><span class=m>5</span><span class=w> </span><span class=k>AND</span><span class=w> </span><span class=m>3</span><span class=w> </span><span class=o>&lt;</span><span class=w> </span><span class=m>7</span><span class=p>,</span><span class=w> </span><span class=c1># se torna 1 AND 1 que resulta em 1 (verdadeiro)</span>
+<span class=s>'a'</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=s>'a'</span><span class=w> </span><span class=k>AND</span><span class=w> </span><span class=m>0</span><span class=p>,</span><span class=w> </span><span class=c1># se torna 1 AND 0 que resulta em 0 (falso)</span>
+<span class=m>5</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=m>5</span><span class=w> </span><span class=k>OR</span><span class=w> </span><span class=m>10</span><span class=w> </span><span class=o>&lt;</span><span class=w> </span><span class=m>2</span><span class=p>,</span><span class=w> </span><span class=c1># se torna 1 OR 0 que resulta em 1 (verdadeiro)</span>
+<span class=m>2</span><span class=w> </span><span class=o>!=</span><span class=w> </span><span class=m>2</span><span class=w> </span><span class=k>OR</span><span class=w> </span><span class=m>4</span><span class=w> </span><span class=o>&lt;</span><span class=w> </span><span class=m>4</span><span class=p>,</span><span class=w> </span><span class=c1># se torna 0 OR 0 que resulta em 0 (falso)</span>
+</code></pre></div><p>Já o operador de negação lógica <code>!</code> é utilizado para inverter o valor lógico de uma expressão. Se a expressão for verdadeira, o resultado será falso, e vice-versa.</p><div class=hl><pre><span></span><code><span class=o>!</span><span class=p>(</span><span class=m>10</span><span class=w> </span><span class=o>&gt;</span><span class=w> </span><span class=m>5</span><span class=p>),</span><span class=w> </span><span class=c1># equivalente a '10 &lt;= 5'</span>
+<span class=o>!</span><span class=p>(</span><span class=n>velocidade</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=m>0</span><span class=p>),</span><span class=w> </span><span class=c1># equivalente a 'velocidade != 0'</span>
+<span class=o>!</span><span class=n>vida</span><span class=w> </span><span class=c1># verdadeiro (1) se vida for igual a 0, caso contrário falso (0)</span>
+</code></pre></div><h3 id=objetos-e-referencias>Objetos e Referências</h3><p>Objetos são estrutura contendo propriedades nomeadas. Permite acesso hierárquico via o operador de acesso e pode conter valores de qualquer tipo.</p><p>Referências são valores que apontam para instâncias de outros assets. Um exemplo de valor referência é a propriedade <code>m_GameObject</code>, disponível em todos os componentes e faz referência ao GameObject que está anexado. Estes valores podem ser acessados da mesma forma que objetos, possibilitando o acesso às propriedades daquela instância que o valor faz referência.</p><p>Diferentemente dos valores anteriores, não é possível criar um objeto ou referência a partir de uma expressão, visto que ambos vivem dentro do contexto, mas é possível utilizar a função <code>$addObj()</code> para adicionar um novo objeto vazio ao contexto atual.</p><h3 id=acesso>Acesso</h3><p>O operador de acesso <code>.</code> é utilizado para acessar propriedades de objetos ou referências. Este operador permite navegar através de estruturas hierárquicas de dados.</p><div class=hl><pre><span></span><code><span class=n>m_GameObject</span><span class=p>.</span><span class=n>m_Name</span><span class=p>,</span><span class=w> </span><span class=c1># obtem o nome do GameObject</span>
+<span class=n>tamanho</span><span class=p>.</span><span class=n>x</span><span class=p>,</span><span class=w> </span><span class=c1># acessa a componente 'x' de 'tamanho'</span>
+<span class=n>stats</span><span class=p>.</span><span class=n>vida</span><span class=w> </span><span class=c1># acessa a propriedade 'vida' de 'stats'</span>
+</code></pre></div><p>A operação resultará em <code>NIL</code> se a propriedade acessada não existir.</p><h3 id=listas>Listas</h3><p>Representa uma coleção ordenada de valores, indexada numericamente a partir de 0. Assim como objetos e referências, este tipo não pode ser criado, mas pode-se utilizar a função <code>$addList()</code> para adicionar uma nova lista vazia ao contexto atual.</p><h3 id=indexacao>Indexação</h3><p>O operador de indexação <code>[ ]</code> é utilizado para acessar um elemento específico de uma lista ou string através de seu índice numérico. Índices começam em <code>0</code>, onde está o primeiro elemento, o segundo elemento está no índice <code>1</code>, o terceiro no índice <code>2</code>, e assim por diante.</p><div class=hl><pre><span></span><code><span class=n>cores</span><span class=p>[</span><span class=m>0</span><span class=p>],</span><span class=w> </span><span class=c1># acessa o primeiro elemento da lista cores</span>
+<span class=n>posicoes</span><span class=p>[</span><span class=m>2</span><span class=p>],</span><span class=w> </span><span class=c1># acessa o terceiro elemento da lista posicoes</span>
+<span class=n>vertices</span><span class=p>[</span><span class=nv>$i</span><span class=p>]</span><span class=w> </span><span class=c1># acessa o elemento no índice especificado pela variável</span>
+</code></pre></div><h3 id=nulo-nil>Nulo (<code>NIL</code>)</h3><p>Representa a ausência de valor e pode ser referenciado através da palavra-chave <code>NIL</code>.</p><h3 id=operadores-condicionais>Operadores condicionais</h3><p>O operador condicional <code>? :</code> permite realizar uma operação condicional, retornando um valor se a condição for verdadeira e outro valor se for falsa.</p><div class=hl><pre><span></span><code><span class=n>vida</span><span class=w> </span><span class=o>&gt;</span><span class=w> </span><span class=m>0</span><span class=w> </span><span class=o>?</span><span class=w> </span><span class=s>'vivo'</span><span class=w> </span><span class=o>:</span><span class=w> </span><span class=s>'morto'</span><span class=p>,</span>
+<span class=n>velocidade</span><span class=w> </span><span class=o>&gt;</span><span class=w> </span><span class=m>10</span><span class=w> </span><span class=o>?</span><span class=w> </span><span class=n>velocidade</span><span class=w> </span><span class=o>:</span><span class=w> </span><span class=m>10</span>
+</code></pre></div><p>O operador de null coalescing <code>??</code> é utilizado para fornecer um valor padrão quando uma expressão resulta em <code>NIL</code>. Este operador avalia o operando à esquerda e retorna o seu valor se for diferente de <code>NIL</code>, caso contrário, retorna o valor do operando à direita.</p><div class=hl><pre><span></span><code><span class=n>vida</span><span class=w> </span><span class=o>??</span><span class=w> </span><span class=m>100</span><span class=p>,</span><span class=w> </span><span class=c1># retorna 100 se vida for NIL, caso contrário retorna o valor de vida</span>
+<span class=n>nome</span><span class=w> </span><span class=o>??</span><span class=w> </span><span class=s>'Desconhecido'</span><span class=p>,</span><span class=w> </span><span class=c1># retorna 'Desconhecido' se nome for NIL</span>
+<span class=n>velocidade</span><span class=w> </span><span class=o>??</span><span class=w> </span><span class=m>0</span><span class=w> </span><span class=c1># retorna 0 se velocidade for NIL</span>
+</code></pre></div><h3 id=variaveis-e-propriedades>Variáveis e propriedades</h3><p>Na USRL, existem dois tipos principais de identificadores que podem ser utilizados em expressões: variáveis e propriedades. Embora ambos possam armazenar valores, eles possuem diferenças fundamentais em sua natureza e ciclo de vida.</p><p>Propriedades são campos dos componentes que estão sendo manipulados pela operação. Elas são fornecidas pelo objeto de contexto da operação e representam valores reais armazenados nos arquivos do projeto.</p><p>Quando você atribui um valor a uma propriedade, essa alteração é persistida ao final da operação, modificando permanentemente o asset correspondente.</p><div class=hl><pre><span></span><code><span class=n>velocidade</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=m>10</span><span class=p>;</span>
+<span class=n>vida</span><span class=w> </span><span class=o>*=</span><span class=w> </span><span class=m>2</span><span class=p>;</span>
+<span class=n>nome</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=s>'Player'</span>
+</code></pre></div><p>Variáveis são identificadores temporários prefixados com o caractere <code>$</code>. Elas existem apenas durante a execução da expressão e são descartadas ao final. Variáveis devem ser utilizadas para armazenar valores temporários durante a execução da expressão.</p><p>Por padrão, algumas variáveis vêm com valores predefinidos, como funções incorporadas à linguagem. Tentar reatribuir uma variável predefinida resultará em um erro durante a execução da operação.</p><div class=hl><pre><span></span><code><span class=nv>$kph</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>velocidade</span><span class=w> </span><span class=o>*</span><span class=w> </span><span class=m>3.6</span><span class=p>;</span>
+<span class=nv>$resultado</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nv>$min</span><span class=p>(</span><span class=n>vida</span><span class=p>,</span><span class=w> </span><span class=m>100</span><span class=p>);</span>
+<span class=nv>$pi</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=m>3.1415</span><span class=p>;</span>
+<span class=nv>$min</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=m>123</span><span class=w> </span><span class=c1># ERRO!</span>
+</code></pre></div><p>Ao contrário das propriedades, que resultam em <code>NIL</code>, um erro durante a execução ocorrerá se uma variável não inicializada for utilizada. Para inicializar uma nova variável, deve-se utilizar o operador <code>:=</code>, junto ao nome da variável à esquerda do operador e o seu valor inicial à direita.</p><div class=hl><pre><span></span><code><span class=c1># OK</span>
+<span class=nv>$r</span><span class=w> </span><span class=o>:=</span><span class=w> </span><span class=n>diametro</span><span class=w> </span><span class=o>/</span><span class=w> </span><span class=m>2</span><span class=p>;</span>
+<span class=n>perimetro</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nv>$r</span><span class=w> </span><span class=o>*</span><span class=w> </span><span class=m>2</span><span class=w> </span><span class=o>*</span><span class=w> </span><span class=m>3.14</span><span class=p>;</span>
+<span class=n>area</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nv>$r</span><span class=w> </span><span class=o>*</span><span class=w> </span><span class=nv>$r</span><span class=w> </span><span class=o>*</span><span class=w> </span><span class=m>3.14</span><span class=p>;</span>
 
-    .compatibilidade.compativel {
-        color: green;
-        background-color: #5fdd4644;
-    }
+<span class=c1># ERRADO</span>
+<span class=n>velocidade</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nv>$kph</span><span class=p>;</span>
+<span class=nv>$kph</span><span class=w> </span><span class=o>:=</span><span class=w> </span><span class=n>velocidade</span><span class=w> </span><span class=o>*</span><span class=w> </span><span class=m>3.6</span><span class=p>;</span>
+</code></pre></div><h3 id=atribuicao>Atribuição</h3><p>O operador de atribuição possibilita atribuir um valor a uma propriedade ou variável.</p><div class=hl><pre><span></span><code><span class=nv>$diametro</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>raio</span><span class=w> </span><span class=o>*</span><span class=w> </span><span class=m>2</span><span class=p>;</span>
+</code></pre></div><p>Este operador contém quatro variações que combinam os operadores aritméticos de adição, subtração, multiplicação e divisão ao operador de atribuição, de modo que atualize a propriedade ou variável com base no resultado do cálculo aritmético do operador equivalente.</p><div class=hl><pre><span></span><code><span class=nv>$i</span><span class=w> </span><span class=o>+=</span><span class=w> </span><span class=m>1</span><span class=p>;</span><span class=w> </span><span class=c1># equivalente a $i = $i + 1</span>
+<span class=n>velocidade</span><span class=w> </span><span class=o>*=</span><span class=w> </span><span class=m>3.6</span><span class=p>;</span><span class=w> </span><span class=c1># equivalente a velocidade = velocidade * 3.6</span>
+<span class=n>vida</span><span class=w> </span><span class=o>-=</span><span class=w> </span><span class=m>10</span><span class=p>;</span><span class=w> </span><span class=c1># equivalente a vida = vida - 10</span>
+<span class=n>pulo</span><span class=w> </span><span class=o>/=</span><span class=w> </span><span class=m>2</span><span class=p>;</span><span class=w> </span><span class=c1># equivalente a pulo = pulo / 2</span>
+</code></pre></div><p>O operador de inicialização é encarregado de inicializar uma variável dado um valor padrão. Este operador sempre deve ser utilizado antes de utilizar ou atribuir a variável.</p><div class=hl><pre><span></span><code><span class=nv>$i</span><span class=w> </span><span class=o>:=</span><span class=w> </span><span class=n>NIL</span><span class=p>;</span><span class=w> </span><span class=c1># inicializando a variável $i</span>
+<span class=nv>$i</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=m>10</span><span class=p>;</span><span class=w> </span><span class=c1># substituindo seu valor inicial</span>
+<span class=nv>$i</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=m>2</span><span class=p>;</span><span class=w> </span><span class=c1># utilizando a variável com valor definido</span>
+</code></pre></div><h3 id=funcoes>Funções</h3><p>Funções são valores executáveis que realizam uma tarefa ou calculam um valor. Cada função aceita um número específico de argumentos e devem sempre retornar um valor.</p><p>Para chamar uma função deve-se utilizar parênteses como sufixo do valor, podendo especificar argumentos dentro dos parênteses, separados por vírgula.</p><div class=hl><pre><span></span><code><span class=nv>$min</span><span class=p>(</span><span class=m>10</span><span class=p>,</span><span class=w> </span><span class=m>5</span><span class=p>)</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=m>5</span><span class=p>,</span>
+<span class=nv>$floor</span><span class=p>(</span><span class=m>10.5</span><span class=p>)</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=m>10</span><span class=p>,</span>
+<span class=nv>$len</span><span class=p>(</span><span class=s>'ola mundo'</span><span class=p>)</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=m>8</span><span class=p>,</span>
+<span class=nv>$idx</span><span class=p>(</span><span class=s>'b'</span><span class=p>,</span><span class=w> </span><span class=s>'abc'</span><span class=p>)</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=m>1</span><span class=p>,</span>
+<span class=nv>$ctx</span><span class=p>().</span><span class=n>vida</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=n>vida</span>
+</code></pre></div><h4 id=minx-y><code>$min(x, y)</code></h4><p>Aceita dois argumentos numéricos e retorna o de menor valor. Equivalente a <code>$x &lt; $y ? $x : $y</code>.</p><h4 id=maxx-y><code>$max(x, y)</code></h4><p>Aceita dois argumentos numéricos e retorna o de maior valor. Equivalente a <code>$x &gt; $y ? $x : $y</code>.</p><h4 id=floorx><code>$floor(x)</code></h4><p>Remove a parte fracionária do argumento numérico, arredondando para baixo.</p><h4 id=ceilx><code>$ceil(x)</code></h4><p>Remove a parte fracionária do argumento numérico, arredondando para cima.</p><h4 id=truncx><code>$trunc(x)</code></h4><p>Remove a parte fracionária do argumento numérico, arredondando em direção ao zero.</p><h4 id=roundx><code>$round(x)</code></h4><p>Remove a parte fracionária do argumento numérico, arredondando para o valor inteiro mais próximo.</p><h4 id=sqrtx><code>$sqrt(x)</code></h4><p>Retorna a raiz quadrada do argumento numérico.</p><h4 id=absx><code>$abs(x)</code></h4><p>Retorna o valor absoluto do argumento numérico.</p><h4 id=sinx><code>$sin(x)</code></h4><p>Aceita um argumento numérico em radianos e retorna o seu seno.</p><h4 id=cosx><code>$cos(x)</code></h4><p>Aceita um argumento numérico em radianos e retorna o seu cosseno.</p><h4 id=propstr><code>$prop(str)</code></h4><p>Acessa a propriedade do contexto através de uma string.</p><div class=hl><pre><span></span><code><span class=nv>$prop</span><span class=p>(</span><span class=s>'velocidade'</span><span class=p>)</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=n>velocidade</span><span class=p>,</span>
+<span class=nv>$prop</span><span class=p>(</span><span class=s>'vida'</span><span class=p>)</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=n>vida</span>
+</code></pre></div><h4 id=lenlista_str_obj><code>$len(lista_str_obj)</code></h4><p>Aceita um argumento de texto, lista ou objeto e retorna seu comprimento.</p><div class=hl><pre><span></span><code><span class=nv>$len</span><span class=p>(</span><span class=s>'abc'</span><span class=p>),</span><span class=w> </span><span class=c1># retorna o número de caracteres no texto</span>
+<span class=nv>$len</span><span class=p>(</span><span class=n>lista</span><span class=p>),</span><span class=w> </span><span class=c1># retorna o número de elementos na lista</span>
+<span class=nv>$len</span><span class=p>(</span><span class=n>objeto</span><span class=p>)</span><span class=w> </span><span class=c1># retorna o número de pares contidos no objeto</span>
+</code></pre></div><h4 id=idxelem-lista_str><code>$idx(elem, lista_str)</code></h4><p>Retorna o primeiro índice do primeiro argumento dentro do segundo argumento. <code>NIL</code> se não encontrado.</p><div class=hl><pre><span></span><code><span class=nv>$idx</span><span class=p>(</span><span class=s>'a'</span><span class=p>,</span><span class=w> </span><span class=s>'abcabc'</span><span class=p>)</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=m>0</span><span class=p>,</span>
+<span class=nv>$idx</span><span class=p>(</span><span class=s>'b'</span><span class=p>,</span><span class=w> </span><span class=s>'abcabc'</span><span class=p>)</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=m>1</span><span class=p>,</span>
+<span class=nv>$idx</span><span class=p>(</span><span class=s>'c'</span><span class=p>,</span><span class=w> </span><span class=s>'abcabc'</span><span class=p>)</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=m>2</span><span class=p>,</span>
+<span class=nv>$idx</span><span class=p>(</span><span class=s>'d'</span><span class=p>,</span><span class=w> </span><span class=s>'abcabc'</span><span class=p>)</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=n>NIL</span>
+</code></pre></div><h4 id=lastidxelem-lista_str><code>$lastIdx(elem, lista_str)</code></h4><p>Retorna o último índice do primeiro argumento dentro do segundo argumento. <code>NIL</code> se não encontrado.</p><div class=hl><pre><span></span><code><span class=nv>$lastIdx</span><span class=p>(</span><span class=s>'a'</span><span class=p>,</span><span class=w> </span><span class=s>'abcabc'</span><span class=p>)</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=m>3</span><span class=p>,</span>
+<span class=nv>$lastIdx</span><span class=p>(</span><span class=s>'b'</span><span class=p>,</span><span class=w> </span><span class=s>'abcabc'</span><span class=p>)</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=m>4</span><span class=p>,</span>
+<span class=nv>$lastIdx</span><span class=p>(</span><span class=s>'c'</span><span class=p>,</span><span class=w> </span><span class=s>'abcabc'</span><span class=p>)</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=m>5</span><span class=p>,</span>
+<span class=nv>$lastIdx</span><span class=p>(</span><span class=s>'d'</span><span class=p>,</span><span class=w> </span><span class=s>'abcabc'</span><span class=p>)</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=n>NIL</span>
+</code></pre></div><h4 id=addlist><code>$addList()</code></h4><p>Adiciona uma lista vazia ao contexto e retorna seu valor.</p><div class=hl><pre><span></span><code><span class=nv>$lista</span><span class=w> </span><span class=o>:=</span><span class=w> </span><span class=nv>$addList</span><span class=p>();</span>
+<span class=nv>$len</span><span class=p>(</span><span class=nv>$lista</span><span class=p>)</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=m>0</span><span class=p>;</span>
+</code></pre></div><h4 id=addobj><code>$addObj()</code></h4><p>Adiciona um objeto vazio ao contexto e retorna seu valor.</p><div class=hl><pre><span></span><code><span class=nv>$objeto</span><span class=w> </span><span class=o>:=</span><span class=w> </span><span class=nv>$addObj</span><span class=p>();</span>
+<span class=nv>$len</span><span class=p>(</span><span class=nv>$objeto</span><span class=p>)</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=m>0</span><span class=p>;</span>
+</code></pre></div><h4 id=pushelem-lista><code>$push(elem, lista)</code></h4><p>Adiciona o primeiro argumento ao final do segundo argumento. Sempre retorna <code>NIL</code>.</p><div class=hl><pre><span></span><code><span class=nv>$lista</span><span class=w> </span><span class=o>:=</span><span class=w> </span><span class=nv>$addList</span><span class=p>();</span>
+<span class=nv>$push</span><span class=p>(</span><span class=s>'a'</span><span class=p>,</span><span class=w> </span><span class=nv>$lista</span><span class=p>);</span>
+<span class=nv>$push</span><span class=p>(</span><span class=s>'b'</span><span class=p>,</span><span class=w> </span><span class=nv>$lista</span><span class=p>);</span>
+<span class=nv>$push</span><span class=p>(</span><span class=s>'c'</span><span class=p>,</span><span class=w> </span><span class=nv>$lista</span><span class=p>);</span>
+<span class=nv>$len</span><span class=p>(</span><span class=nv>$lista</span><span class=p>)</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=m>3</span>
+</code></pre></div><h4 id=poplista><code>$pop(lista)</code></h4><p>Remove e retorna o último elemento do argumento.</p><div class=hl><pre><span></span><code><span class=nv>$lista</span><span class=p>;</span><span class=w> </span><span class=c1># [ 'a', 'b', 'c' ]</span>
+<span class=nv>$pop</span><span class=p>(</span><span class=nv>$lista</span><span class=p>)</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=s>'c'</span><span class=p>;</span>
+<span class=nv>$pop</span><span class=p>(</span><span class=nv>$lista</span><span class=p>)</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=s>'b'</span><span class=p>;</span>
+<span class=nv>$pop</span><span class=p>(</span><span class=nv>$lista</span><span class=p>)</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=s>'a'</span><span class=p>;</span>
+<span class=nv>$len</span><span class=p>(</span><span class=nv>$lista</span><span class=p>)</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=m>0</span>
+</code></pre></div><h4 id=slicestr-indice-tamanho><code>$slice(str, indice, tamanho)</code></h4><p>Recorta e retorna o primeiro argumento com base nos argumentos seguintes. O segundo argumento é o índice inicial que pode ser negativo. O terceiro argumento é o comprimento do resultado, podendo ser negativo para capturar a string de trás para frente.</p><div class=hl><pre><span></span><code><span class=nv>$slice</span><span class=p>(</span><span class=s>'abcdef'</span><span class=p>,</span><span class=w> </span><span class=m>1</span><span class=p>,</span><span class=w> </span><span class=m>2</span><span class=p>)</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=s>'bc'</span><span class=p>,</span>
+<span class=nv>$slice</span><span class=p>(</span><span class=s>'abcdef'</span><span class=p>,</span><span class=w> </span><span class=m>1</span><span class=p>,</span><span class=w> </span><span class=o>-</span><span class=m>2</span><span class=p>)</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=s>'ab'</span><span class=p>,</span>
+<span class=nv>$slice</span><span class=p>(</span><span class=s>'abcdef'</span><span class=p>,</span><span class=w> </span><span class=o>-</span><span class=m>1</span><span class=p>,</span><span class=w> </span><span class=m>1</span><span class=p>)</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=s>'f'</span><span class=p>,</span>
+<span class=nv>$slice</span><span class=p>(</span><span class=s>'abcdef'</span><span class=p>,</span><span class=w> </span><span class=o>-</span><span class=m>2</span><span class=p>,</span><span class=w> </span><span class=m>2</span><span class=p>)</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=s>'ef'</span><span class=p>,</span>
+<span class=nv>$slice</span><span class=p>(</span><span class=s>'abcdef'</span><span class=p>,</span><span class=w> </span><span class=m>3</span><span class=p>,</span><span class=w> </span><span class=m>999</span><span class=p>)</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=s>'def'</span><span class=p>,</span>
+<span class=nv>$slice</span><span class=p>(</span><span class=s>'abcdef'</span><span class=p>,</span><span class=w> </span><span class=m>3</span><span class=p>,</span><span class=w> </span><span class=o>-</span><span class=m>999</span><span class=p>)</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=s>'abcd'</span><span class=p>,</span>
+</code></pre></div><h4 id=strx><code>$str(x)</code></h4><p>Converte o valor dado em uma string.</p><h4 id=numx><code>$num(x)</code></h4><p>Converte o valor dado em um valor numérico. Somente aceita argumentos textuais ou numéricos.</p><h4 id=ctx><code>$ctx()</code></h4><p>Retorna o contexto como um valor, podendo obter suas propriedades através do operador de acesso.</p><div class=hl><pre><span></span><code><span class=nv>$ctx</span><span class=p>().</span><span class=n>velocidade</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=n>velocidade</span><span class=p>,</span>
+<span class=nv>$ctx</span><span class=p>().</span><span class=n>vida</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=n>vida</span>
+</code></pre></div><h3 id=blocos>Blocos</h3><p>Blocos de expressão é a maneira de realizar múltiplas expressões sequencialmente. Um bloco pode conter zero ou mais expressões, separadas por ponto e vírgula. Seus limites são definidos por chaves (<code>{ }</code>), onde para cada chave aberta, sempre deverá haver uma chave correspondente fechando.</p><p>Já que um bloco também é uma expressão, deve-se resultar em um valor. Um bloco sempre retornará o valor da última expressão realizada dentro dele, a não ser que esteja vazio, resultando em <code>NIL</code>.</p><div class=hl><pre><span></span><code><span class=nv>$area</span><span class=w> </span><span class=o>:=</span><span class=w> </span><span class=p>{</span>
+<span class=w>    </span><span class=nv>$r</span><span class=w> </span><span class=o>:=</span><span class=w> </span><span class=n>diametro</span><span class=w> </span><span class=o>/</span><span class=w> </span><span class=m>2</span><span class=p>;</span>
+<span class=w>    </span><span class=nv>$r</span><span class=w> </span><span class=o>*</span><span class=w> </span><span class=nv>$r</span><span class=w> </span><span class=o>*</span><span class=w> </span><span class=m>3.14</span>
+<span class=p>}</span>
+</code></pre></div><h3 id=tabela-de-operadores>Tabela de Operadores</h3><table><thead><tr><th>Precedência</th><th>Associatividade</th><th>Caractere</th><th>Descrição</th></tr></thead><tbody><tr><td>0</td><td>esquerda à direita</td><td><code>.</code><br><code>( )</code><br><code>[ ]</code></td><td>Acesso<br> Chamada de função<br> Indexação</td></tr><tr><td>1</td><td>direita à esquerda</td><td><code>-</code><br><code>!</code></td><td>Negação<br> Negação lógica</td></tr><tr><td>2</td><td>esquerda à direita</td><td><code>??</code></td><td>Null Coalescing</td></tr><tr><td>3</td><td>esquerda à direita</td><td><code>*</code><br><code>/</code></td><td>Multiplicação<br> Divisão</td></tr><tr><td>4</td><td>esquerda à direita</td><td><code>+</code><br><code>-</code></td><td>Adição<br> Subtração</td></tr><tr><td>5</td><td>esquerda à direita</td><td><code>&gt;</code><br><code>&gt;=</code><br><code>&lt;</code><br><code>&lt;=</code></td><td>Maior que<br> Maior ou igual a<br> Menor que<br> Menor ou igual a</td></tr><tr><td>6</td><td>esquerda à direita</td><td><code>==</code><br><code>!=</code></td><td>Igualdade<br> Desigualdade</td></tr><tr><td>7</td><td>esquerda à direita</td><td><code>AND</code></td><td>“E” lógico</td></tr><tr><td>8</td><td>esquerda à direita</td><td><code>OR</code></td><td>“OU” lógico</td></tr><tr><td>9</td><td>esquerda à direita</td><td><code>? :</code></td><td>Condicional</td></tr><tr><td>10</td><td>direita à esquerda</td><td><code>=</code><code>+=</code><code>-=</code><code>*=</code><code>/=</code><code>:=</code></td><td>Atribuição</td></tr></tbody></table><h2 id=casos-de-uso>Casos de Uso</h2><p>Esta sessão do manual mostra um conjunto de exemplos práticos, contextualizando os problemas encontrados e demonstrando as capacidades da USRL em solucionar os problemas mencionados.</p><h3 id=mostrando-referencias-de-um-asset>Mostrando referências de um asset</h3><p>Vamos supor que temos um sprite <code>Gradiente.png</code> que é frequentemente utilizado para simular ambient occlusion, uma técnica de sombreamento para escurecer cantos onde a luz não chegaria.</p><p>Conforme o desenvolvimento do projeto, este asset foi utilizado em algumas cenas diferentes, mas recentemente foi implementado uma solução de sombreamento muito superior comparado com o antigo <code>Gradiente.png</code>, portanto desejamos substitui-lo e remove-lo do projeto. Agora temos um problema, como vamos saber em quais cenas aquele asset específico foi utilizado?</p><p>A USRL tem uma solução para isso. Podemos realizar uma consulta <code>SHOW</code> para mostrar todas as referências do <code>Gradiente.png</code> espalhados pelo projeto.</p><div class=hl><pre><span></span><code><span class=k>SHOW</span><span class=w> </span><span class=n>refs</span><span class=w> </span><span class=k>OF</span><span class=w> </span><span class=s>'Sprites/Gradiente.png'</span>
+</code></pre></div><p>O resultado será uma lista de cenas que utilizam o asset especificado.</p><h3 id=exibindo-utilizacoes-de-componentes>Exibindo utilizações de componentes</h3><p>Digamos que temos um componente <code>Elevador</code> que é responsável por controlar a movimentação dos elevadores no jogo. Este componente é muito importante para o jogo, pois sem ele o jogador ficaria preso nos níveis que dependem do elevador para progredir.</p><p>Ao realizar uma mudança neste script, seja introduzir um novo recurso ou até corrigir um bug, sempre há a chance de alterar o comportamento esperado de forma negativa, portanto se pudéssemos saber quais cenas utilizam o componente <code>Elevador</code>, poderiamos verificar se algum efeito colateral foi introduzido pelas mudanças.</p><p>Podemos utilizar o statement <code>SHOW</code> para realizar uma varredura pelas cenas do projeto em busca das utilizações do componente.</p><div class=hl><pre><span></span><code><span class=k>SHOW</span><span class=w> </span><span class=n>uses</span><span class=w> </span><span class=k>OF</span><span class=w> </span><span class=n>Elevador</span>
+</code></pre></div><p>Ao realizar esta consulta, será exibida uma lista de cenas que utilizam o nosso componente <code>Elevador</code>.</p><h3 id=renomeando-propriedades>Renomeando propriedades</h3><p>Digamos que temos um componente <code>Inimigo</code>, que contém propriedades como velocidade, vida máxima e força. Infelizmente o programador que desenvolveu o componente não sabia nomear variáveis. O resultado foi que a propriedade velocidade se chama <code>vel</code>, vida máxima se chama <code>hp</code> e força se chama <code>dano</code>.</p><div class=hl><pre><span></span><code><span class=k>public</span><span class=w> </span><span class=k>class</span><span class=w> </span><span class=nc>Inimigo</span><span class=w> </span><span class=p>:</span><span class=w> </span><span class=n>MonoBehaviour</span>
+<span class=p>{</span>
+<span class=w>  </span><span class=na>[SerializeField]</span><span class=w> </span><span class=kt>float</span><span class=w> </span><span class=n>vel</span><span class=p>;</span>
+<span class=w>  </span><span class=na>[SerializeField]</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>hp</span><span class=p>;</span>
+<span class=w>  </span><span class=na>[SerializeField]</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>dano</span><span class=p>;</span>
+<span class=p>}</span>
+</code></pre></div><p>O problema surge quando percebemos que este componente já foi utilizado vezes demais através do projeto para apenas renomearmos as propriedades, pois ao fazer isso, todos os valores serializados serão perdidos.</p><p>A solução para isso é, logo após atualizar o código fonte do componente, realizar uma consulta <code>RENAME</code> para garantir que os dados das propriedades sejam mantidos.</p><div class=hl><pre><span></span><code><span class=k>RENAME</span><span class=w> </span><span class=n>vel</span><span class=w> </span><span class=k>FOR</span><span class=w> </span><span class=n>velocidade</span><span class=w> </span><span class=k>OF</span><span class=w> </span><span class=n>Inimigo</span><span class=p>;</span>
+<span class=k>RENAME</span><span class=w> </span><span class=n>hp</span><span class=w> </span><span class=k>FOR</span><span class=w> </span><span class=n>vidaMaxima</span><span class=w> </span><span class=k>OF</span><span class=w> </span><span class=n>Inimigo</span><span class=p>;</span>
+<span class=k>RENAME</span><span class=w> </span><span class=n>dano</span><span class=w> </span><span class=k>FOR</span><span class=w> </span><span class=n>forca</span><span class=w> </span><span class=k>OF</span><span class=w> </span><span class=n>Inimigo</span>
+</code></pre></div><p>Esta consulta renomeia todas as três propriedades do componente <code>Inimigo</code> para cada instância encontrada no projeto.</p><h3 id=convertendo-booleanos-em-enum>Convertendo booleanos em enum</h3><p>Vamos supor que temos um componente <code>Moveset</code> que controla as habilidades de movimentação das entidades do jogo. Para cada habilidade há um campo booleano que dita se a instância do componente tem aquela habilidade. Conforme o desenvolvimento do projeto, o número de habilidades foi de dois: pular e correr, para cinco: pular, correr, escalar, rolar e nadar. Isso significa que quando antes tínhamos dois campos, agora temos cinco.</p><div class=hl><pre><span></span><code><span class=k>public</span><span class=w> </span><span class=k>class</span><span class=w> </span><span class=nc>Moveset</span><span class=w> </span><span class=p>:</span><span class=w> </span><span class=n>MonoBehaviour</span>
+<span class=p>{</span>
+<span class=w>  </span><span class=na>[SerializeField]</span><span class=w> </span><span class=kt>bool</span><span class=w> </span><span class=n>podePular</span><span class=p>;</span>
+<span class=w>  </span><span class=na>[SerializeField]</span><span class=w> </span><span class=kt>bool</span><span class=w> </span><span class=n>podeCorrer</span><span class=p>;</span>
+<span class=w>  </span><span class=na>[SerializeField]</span><span class=w> </span><span class=kt>bool</span><span class=w> </span><span class=n>podeEscalar</span><span class=p>;</span>
+<span class=w>  </span><span class=na>[SerializeField]</span><span class=w> </span><span class=kt>bool</span><span class=w> </span><span class=n>podeRolar</span><span class=p>;</span>
+<span class=w>  </span><span class=na>[SerializeField]</span><span class=w> </span><span class=kt>bool</span><span class=w> </span><span class=n>podeNadar</span><span class=p>;</span>
 
-    .compatibilidade.experimental {
-        color: rgb(166, 133, 0);
-        background-color: #f0d80044;
-    }
+<span class=w>  </span><span class=cm>/* ... */</span>
+<span class=p>}</span>
+</code></pre></div><p>Para evitar a necessidade de criar um novo campo booleano a cada habilidade nova que implementamos no jogo, podemos atualizar esse sistema para utilizar um enum com flags. Um enum com flags é basicamente um número inteiro onde podemos aproveitar seus bits para armazenar valores binários em uma única variável, além de facilitar a adição de novas opções, pois podemos apenas adicionar uma nova flag ao enum existente.</p><div class=hl><pre><span></span><code><span class=na>[System.Flags]</span>
+<span class=k>public</span><span class=w> </span><span class=k>enum</span><span class=w> </span><span class=n>Habilidades</span>
+<span class=p>{</span>
+<span class=w>    </span><span class=n>Nenhuma</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=mi>0</span><span class=p>,</span>
+<span class=w>    </span><span class=n>Pular</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=mi>1</span><span class=p>,</span>
+<span class=w>    </span><span class=n>Correr</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=mi>2</span><span class=p>,</span>
+<span class=w>    </span><span class=n>Escalar</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=mi>4</span><span class=p>,</span>
+<span class=w>    </span><span class=n>Rolar</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=mi>8</span><span class=p>,</span>
+<span class=w>    </span><span class=n>Nadar</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=mi>16</span>
+<span class=p>}</span>
+</code></pre></div><p>Para isso precisaremos adicionar um novo campo <code>habilidades</code>, do tipo <code>Habilidades</code>, ao nosso componente <code>Moveset</code>. Como podemos ver no editor, o novo campo aparece como esperado no inspetor, mas há uma questão, o seu valor não corresponde aos valores dos campos booleanos. Isso significa que precisaremos atualizar todas as instâncias do componente <code>Moveset</code> pra cada cena e prefab que utiliza-o.</p><p>Podemos utilizar o statement <code>EVAL</code> para efetuar esta atualização de forma automática para cada instância do nosso componente no projeto. Como cada campo booleano é serializado como um número de 0 a 1, podemos utilizar operadores aritméticos para concluir essa tarefa.</p><div class=hl><pre><span></span><code><span class=k>EVAL</span><span class=w> </span><span class=n>habilidades</span><span class=w> </span><span class=o>=</span>
+<span class=w>    </span><span class=n>podePular</span><span class=w> </span><span class=o>+</span>
+<span class=w>    </span><span class=n>podeCorrer</span><span class=w> </span><span class=o>*</span><span class=w> </span><span class=m>2</span><span class=w> </span><span class=o>+</span>
+<span class=w>    </span><span class=n>podeEscalar</span><span class=w> </span><span class=o>*</span><span class=w> </span><span class=m>4</span><span class=w> </span><span class=o>+</span>
+<span class=w>    </span><span class=n>podeRolar</span><span class=w> </span><span class=o>*</span><span class=w> </span><span class=m>8</span><span class=w> </span><span class=o>+</span>
+<span class=w>    </span><span class=n>podeNadar</span><span class=w> </span><span class=o>*</span><span class=w> </span><span class=m>16</span>
+<span class=k>OF</span><span class=w> </span><span class=n>Moveset</span>
+</code></pre></div><p>Esta consulta computa e atribui ao campo <code>habilidades</code> o valor esperado com base nos campos booleanos, de forma automática.</p><h3 id=transformando-referencia-em-array-de-referencias>Transformando referência em array de referências</h3><p>Vamos supor que temos um componente <code>SoundboardPlayer</code> e este componente contém um campo <code>soundboard</code> que é do tipo <code>Soundboard</code>. O objetivo deste componente é reproduzir o som requisitado através do método <code>Play</code>. O campo <code>soundboard</code> é um <code>ScriptableObject</code> que contém a lista de clipes necessários para o funcionamento do componente.</p><div class=hl><pre><span></span><code><span class=k>public</span><span class=w> </span><span class=k>class</span><span class=w> </span><span class=nc>SoundboardPlayer</span><span class=w> </span><span class=p>:</span><span class=w> </span><span class=n>MonoBehaviour</span>
+<span class=p>{</span>
+<span class=w>    </span><span class=na>[SerializeField]</span><span class=w> </span><span class=n>Soundboard</span><span class=w> </span><span class=n>soundboard</span><span class=p>;</span>
 
-    .compatibilidade.pendente {
-        color: #9f5f00;
-        background-color: #dc753544;
-    }
-</style>
+<span class=w>    </span><span class=k>public</span><span class=w> </span><span class=k>void</span><span class=w> </span><span class=nf>Play</span><span class=p>(</span><span class=kt>string</span><span class=w> </span><span class=n>nomeClipe</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w> </span><span class=cm>/* ... */</span><span class=w> </span><span class=p>}</span>
+<span class=p>}</span>
+</code></pre></div><p>Mas agora havemos um problema. Atualmente não é possível reproduzir dois clipes de áudio de dois soundboards diferentes a partir do mesmo <code>SoundboardPlayer</code>, já que o componente faz referência a somente um <code>Soundboard</code>.</p><p>Para resolver este problema, precisamos substituir o campo <code>soundboard</code> por um campo novo, do tipo <code>Soundboard[]</code>. Chamaremos este novo campo de <code>soundboards</code>. Ao realizar esta mudança podemos notar que o novo campo aparece no inspetor, como desejado, mas está vazio. Isso significa que precisaremos reatribuir todos os soundboards utilizados como um elemento da nova lista. Precisaremos fazer isso para cada instância do componente <code>SoundboardPlayer</code> no projeto, o que pode ser demorado e problemático dependendo de quantas vezes o componente foi utilizado.</p><p>A USRL foi projetada para resolver estes problemas. Podemos utilizar o statement <code>EVAL</code> para realizar esta atualização de forma automática.</p><div class=hl><pre><span></span><code><span class=k>EVAL</span><span class=w> </span><span class=p>{</span>
+<span class=w>    </span><span class=n>soundboards</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nv>$addList</span><span class=p>();</span>
+<span class=w>    </span><span class=nv>$push</span><span class=p>(</span><span class=n>soundboard</span><span class=p>,</span><span class=w> </span><span class=n>soundboards</span><span class=p>);</span>
+<span class=p>}</span><span class=w> </span><span class=k>OF</span><span class=w> </span><span class=n>SoundboardPlayer</span>
+</code></pre></div><p>Esta consulta USRL atribuirá uma nova lista ao campo <code>soundboards</code> e adicionará o valor do antigo campo <code>soundboard</code> como um elemento dentro da lista. Esta operação será realizada para cada instância do componente no projeto.</p><h2 id=apendices>Apêndices</h2><h3 id=gramatica>Gramática</h3><div class=hl><pre><span></span><code>program &lt;- statement ( ';' statement )* ';'?
+statement &lt;- show / rename / evaluate
 
-<article>
-    <h1>USRL</h1>
+show &lt;- 'SHOW' search of in? where?
+rename &lt;- 'RENAME' member 'FOR' ( literal / string ) of in?
+evaluate &lt;- 'EVAL' expr ( ',' expr )* of in? where?
 
-    <h2>Cláusulas</h2>
+of &lt;- 'OF' asset ( ',' asset )*
+in &lt;- 'IN' literal / string
+where &lt;- 'WHERE' expr
+having &lt;- 'HAVING' asset variable? ( 'ON' target )?
 
-    <h3>Cláusula <code>OF</code> <span class="compatibilidade compativel">Compatível</span> </h3>
+asset &lt;- literal / string / 'GUID' guid
+guid &lt;- hex{32}
+target &lt;- 'self' / 'parent' / 'anychild'
+member &lt;- literal ( '.' literal )*
+search &lt;- 'refs' / ( 'direct' / 'indirect' )? 'uses'
 
-    <p>
-        Com a cláusula <code>OF</code>, é possível especificar um ou mais <em>assets</em> como alvo da consulta.
-        Em muitos <em>statements</em>, esta cláusula é obrigatória, apesar de não haver a necessidade de ser a primeira.
-    </p>
+expr &lt;- assignment
+assignment &lt;- access ( '=' / '+=' / '-=' / '*=' / '/=' / ':=' ) assignment / ternary
+ternary &lt;- or ( '?' or ':' ternary )?
+or &lt;- and ( 'OR' and )*
+and &lt;- equality ( 'AND' equality )*
+equality &lt;- comparison ( ( '==' / '!=' ) comparison )*
+comparison &lt;- term ( ( '&gt;=' / '&gt;' / '&lt;=' / '&lt;' ) term )*
+term &lt;- factor ( ( '+' / '-' ) factor )*
+factor &lt;- coalesce ( ( '*' / '/' ) coalesce )*
+coalesce &lt;- unary ( '??' unary )*
+unary &lt;- ( '-' / '!' ) unary / access
+access &lt;- ( literal / variable ) ( '.' literal / '[' expr ']' / '(' ( expr ( ',' expr )* ','? )? ')' )* / value
+value &lt;- string / number / '(' expr ')' / '{' ( expr ( ';' expr )* ';'? )? '}'
 
-    <p>
-        A cláusula <code>OF</code> pode ser utilizada com qualquer <em>asset</em> do projeto, como imagens, clipes de
-        áudio, componente, prefabs, etc.
-        Esta cláusula necessita do caminho ao <em>asset</em> relativo ao diretório atual de trabalho. Se o
-        <em>asset</em> alvo for um componente, não há necessidade de especificar o caminho, apenas o nome do componente
-        como um literal é o suficiente.
-    </p>
+string &lt;- '"' [^"]* '"'
+number &lt;- digit+ ( '.' digit+ )?
+literal &lt;- ( alpha / '_' ) ( alpha / digit / '_' )*
+variable &lt;- '$' ( alpha / digit / '_' )+
 
-    <pre>
-<span class="chave">OF</span> <span class="string">"Imagens/Logo.png"</span> 
-<span class="chave">OF</span> <span class="string">'Audio/Musica.mp3'</span> 
-
-<span class="comment"># Os exemplos abaixo são equivalentes</span>
-<span class="chave">OF</span> PlayerController
-<span class="chave">OF</span> <span class="string">'Scripts/PlayerController.cs'</span></pre>
-
-    <p>
-        Também é possível utilizar o operador <code>,</code> (vírgula) para especificar mais de um <em>asset</em>.
-    </p>
-
-    <pre>
-<span class="chave">OF</span> <span class="string">'Scripts/Player.png'</span>, <span class="string">'Scripts/Enemy.png'</span> 
-
-<span class="comment"># Os exemplos abaixo são equivalentes</span>
-<span class="chave">OF</span> PlayerController, EnemyController
-<span class="chave">OF</span> PlayerController, <span class="string">'Scripts/EnemyController.cs'</span> 
-<span class="chave">OF</span> <span class="string">'Scripts/PlayerController.cs'</span>, <span class="string">'Scripts/EnemyController.cs'</span></pre>
-
-    <p>
-        Se houver alguma situação que não seja possível obter o nome ou caminho ao <em>asset</em>, é possível utilizar
-        seu GUID como substituto. Para especificar o GUID de um <em>asset</em>, deve-se utilizar a palavra-chave
-        <code>GUID</code> seguida do
-        GUID como uma string.
-    </p>
-
-    <pre>
-<span class="chave">OF</span> <span class="chave">GUID</span> <span class="string">'e1f42f24601a32ac81a9776a50927ee6'</span>
-<span class="chave">OF</span> <span class="chave">GUID</span> <span class="string">'e1f42f24601a32ac81a9776a50927ee6'</span>, <span class="chave">GUID</span> <span class="string">'9ce307d03d67b8de97dbaa43ce7ec8fe'</span>
-<span class="chave">OF</span> PlayerController, <span class="chave">GUID</span> <span class="string">'9ce307d03d67b8de97dbaa43ce7ec8fe'</span></pre>
-
-    <h3>Cláusula <code>IN</code> <span class="compatibilidade compativel">Compatível</span></h3>
-
-    <p>
-        A cláusula <code>IN</code> serve para especificar o diretório alvo da operação, relativo ao diretório de
-        trabalho atual. Se o diretório especificado for filho direto do diretório de trabalho atual, é possível
-        especificá-lo como um literal.
-    </p>
-
-    <pre>
-<span class="chave">IN</span> <span class="string">'./Scenes/Levels'</span>
-<span class="chave">IN</span> <span class="string">'./Resources/Textures/Player'</span>
-
-<span class="comment"># Os exemplos abaixo são equivalentes</span>
-<span class="chave">IN</span> Prefabs
-<span class="chave">IN</span> <span class="string">'Prefabs'</span>
-<span class="chave">IN</span> <span class="string">'./Prefabs'</span>
-<span class="chave">IN</span> <span class="string">'Prefabs/'</span></pre>
-
-    <h3>Cláusula <code>WHERE</code> <span class="compatibilidade pendente">Pendente</span></h3>
-
-    <p>
-        A cláusula <code>WHERE</code> é utilizada para filtrar os resultados de uma operação, permitindo que apenas
-        os assets que atendem a uma determinada condição sejam incluídos. Para utilizá-la, basta especificar a expressão
-        desejada após a palavra-chave <code>WHERE</code>.
-    </p>
-
-    <pre>
-<span class="chave">WHERE</span> _speed &gt; <span class="number">10</span>
-<span class="chave">WHERE</span> _health &lt; <span class="number">100</span>
-<span class="chave">WHERE</span> _speed == _health
-</pre>
-
-
-
-    <h2><em>Statements</em></h2>
-
-    <h3><em>Statement</em> <code>SHOW</code> <span class="compatibilidade compativel">Compatível</span></h3>
-
-    <p>
-        O statement <code>SHOW</code> é utilizado para buscar referências de assets específicos em cenas ou prefabs.
-        Este statement tem dois modos de busca: <strong>referências</strong> e <strong>usos</strong>.
-    </p>
-
-    <p>
-        O modo de <strong>busca por referência</strong> é simples: Este modo realiza uma busca por qualquer utilização
-        do asset especificado, incluindo referências através de campos, através de todas as cenas, prefabs e assets do
-        projeto.
-    </p>
-
-    <p>
-        O modo de <strong>busca por uso</strong> é um pouco diferente. É importante deixar claro que este modo apenas
-        funciona se o asset especificado for um componente ou prefab. Este modo pesquisa pelas utilizações do
-        componente/prefab especificado, inclusive a utilização dos prefabs que utilizam o asset especificado, de forma
-        recursiva. Por exemplo, se o asset especificado para a busca for o componente <code>Player.cs</code> e um prefab
-        chamado <code>Player.prefab</code> utilizar este componente, o prefab será incluído na busca, juntamente com o
-        componente originalmente especificado.
-    </p>
-
-    <p>
-        É possível modificar o modo de busca utilizando a palavra-chave <code>REFS</code> para modo de busca por
-        referência, ou <code>USES</code> para o modo de busca por uso
-    </p>
-
-
-    <pre>
-<span class="chave">SHOW</span> <span class="chave">USES</span> <span class="chave">OF</span> PlayerController <span class="chave">IN</span> Assets;
-<span class="chave">SHOW</span> <span class="chave">USES</span> <span class="chave">OF</span> <span class="string">'Assets/Prefabs/Player.prefab'</span> <span class="chave">IN</span> Assets;
-<span class="chave">SHOW</span> <span class="chave">REFS</span> <span class="chave">OF</span> <span class="string">"Assets/Textures/Player.png"</span>
-</pre>
-
-    <p>
-        A recursão do modo de <strong>busca por uso</strong> pode ser explicitamente determinada utilizando as
-        palavras-chave <code>DIRECT</code> ou <code>INDIRECT</code>. Sendo <code>INDIRECT</code> o modo padrão, que
-        realiza a busca recursivamente.
-    </p>
-
-    <pre>
-<span class="chave">SHOW</span> <span class="chave">DIRECT</span> <span class="chave">USES</span> <span class="chave">OF</span> PlayerController;
-<span class="chave">SHOW</span> <span class="chave">INDIRECT</span> <span class="chave">USES</span> <span class="chave">OF</span> PlayerController
-</pre>
-
-    <h3><em>Statement</em> <code>RENAME</code> <span class="compatibilidade compativel">Compatível</span></h3>
-
-    <p>
-        O statement <code>RENAME</code> é utilizado para renomear os campos dos componentes especificados.
-        Este statement foi criado para facilitar a renomeação de campos de componentes, evitando a necessidade de
-        renomear manualmente cada campo de cada componente de cada prefab de cada cena, o que pode ser um processo
-        tedioso e propenso a erros.
-    </p>
-
-    <p>
-        Para utilizar o statement <code>RENAME</code>, é necessário especificar o nome do campo a ser renomeado, o novo
-        nome do campo e, entre eles, a palavra-chave <code>FOR</code>. Também é necessário especificar o componente
-        alvo, utilizando a cláusula <code>OF</code>.
-    </p>
-
-    <pre>
-<span class="chave">RENAME</span> _spd <span class="chave">FOR</span> _speed <span class="chave">OF</span> PlayerController;
-<span class="chave">RENAME</span> _life <span class="chave">FOR</span> _health <span class="chave">OF</span> PlayerController
-</pre>
-
-    <p>
-        Em caso de classes com hierarquia, é possível especificar mais de um componente, utilizando a cláusula
-        <code>OF</code> com mais de um componente, separados por vírgula. O statement <code>RENAME</code> irá renomear o
-        campo especificado em todos os componentes especificados.
-    </p>
-
-    <pre>
-<span class="chave">RENAME</span> _spd <span class="chave">FOR</span> _speed <span class="chave">OF</span> PlayerController, EntityController;
-<span class="chave">RENAME</span> _life <span class="chave">FOR</span> _health <span class="chave">OF</span> PlayerController, EntityController
-</pre>
-
-    <p>
-        <strong>ATENÇÃO:</strong> Se utilizado no momento incorreto, o statement <code>RENAME</code> pode causar a perda
-        dos valores dos campos renomeados. Este statement deve ser utilizado <strong>após</strong> o renomeamento dos
-        campos da classe do componente, ou seja, após a modificação do código fonte do componente, e
-        <strong>antes</strong> de focar na janela do editor. Somente assim é possível garantir que a integridade dos
-        dados seja mantida e que os valores dos campos renomeados não sejam perdidos.
-    </p>
-
-    <h3><em>Statement</em> <code>EVAL</code> <span class="compatibilidade experimental">Experimental</span></h3>
-
-    <p>
-        O statement <code>EVAL</code> é utilizado para avaliar expressões matemáticas, lógicas e de comparação com base
-        nos valores dos campos dos componentes especificados.
-    </p>
-
-    <pre>
-<span class="chave">EVAL</span> _speed <span class="chave">OF</span> PlayerController;
-<span class="chave">EVAL</span> _speed / <span class="number">3.6</span> <span class="chave">OF</span> PlayerController
-</pre>
-
-    <p>
-        Este statement também permite a reatribuição de valores aos campos.
-    </p>
-
-    <pre>
-<span class="chave">EVAL</span> _speed = _speed * <span class="number">3.6</span> <span class="chave">OF</span> PlayerController;
-<span class="chave">EVAL</span> _speed = <span class="number">100</span> / _health <span class="chave">OF</span> PlayerController
-</pre>
-
-    <p>
-        Este statement pode ser combinado com a cláusula <code>WHERE</code> para limitar o escopo das mudanças.
-    </p>
-
-    <pre>
-<span class="chave">EVAL</span> _speed = <span class="number">10</span> <span class="chave">OF</span> PlayerController <span class="chave">WHERE</span> _speed &gt; <span class="number">10</span>
-</pre>
-
-</article>
+hex &lt;- [0-9a-fA-F]
+alpha &lt;- [a-zA-Z]
+digit &lt;- [0-9]
+</code></pre></div></article></body></html>

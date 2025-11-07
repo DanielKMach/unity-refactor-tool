@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <style>
+        body {
+            color-scheme: light;
+            font-family: system-ui, -apple-system, Arial, sans-serif;
+            box-sizing: border-box;
+
+            width: 100%;
+            padding: 20px;
+            margin: 0;
+
+            font-size: 16px;
+            line-height: 22px;
+        }
+
+        header {
+            grid-area: header;
+        }
+
+        article {
+            box-sizing: border-box;
+            grid-area: article;
+        }
+
+        nav {
+            box-sizing: border-box;
+            grid-area: nav;
+        }
+
+        nav ul,
+        nav ol {
+            padding-left: 1em;
+        }
+
+        nav li {
+            text-align: left;
+            margin-top: 5px;
+        }
+
+        @media screen and (width >=1000px) {
+            body {
+                display: grid;
+                grid-template-areas:
+                    "nav header"
+                    "nav article";
+                grid-template-columns: 350px auto;
+                padding: 0;
+            }
+
+            nav {
+                position: sticky;
+                top: 0;
+                max-height: 100vh;
+                overflow-y: auto;
+                width: 350px;
+                min-width: 350px;
+                background-color: #8881;
+                padding: 20px;
+            }
+
+            nav h2 {
+                margin-top: 0;
+            }
+
+            article {
+                width: min(800px, 100%);
+                justify-self: center;
+                padding: 20px;
+            }
+        }
+
+        code {
+            background-color: #8883;
+            padding: 0 3px;
+            border: 1px dotted #8884;
+            font-size: 0.95em;
+            vertical-align: middle;
+            font-family: monospace;
+        }
+
+        pre {
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+            padding: 10px 15px;
+            font-size: 14px;
+            margin: 0;
+        }
+
+        pre>code {
+            background: none;
+            padding: 0;
+            border: none;
+            color: inherit;
+            font-size: inherit;
+        }
+
+        .hl {
+            border: 1px dashed #8884;
+        }
+
+        p {
+            text-align: justify;
+        }
+
+        li {
+            text-align: justify;
+            margin-top: 10px;
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 44px;
+        }
+
+        h2 {
+            text-transform: uppercase;
+            border-bottom: solid 1px #8883;
+            padding-bottom: 5px;
+            margin: 2cm 0 1cm 0;
+            font-size: 26px;
+            break-before: always;
+        }
+
+        h3 {
+            margin: 1cm 0 0.5cm 0;
+            font-size: 22px;
+        }
+
+        h4 {
+            margin: 0.8cm 0 0.4cm 0;
+            font-size: 18px;
+        }
+
+        table {
+            background: #8883;
+            border-spacing: 1px;
+
+            /* https://stackoverflow.com/questions/19794211/horizontal-scroll-on-overflow-of-table */
+            display: block;
+            max-width: fit-content;
+            overflow-x: auto;
+            white-space: nowrap;
+        }
+
+        table th {
+            padding: 5px 10px;
+        }
+
+        table td {
+            padding: 5px 10px;
+            background: white;
+        }
+
+        table tr:nth-child(odd) td {
+            background: #f4f4f4;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            body {
+                color-scheme: dark;
+                background-color: #121314;
+                color: #eee;
+            }
+
+            table td {
+                background: #121212;
+            }
+
+            table tr:nth-child(odd) td {
+                background: #181818;
+            }
+        }
+    </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light dark">
+    <title>Manual USRL</title>
+    {{HEAD}}
+</head>
+
+<body>
+    <header>
+        <h1>USRL</h1>
+        <center>Unity Structured Refactoring Language</center>
+    </header>
+    <nav>
+        <h2>SUMÁRIO</h2>
+        {{TOC}}
+    </nav>
+    <article>
+        {{CONTENT}}
+    </article>
+</body>
+
+</html>
