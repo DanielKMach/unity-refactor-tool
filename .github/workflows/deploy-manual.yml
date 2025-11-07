@@ -30,9 +30,8 @@ jobs:
           mkdir -p public
           cp src/manual.html public/index.html
       - name: Upload Pages artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-pages-artifact@v4
         with:
-          name: github-pages
           path: public
       - name: Deploy to GitHub Pages
         id: deployment
