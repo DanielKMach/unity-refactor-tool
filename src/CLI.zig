@@ -44,7 +44,9 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
                 try printHelp(&self.out.interface);
                 return true;
             } else if (std.mem.eql(u8, arg, "--")) {
-                const source = try usrl.Source.fromStdin(self.allocator);
+                var code: [1 << 16]u8 = undefined;
+                const len = try self.in.interface.readSliceShort(&code);
+                const source = try usrl.Source.named(code[0..len], "stdin", self.allocator);
                 defer source.deinit();
                 if (try self.parse(source, parser)) |script| {
                     return try self.run(script, .{

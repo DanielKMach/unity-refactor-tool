@@ -49,6 +49,14 @@ pub fn anonymous(source: []const u8, allocator: std.mem.Allocator) SourceError!S
     };
 }
 
+pub fn named(source: []const u8, name: []const u8, allocator: std.mem.Allocator) SourceError!Source {
+    return Source{
+        .allocator = allocator,
+        .name = try allocator.dupe(u8, name),
+        .source = try allocator.dupe(u8, source),
+    };
+}
+
 pub fn deinit(self: Source) void {
     self.allocator.free(self.source);
     if (self.name) |name| self.allocator.free(name);
