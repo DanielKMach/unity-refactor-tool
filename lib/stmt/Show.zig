@@ -17,7 +17,7 @@ pub const SearchMode = enum {
     indirect_uses,
 };
 
-const uses_files = &.{ ".prefab", ".unity" };
+const uses_files = &.{ ".prefab", ".unity", ".asset" };
 const refs_files = &.{ ".prefab", ".unity", ".asset", ".mat", ".controller", ".anim" };
 
 mode: SearchMode,
