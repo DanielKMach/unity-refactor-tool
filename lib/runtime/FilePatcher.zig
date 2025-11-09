@@ -85,8 +85,8 @@ fn newPatcher(from: std.fs.File, to: std.fs.File, allocator: std.mem.Allocator) 
 fn freePatcher(patcher: *Patcher, allocator: std.mem.Allocator) void {
     allocator.free(patcher.freader.interface.buffer);
     allocator.free(patcher.fwriter.interface.buffer);
-    allocator.destroy(patcher);
     patcher.* = undefined;
+    allocator.destroy(patcher);
 }
 
 const Patcher = struct {
