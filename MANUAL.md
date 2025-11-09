@@ -20,9 +20,17 @@ EVAL velocidade *= 2 OF PlayerController;
 - Renomear campos de componentes mantendo seus valores após a operação.
 - Mostrar e atualizar propriedades com base em valores calculados a partir de expressões lógicas e aritméticas, permitindo a especificação de condições para limitar o escopo das mudanças.
 
+### Avisos e recomendações
+
+Este software é o maior e mais complexo projeto que eu, o criador da USRL, já desenvolvi, portanto há a possibilidade de que a ferramenta não funcione como o esperado em algumas ocasiões. É fortemente recomendado que, ao utilizar a USRL em seus projetos Unity, seja possível reverter qualquer alteração feito pela linguagem caso o resultado da operação não seja o que foi desejado. Caso você encontre algum bug, por favor, reporte o erro na [página de issues do repositório da USRL](https://github.com/DanielKMach/USRL/issues).
+
 ## Interface de Linha de Comando
 
-A interface de linha de comando (CLI) da USRL é o principal meio de interação com a linguagem. Ela permite executar consultas USRL, acessar o manual da linguagem e tem a capacidade de exibir de mensagens de aviso em caso de erro. Para obtê-la, basta baixar o executável na [página de lançamentos do repositório da USRL](https://github.com/DanielKMach/USRL/releases). A CLI está disponível para os sistemas operacionais windows, linux e macOS.
+A interface de linha de comando (CLI) da USRL é o principal meio de interação com o sistema de interpretação da linguagem. Ela permite executar consultas USRL, acessar o manual da linguagem e tem a capacidade de exibir de mensagens informativas em caso de erro.
+
+### Instalação
+
+Para obter a CLI da linguagem, basta baixar o executável na [página de lançamentos do repositório da USRL](https://github.com/DanielKMach/USRL/releases) e adicioná-lo ao PATH ou executá-lo diretamente da pasta de download. A CLI está disponível para os sistemas operacionais windows, linux e macOS.
 
 Ao executar a CLI sem argumentos, é possível ver um overview de todas as funcionalidades disponíveis no executável.
 
@@ -268,7 +276,7 @@ Expressões somente podem ser utilizadas quando permitidas pelo statement, assim
 
 ### Valores numéricos
 
-Valores numéricos são os valores mais básicos do sistema de expressões. Este valores representam números reais de alcance infinito e podem participar de operações matemáticas complexas.
+Valores numéricos são os valores mais básicos do sistema de expressões. Estes valores representam números reais de alcance infinito e podem participar de operações matemáticas complexas.
 
 ```usrl
 1, 6.5, 3.14, 24, 0.333
@@ -489,9 +497,7 @@ $i + 2; # utilizando a variável com valor definido
 
 ### Funções
 
-Funções são valores executáveis que realizam uma tarefa ou calculam um valor. Cada função aceita um número específico de argumentos e devem sempre retornar um valor.
-
-Para chamar uma função deve-se utilizar parênteses como sufixo do valor, podendo especificar argumentos dentro dos parênteses, separados por vírgula.
+Funções são valores executáveis que realizam uma tarefa ou calculam um valor. Cada função aceita um número específico de argumentos e devem sempre retornar um valor. Para chamar uma função deve-se utilizar um par de parênteses como sufixo do valor, podendo especificar argumentos dentro dos parênteses, separados por vírgula.
 
 ```usrl
 $min(10, 5) == 5,
@@ -500,6 +506,8 @@ $len('ola mundo') == 8,
 $idx('b', 'abc') == 1,
 $ctx().vida == vida
 ```
+
+A USRL vêm com um conjunto de funções padrão de uso geral para calcular e manipular valores. Tentar atribuir uma variável que contém uma dessas funções resultará em um erro.
 
 #### `$min(x, y)`
 
@@ -671,19 +679,19 @@ $area := {
 
 ### Tabela de Operadores
 
-| Precedência | Associatividade | Caractere | Descrição |
-| --- | --- | --- | --- |
-| 0 | esquerda à direita | `.`<br> `( )`<br> `[ ]` | Acesso<br> Chamada de função<br> Indexação |
-| 1 | direita à esquerda | `-`<br> `!` | Negação<br> Negação lógica |
-| 2 | esquerda à direita | `??` | Null Coalescing |
-| 3 | esquerda à direita | `*`<br> `/` | Multiplicação<br> Divisão |
-| 4 | esquerda à direita | `+`<br> `-` | Adição<br> Subtração |
-| 5 | esquerda à direita | `>`<br> `>=`<br> `<`<br> `<=` | Maior que<br> Maior ou igual a<br> Menor que<br> Menor ou igual a |
-| 6 | esquerda à direita | `==`<br> `!=` | Igualdade<br> Desigualdade |
-| 7 | esquerda à direita | `AND` | “E” lógico |
-| 8 | esquerda à direita | `OR` | “OU” lógico |
-| 9 | esquerda à direita | `? :` | Condicional |
-| 10 | direita à esquerda | `=` `+=` `-=` `*=` `/=` `:=` | Atribuição |
+| Precedência | Associatividade    | Caractere                    | Descrição                                                         |
+| ----------- | ------------------ | ---------------------------- | ----------------------------------------------------------------- |
+| 0           | esquerda à direita | `.`<br>`( )`<br>`[ ]`        | Acesso<br> Chamada de função<br> Indexação                        |
+| 1           | direita à esquerda | `-`<br>`!`                   | Negação<br> Negação lógica                                        |
+| 2           | esquerda à direita | `??`                         | Null Coalescing                                                   |
+| 3           | esquerda à direita | `*`<br>`/`                   | Multiplicação<br> Divisão                                         |
+| 4           | esquerda à direita | `+`<br>`-`                   | Adição<br> Subtração                                              |
+| 5           | esquerda à direita | `>`<br>`>=`<br>`<`<br>`<=`   | Maior que<br> Maior ou igual a<br> Menor que<br> Menor ou igual a |
+| 6           | esquerda à direita | `==`<br>`!=`                 | Igualdade<br> Desigualdade                                        |
+| 7           | esquerda à direita | `AND`                        | “E” lógico                                                        |
+| 8           | esquerda à direita | `OR`                         | “OU” lógico                                                       |
+| 9           | esquerda à direita | `? :`                        | Condicional                                                       |
+| 10          | direita à esquerda | `=` `+=` `-=` `*=` `/=` `:=` | Atribuição                                                        |
 
 ## Casos de Uso
 
@@ -693,7 +701,7 @@ Esta sessão do manual mostra um conjunto de exemplos práticos, contextualizand
 
 Vamos supor que temos um sprite `Gradiente.png` que é frequentemente utilizado para simular ambient occlusion, uma técnica de sombreamento para escurecer cantos onde a luz não chegaria.
 
-Conforme o desenvolvimento do projeto, este asset foi utilizado em algumas cenas diferentes, mas recentemente foi implementado uma solução de sombreamento muito superior comparado com o antigo `Gradiente.png`, portanto desejamos substitui-lo e remove-lo do projeto. Agora temos um problema, como vamos saber em quais cenas aquele asset específico foi utilizado?
+Conforme o desenvolvimento do projeto, este asset foi utilizado em algumas cenas diferentes, mas recentemente foi implementado uma solução de sombreamento muito superior comparado com o antigo `Gradiente.png`, portanto desejamos substituí-lo e removê-lo do projeto. Agora temos um problema, como vamos saber em quais cenas aquele asset específico foi utilizado?
 
 A USRL tem uma solução para isso. Podemos realizar uma consulta `SHOW` para mostrar todas as referências do `Gradiente.png` espalhados pelo projeto.
 
@@ -724,9 +732,9 @@ Digamos que temos um componente `Inimigo`, que contém propriedades como velocid
 ```csharp
 public class Inimigo : MonoBehaviour
 {
-  [SerializeField] float vel;
-  [SerializeField] int hp;
-  [SerializeField] int dano;
+	[SerializeField] float vel;
+	[SerializeField] int hp;
+	[SerializeField] int dano;
 }
 ```
 
@@ -749,13 +757,13 @@ Vamos supor que temos um componente `Moveset` que controla as habilidades de mov
 ```csharp
 public class Moveset : MonoBehaviour
 {
-  [SerializeField] bool podePular;
-  [SerializeField] bool podeCorrer;
-  [SerializeField] bool podeEscalar;
-  [SerializeField] bool podeRolar;
-  [SerializeField] bool podeNadar;
-  
-  /* ... */
+	[SerializeField] bool podePular;
+	[SerializeField] bool podeCorrer;
+	[SerializeField] bool podeEscalar;
+	[SerializeField] bool podeRolar;
+	[SerializeField] bool podeNadar;
+	
+	/* ... */
 }
 ```
 
@@ -774,7 +782,7 @@ public enum Habilidades
 }
 ```
 
-Para isso precisaremos adicionar um novo campo `habilidades`, do tipo `Habilidades`, ao nosso componente `Moveset`. Como podemos ver no editor, o novo campo aparece como esperado no inspetor, mas há uma questão, o seu valor não corresponde aos valores dos campos booleanos. Isso significa que precisaremos atualizar todas as instâncias do componente `Moveset` pra cada cena e prefab que utiliza-o.
+Para isso precisaremos adicionar um novo campo `habilidades`, do tipo `Habilidades`, ao nosso componente `Moveset`. Como podemos ver no editor, o novo campo aparece como esperado no inspetor, mas há uma questão, o seu valor não corresponde aos valores dos campos booleanos. Isso significa que precisaremos atualizar todas as instâncias do componente `Moveset` espalhadas no projeto.
 
 Podemos utilizar o statement `EVAL` para efetuar esta atualização de forma automática para cada instância do nosso componente no projeto. Como cada campo booleano é serializado como um número de 0 a 1, podemos utilizar operadores aritméticos para concluir essa tarefa.
 
@@ -792,7 +800,7 @@ Esta consulta computa e atribui ao campo `habilidades` o valor esperado com base
 
 ### Transformando referência em array de referências
 
-Vamos supor que temos um componente `SoundboardPlayer` e este componente contém um campo `soundboard` que é do tipo `Soundboard`. O objetivo deste componente é reproduzir o som requisitado através do método `Play`. O campo `soundboard` é um `ScriptableObject` que contém a lista de clipes necessários para o funcionamento do componente.
+Vamos supor que temos um componente `SoundboardPlayer` e este componente contém um campo `soundboard` que é do tipo `Soundboard`. O objetivo deste componente é reproduzir o som requisitado através do método `Play`. O campo `soundboard` é um ScriptableObject que contém a lista de clipes necessários para o funcionamento do componente.
 
 ```csharp
 public class SoundboardPlayer : MonoBehaviour
@@ -805,7 +813,7 @@ public class SoundboardPlayer : MonoBehaviour
 
 Mas agora havemos um problema. Atualmente não é possível reproduzir dois clipes de áudio de dois soundboards diferentes a partir do mesmo `SoundboardPlayer`, já que o componente faz referência a somente um `Soundboard`.
 
-Para resolver este problema, precisamos substituir o campo `soundboard` por um campo novo, do tipo `Soundboard[]`. Chamaremos este novo campo de `soundboards`. Ao realizar esta mudança podemos notar que o novo campo aparece no inspetor, como desejado, mas está vazio. Isso significa que precisaremos reatribuir todos os soundboards utilizados como um elemento da nova lista. Precisaremos fazer isso para cada instância do componente `SoundboardPlayer` no projeto, o que pode ser demorado e problemático dependendo de quantas vezes o componente foi utilizado.
+Para resolver este problema, precisamos substituir o campo `soundboard` por um campo novo, do tipo `Soundboard[]`. Chamaremos este novo campo de `soundboards`. Ao realizar esta mudança podemos notar que o novo campo aparece no inspetor, como desejado, mas está vazio. Isso significa que precisaremos atribuir o valor do antigo campo `soundboard` como um novo elemento da lista. Precisaremos fazer isso para cada instância do componente `SoundboardPlayer` no projeto, o que pode ser demorado e problemático dependendo de quantas vezes o componente foi utilizado.
 
 A USRL foi projetada para resolver estes problemas. Podemos utilizar o statement `EVAL` para realizar esta atualização de forma automática.
 
