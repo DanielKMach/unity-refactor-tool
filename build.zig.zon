@@ -1,7 +1,7 @@
 .{
     .name = .usrl,
     .fingerprint = 0x721f6fbc8c086a5a,
-    .version = "1.0.0",
+    .version = "1.0.1",
     .dependencies = .{
         .libyaml = .{
             .url = "git+https://github.com/DanielKMach/libyaml?ref=zig-build#ae56291dff4b6c6711363397679f300db76dcce7",
