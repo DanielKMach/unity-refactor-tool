@@ -1,8 +1,8 @@
 ## Introdução
 
-A Unity Structured Refactoring Language (USRL) é uma linguagem de consulta capaz de localizar e manipular instâncias de assets encontradas em projetos Unity, de forma fácil, rápida e segura.
+A Unity Structured Refactoring Language (USRL) é uma linguagem de consulta capaz de localizar e manipular instâncias de assets encontradas em projetos Unity de forma fácil, rápida e segura.
 
-Ela surgiu para suprir a falta de ferramentas de refatoração nativas e foi desenvolvida com o objetivo de auxiliar desenvolvedores a refatorar e aplicar manutenção em seus projetos.
+Ela surgiu para suprir a falta de ferramentas de refatoração nativas e foi desenvolvida com o objetivo de auxiliar desenvolvedores a refatorar e realizar manutenção em seus projetos.
 
 ```usrl
 SHOW REFS OF "Assets/Sprites/Player.png";
@@ -22,7 +22,7 @@ EVAL velocidade *= 2 OF PlayerController;
 
 ### Avisos e recomendações
 
-Este software é o maior e mais complexo projeto que eu, o criador da USRL, já desenvolvi, portanto há a possibilidade de que a ferramenta não funcione como o esperado em algumas ocasiões. É fortemente recomendado que, ao utilizar a USRL em seus projetos Unity, seja possível reverter qualquer alteração feito pela linguagem caso o resultado da operação não seja o que foi desejado. Caso você encontre algum bug, por favor, reporte o erro na [página de issues do repositório da USRL](https://github.com/DanielKMach/USRL/issues).
+Este software é o maior e mais complexo projeto que eu, o criador da USRL, já desenvolvi. Portanto, há a possibilidade de que a ferramenta não funcione como o esperado em algumas ocasiões. É fortemente recomendado que, ao utilizar a USRL em seus projetos Unity, seja possível reverter qualquer alteração feita pela linguagem caso o resultado da operação não seja o desejado. Caso encontre algum bug, por favor, reporte o erro na [página de issues do repositório da USRL](https://github.com/DanielKMach/USRL/issues).
 
 ## Interface de Linha de Comando
 
@@ -30,7 +30,7 @@ A interface de linha de comando (CLI) da USRL é o principal meio de interação
 
 ### Instalação
 
-Para obter a CLI da linguagem, basta baixar o executável na [página de lançamentos do repositório da USRL](https://github.com/DanielKMach/USRL/releases) e adicioná-lo ao PATH ou executá-lo diretamente da pasta de download. A CLI está disponível para os sistemas operacionais windows, linux e macOS.
+Para obter a CLI da linguagem, basta baixar o executável na [página de lançamentos do repositório da USRL](https://github.com/DanielKMach/USRL/releases) e adicioná-lo ao PATH ou executá-lo diretamente da pasta de download. A CLI está disponível para os sistemas operacionais Windows, Linux e macOS.
 
 Ao executar a CLI sem argumentos, é possível ver um overview de todas as funcionalidades disponíveis no executável.
 
@@ -89,11 +89,12 @@ $ usrl "SHOW USES OF Player" --output referencias_player.txt
 
 ### Modo interativo
 
-A CLI tem um modo REPL (Read, Eval, Print, Loop) chamado de *modo interativo.* Para acessá-lo, basta inserir o comando `usrl interactive` ou um dos seus aliases (`usrl i`, `usrl int`) no terminal de sua preferência.
+A CLI tem um modo REPL (Read, Eval, Print, Loop) chamado de *modo interativo*. Para acessá-lo, basta inserir o comando `usrl interactive` ou um dos seus aliases (`usrl i`, `usrl int`) no terminal de sua preferência.
 
 Neste modo cada consulta inserida é executada imediatamente. Ao terminar o processamento de uma consulta, outra poderá ser inserida, de forma contínua sem interrupções.
 
-Uma transação é realizada a cada consulta inserida, portanto, se ocorrer algum erro durante sua execução, todas as modificações aplicadas serão desfeitas e uma mensagem de erro aparecerá no terminal. Após isso, outras consultas poderão ser inseridas normalmente.
+Uma transação é realizada a cada consulta inserida. Portanto, se ocorrer algum erro durante sua execução, todas as modificações aplicadas serão desfeitas e uma mensagem de erro aparecerá no terminal. Após isso, outras consultas poderão ser inseridas normalmente.
+
 
 ```bash
 $ usrl i
@@ -152,7 +153,7 @@ O statement `RENAME` é utilizado para renomear os campos dos componentes especi
 
 Para utilizar o statement `RENAME`, é necessário especificar o nome do campo a ser renomeado, o novo nome do campo e, entre eles, a palavra-chave `FOR`. Também é necessário especificar os componentes alvos, utilizando a cláusula `OF`. Note que este statement somente aceita componentes como alvos da operação.
 
-**ATENÇÃO:** Se utilizado no momento incorreto, o statement `RENAME` pode causar a perda dos valores dos campos renomeados. É recomendado executar este statement **após** a modificação do código fonte do componente e **antes** de focar na janela do editor. Somente assim é possível garantir que a integridade dos dados seja mantida e que os valores dos campos renomeados não sejam perdidos.
+**ATENÇÃO:** Se utilizado no momento incorreto, o statement `RENAME` pode causar a perda dos valores dos campos renomeados. É recomendado executar este statement **após** a modificação do código-fonte do componente e **antes** de focar na janela do editor. Somente assim é possível garantir que a integridade dos dados seja mantida e que os valores dos campos renomeados não sejam perdidos.
 
 ```usrl
 # renomeia o campo 'vel' para se chamar 'velocidade'
@@ -162,7 +163,7 @@ RENAME vel FOR velocidade OF PlayerController;
 RENAME pulo FOR forcaPulo OF PlayerController
 ```
 
-A USRL não é capaz de detectar se um componente é herdado por ou herda alguma outra classe, portanto, nos casos onde algum componente deriva de um dos componentes especificados, é necessário incluir todos os componentes filhos para que a operação seja realizada de forma correta.
+A USRL não consegue detectar se um componente é herdado por ou herda alguma outra classe. Portanto, nos casos em que algum componente deriva de um dos componentes especificados, é necessário incluir todos os componentes filhos para que a operação seja realizada de forma correta.
 
 ```usrl
 # PlayerController e EnemyController herdam de EntityController
@@ -172,7 +173,7 @@ RENAME pulo FOR forcaPulo OF EntityController, PlayerController, EnemyController
 
 ### Statement `EVAL`
 
-O statement `EVAL` é utilizado para avaliar expressões lógicas e aritméticas com base nas propriedades dos componentes especificados, incluindo a possibilidade de reatribuir os valores calculados aos campos de origem. Assim como o statement `RENAME`, este statement apenas aceita componentes como alvos da operação.
+O statement `EVAL` é utilizado para avaliar expressões lógicas e aritméticas com base nas propriedades dos componentes especificados, incluindo a possibilidade de reatribuir os valores calculados aos campos de origem. Assim como o statement `RENAME`, este statement aceita apenas componentes como alvos da operação.
 
 ```usrl
 # mostra o valor do campo 'velocidade' para cada instância de PlayerController encontrada no projeto
@@ -270,9 +271,9 @@ $min(1, 2) < 2;
 $pi := 3.1415;
 ```
 
-Expressões se baseiam em dois elementos principais: valores e operadores. Cada operação em uma expressão é realizada por um operador. Os operandos e o resultado de uma operação são chamados de valores. Como cada operador aceita e resulta em valores, é possível “aninhar" operadores para realizar tarefas complexas. Cada tipo de valor tem suas próprias características e operadores compatíveis.
+Expressões se baseiam em dois elementos principais: valores e operadores. Cada operação em uma expressão é realizada por um operador. Os operandos e o resultado de uma operação são chamados de valores. Como cada operador aceita e resulta em valores, é possível "aninhar" operadores para realizar tarefas complexas. Cada tipo de valor tem suas próprias características e operadores compatíveis.
 
-Expressões somente podem ser utilizadas quando permitidas pelo statement, assim como o contexto entregue. Atualmente somente o statement `EVAL` e a cláusula `WHERE` aceitam expressões em suas operações.
+Expressões somente podem ser utilizadas quando permitidas pelo statement, assim como o contexto fornecido. Atualmente somente o statement `EVAL` e a cláusula `WHERE` aceitam expressões em suas operações.
 
 ### Valores numéricos
 
@@ -286,7 +287,7 @@ Estes valores são internamente representados pelo padrão IEEE 754 de 32 bits.
 
 ### Operadores aritméticos
 
-Os operadores aritméticos são responsáveis por realizar operações aritméticas, como adição, subtração, multiplicação e divisão, representados pelos caracteres `+`, `-`, `*` e `/`, respectivamente. Estes operadores são binários, portanto aceitam dois operandos e resultam em um único valor numérico.
+Os operadores aritméticos são responsáveis por realizar operações aritméticas, como adição, subtração, multiplicação e divisão, representadas pelos caracteres `+`, `-`, `*` e `/`, respectivamente. Estes operadores são binários, portanto, aceitam dois operandos e resultam em um único valor numérico.
 
 ```usrl
 1 + 2, # = 3
@@ -304,9 +305,9 @@ O operador de negação `-` é utilizado para inverter o sinal de um valor numé
 
 ### Booleanos
 
-Apesar da linguagem de serialização utilizada pelo assets suportar valores booleanos, a Unity escolheu por representá-los através de valores numéricos, de forma que o valor `1` significa verdadeiro e `0` representa falso. A USRL escolheu por seguir este padrão, portanto, não há valores booleanos na linguagem.
+Apesar de a linguagem de serialização utilizada pelos assets suportar valores booleanos, a Unity escolheu representá-los através de valores numéricos, de forma que o valor `1` significa verdadeiro e `0` representa falso. A USRL escolheu seguir este padrão, portanto, não há valores booleanos na linguagem.
 
-Ao invés disso, todos os valores são implicitamente considerados verdadeiros ou falsos dependendo do seu estado. Valores numéricos são interpretados como verdadeiro quando seu valor é diferente de `0`, enquanto strings são verdadeiras quando não estão vazias.
+Em vez disso, todos os valores são implicitamente considerados verdadeiros ou falsos dependendo do seu estado. Valores numéricos são interpretados como verdadeiros quando seu valor é diferente de `0`, enquanto strings são verdadeiras quando não estão vazias.
 
 | Valor | Verdadeiro quando |
 | --- | --- |
@@ -403,7 +404,7 @@ Representa uma coleção ordenada de valores, indexada numericamente a partir de
 
 ### Indexação
 
-O operador de indexação `[ ]` é utilizado para acessar um elemento específico de uma lista ou string através de seu índice numérico. Índices começam em `0`, onde está o primeiro elemento, o segundo elemento está no índice `1`, o terceiro no índice `2`, e assim por diante.
+O operador de indexação `[ ]` é utilizado para acessar um elemento específico de uma lista ou string através de seu índice numérico. Índices começam em `0`, onde o primeiro elemento está localizado. O segundo elemento está no índice `1`, o terceiro no índice `2` e assim por diante.
 
 ```usrl
 cores[0], # acessa o primeiro elemento da lista cores
@@ -457,7 +458,7 @@ $pi = 3.1415;
 $min = 123 # ERRO!
 ```
 
-Ao contrário das propriedades, que resultam em `NIL`, um erro durante a execução ocorrerá se uma variável não inicializada for utilizada. Para inicializar uma nova variável, deve-se utilizar o operador `:=`, junto ao nome da variável à esquerda do operador e o seu valor inicial à direita.
+Ao contrário das propriedades, que resultam em `NIL`, um erro de execução ocorrerá se uma variável não inicializada for utilizada. Para inicializar uma nova variável, deve-se utilizar o operador `:=`, com o nome da variável à esquerda do operador e o seu valor inicial à direita.
 
 ```usrl
 # OK
@@ -666,9 +667,9 @@ $ctx().vida == vida
 
 ### Blocos
 
-Blocos de expressão é a maneira de realizar múltiplas expressões sequencialmente. Um bloco pode conter zero ou mais expressões, separadas por ponto e vírgula. Seus limites são definidos por chaves (`{ }`), onde para cada chave aberta, sempre deverá haver uma chave correspondente fechando.
+Blocos de expressão são a maneira de realizar múltiplas expressões sequencialmente. Um bloco pode conter zero ou mais expressões, separadas por ponto e vírgula. Seus limites são definidos por chaves (`{}`), onde para cada chave aberta, sempre deverá haver uma chave correspondente fechando.
 
-Já que um bloco também é uma expressão, deve-se resultar em um valor. Um bloco sempre retornará o valor da última expressão realizada dentro dele, a não ser que esteja vazio, resultando em `NIL`.
+Já que um bloco também é uma expressão, ele deve resultar em um valor. Um bloco sempre retornará o valor da última expressão executada dentro dele, a não ser que esteja vazio, resultando em `NIL`.
 
 ```usrl
 $area := {
@@ -695,15 +696,15 @@ $area := {
 
 ## Casos de Uso
 
-Esta sessão do manual mostra um conjunto de exemplos práticos, contextualizando os problemas encontrados e demonstrando as capacidades da USRL em solucionar os problemas mencionados.
+Esta seção do manual apresenta um conjunto de exemplos práticos, contextualizando os problemas encontrados e demonstrando as capacidades da USRL em solucionar os problemas mencionados.
 
 ### Mostrando referências de um asset
 
 Vamos supor que temos um sprite `Gradiente.png` que é frequentemente utilizado para simular ambient occlusion, uma técnica de sombreamento para escurecer cantos onde a luz não chegaria.
 
-Conforme o desenvolvimento do projeto, este asset foi utilizado em algumas cenas diferentes, mas recentemente foi implementado uma solução de sombreamento muito superior comparado com o antigo `Gradiente.png`, portanto desejamos substituí-lo e removê-lo do projeto. Agora temos um problema, como vamos saber em quais cenas aquele asset específico foi utilizado?
+Conforme o desenvolvimento do projeto, este asset foi utilizado em algumas cenas diferentes, mas recentemente foi implementada uma solução de sombreamento muito superior comparada com o antigo `Gradiente.png`. Portanto, desejamos substituí-lo e removê-lo do projeto.
 
-A USRL tem uma solução para isso. Podemos realizar uma consulta `SHOW` para mostrar todas as referências do `Gradiente.png` espalhados pelo projeto.
+Agora temos um problema: como vamos saber em quais cenas aquele asset específico foi utilizado? A USRL tem uma solução para isso. Podemos realizar uma consulta `SHOW` para mostrar todas as referências de `Gradiente.png` espalhadas pelo projeto.
 
 ```usrl
 SHOW refs OF 'Sprites/Gradiente.png'
@@ -713,9 +714,9 @@ O resultado será uma lista de cenas que utilizam o asset especificado.
 
 ### Exibindo utilizações de componentes
 
-Digamos que temos um componente `Elevador` que é responsável por controlar a movimentação dos elevadores no jogo. Este componente é muito importante para o jogo, pois sem ele o jogador ficaria preso nos níveis que dependem do elevador para progredir.
+Digamos que temos um componente `Elevador` que é responsável por controlar a movimentação dos elevadores no jogo. Este componente é muito importante para o jogo, pois, sem ele, o jogador ficaria preso nos níveis que dependem do elevador para progredir.
 
-Ao realizar uma mudança neste script, seja introduzir um novo recurso ou até corrigir um bug, sempre há a chance de alterar o comportamento esperado de forma negativa, portanto se pudéssemos saber quais cenas utilizam o componente `Elevador`, poderiamos verificar se algum efeito colateral foi introduzido pelas mudanças.
+Ao realizar uma mudança neste script, seja introduzir um novo recurso ou até corrigir um bug, sempre há a chance de alterar o comportamento esperado de forma negativa. Portanto, se pudéssemos saber quais cenas utilizam o componente `Elevador`, poderíamos verificar se algum efeito colateral foi introduzido pelas mudanças.
 
 Podemos utilizar o statement `SHOW` para realizar uma varredura pelas cenas do projeto em busca das utilizações do componente.
 
@@ -752,7 +753,7 @@ Esta consulta renomeia todas as três propriedades do componente `Inimigo` para 
 
 ### Convertendo booleanos em enum
 
-Vamos supor que temos um componente `Moveset` que controla as habilidades de movimentação das entidades do jogo. Para cada habilidade há um campo booleano que dita se a instância do componente tem aquela habilidade. Conforme o desenvolvimento do projeto, o número de habilidades foi de dois: pular e correr, para cinco: pular, correr, escalar, rolar e nadar. Isso significa que quando antes tínhamos dois campos, agora temos cinco.
+Vamos supor que temos um componente `Moveset` que controla as habilidades de movimentação das entidades do jogo. Para cada habilidade, há um campo booleano que dita se a instância do componente tem aquela habilidade. Conforme o desenvolvimento do projeto, o número de habilidades foi de dois (pular e correr) para cinco (pular, correr, escalar, rolar e nadar). Isso significa que, onde antes tínhamos dois campos, agora temos cinco.
 
 ```csharp
 public class Moveset : MonoBehaviour
@@ -767,7 +768,7 @@ public class Moveset : MonoBehaviour
 }
 ```
 
-Para evitar a necessidade de criar um novo campo booleano a cada habilidade nova que implementamos no jogo, podemos atualizar esse sistema para utilizar um enum com flags. Um enum com flags é basicamente um número inteiro onde podemos aproveitar seus bits para armazenar valores binários em uma única variável, além de facilitar a adição de novas opções, pois podemos apenas adicionar uma nova flag ao enum existente.
+Para evitar a necessidade de criar um novo campo booleano a cada nova habilidade que implementamos no jogo, podemos atualizar esse sistema para utilizar um enum com flags. Um enum com flags é basicamente um número inteiro onde podemos aproveitar seus bits para armazenar valores binários em uma única variável. Além disso, facilita a adição de novas opções, pois podemos simplesmente adicionar uma nova flag ao enum existente.
 
 ```csharp
 [System.Flags]
@@ -782,7 +783,7 @@ public enum Habilidades
 }
 ```
 
-Para isso precisaremos adicionar um novo campo `habilidades`, do tipo `Habilidades`, ao nosso componente `Moveset`. Como podemos ver no editor, o novo campo aparece como esperado no inspetor, mas há uma questão, o seu valor não corresponde aos valores dos campos booleanos. Isso significa que precisaremos atualizar todas as instâncias do componente `Moveset` espalhadas no projeto.
+Para isso, precisaremos adicionar um novo campo `habilidades`, do tipo `Habilidades`, ao nosso componente `Moveset`. Como podemos ver no editor, o novo campo aparece como esperado no inspetor, mas há uma questão: o seu valor não corresponde aos valores dos campos booleanos. Isso significa que precisaremos atualizar todas as instâncias do componente `Moveset` espalhadas pelo projeto.
 
 Podemos utilizar o statement `EVAL` para efetuar esta atualização de forma automática para cada instância do nosso componente no projeto. Como cada campo booleano é serializado como um número de 0 a 1, podemos utilizar operadores aritméticos para concluir essa tarefa.
 
@@ -796,7 +797,7 @@ EVAL habilidades =
 OF Moveset
 ```
 
-Esta consulta computa e atribui ao campo `habilidades` o valor esperado com base nos campos booleanos, de forma automática.
+Esta consulta computa e atribui o valor esperado ao campo `habilidades` com base nos campos booleanos, de forma automática.
 
 ### Transformando referência em array de referências
 
@@ -811,9 +812,9 @@ public class SoundboardPlayer : MonoBehaviour
 }
 ```
 
-Mas agora havemos um problema. Atualmente não é possível reproduzir dois clipes de áudio de dois soundboards diferentes a partir do mesmo `SoundboardPlayer`, já que o componente faz referência a somente um `Soundboard`.
+Mas agora temos um problema: atualmente, não é possível reproduzir dois clipes de áudio de dois soundboards diferentes a partir do mesmo `SoundboardPlayer`, já que o componente faz referência a somente um `Soundboard`.
 
-Para resolver este problema, precisamos substituir o campo `soundboard` por um campo novo, do tipo `Soundboard[]`. Chamaremos este novo campo de `soundboards`. Ao realizar esta mudança podemos notar que o novo campo aparece no inspetor, como desejado, mas está vazio. Isso significa que precisaremos atribuir o valor do antigo campo `soundboard` como um novo elemento da lista. Precisaremos fazer isso para cada instância do componente `SoundboardPlayer` no projeto, o que pode ser demorado e problemático dependendo de quantas vezes o componente foi utilizado.
+Para resolver este problema, precisamos substituir o campo `soundboard` por um campo novo, do tipo `Soundboard[]`. Chamaremos este novo campo de `soundboards`. Ao realizar esta mudança, podemos notar que o novo campo aparece no inspetor, como desejado, mas está vazio. Isso significa que precisaremos atribuir o valor do antigo campo `soundboard` como um novo elemento da lista. Precisaremos fazer isso para cada instância do componente `SoundboardPlayer` no projeto, o que pode ser demorado e problemático, dependendo de quantas vezes o componente foi utilizado.
 
 A USRL foi projetada para resolver estes problemas. Podemos utilizar o statement `EVAL` para realizar esta atualização de forma automática.
 
