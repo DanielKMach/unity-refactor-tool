@@ -19,9 +19,11 @@ out: *std.fs.File.Writer,
 in: *std.fs.File.Reader,
 
 pub fn process(self: This, args: *std.process.ArgIterator) !bool {
+    var check = false;
     var mode: ExecutionMode = .args;
     var output: ?std.fs.File = null;
     defer if (output) |o| o.close();
+
     const ansi = ANSI.init(self.out);
 
     const parser = usrl.Parser{
@@ -59,7 +61,9 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
             }
         }
         if (std.mem.startsWith(u8, arg, "-")) {
-            if (std.mem.eql(u8, arg, "--file") or std.mem.eql(u8, arg, "-f")) {
+            if (std.mem.eql(u8, arg, "--check") or std.mem.eql(u8, arg, "-c")) {
+                check = true;
+            } else if (std.mem.eql(u8, arg, "--file") or std.mem.eql(u8, arg, "-f")) {
                 mode = .file;
             } else if (std.mem.eql(u8, arg, "--output") or std.mem.eql(u8, arg, "-o")) {
                 if (output != null) {
@@ -129,7 +133,7 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
             },
         }
     }
-    for (scripts.items) |script| {
+    if (!check) for (scripts.items) |script| {
         const output_file = output orelse self.out.file;
         var wbuf: [4096]u8 = undefined;
         var fwriter = output_file.writer(&wbuf);
@@ -140,7 +144,7 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
         }, script.source)) {
             return false;
         }
-    }
+    };
     if (i == 0) try printHelp(&self.out.interface);
     return true;
 }
