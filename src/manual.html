@@ -253,28 +253,31 @@ Assets/Scenes/Game.unity
 <span class=p>{</span>
 <span class=w>    </span><span class=na>[SerializeField]</span><span class=w> </span><span class=n>Soundboard</span><span class=w> </span><span class=n>soundboard</span><span class=p>;</span>
 
-<span class=w>    </span><span class=k>public</span><span class=w> </span><span class=k>void</span><span class=w> </span><span class=nf>Play</span><span class=p>(</span><span class=kt>string</span><span class=w> </span><span class=n>nomeClipe</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w> </span><span class=cm>/* ... */</span><span class=w> </span><span class=p>}</span>
+<span class=w>    </span><span class=k>public</span><span class=w> </span><span class=k>void</span><span class=w> </span><span class=nf>Play</span><span class=p>(</span><span class=kt>string</span><span class=w> </span><span class=n>nomeSom</span><span class=p>)</span>
+<span class=w>    </span><span class=p>{</span>
+<span class=w>        </span><span class=kt>var</span><span class=w> </span><span class=n>source</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>GetComponent</span><span class=o>&lt;</span><span class=n>AudioSource</span><span class=o>&gt;</span><span class=p>();</span>
+<span class=w>        </span><span class=n>source</span><span class=p>.</span><span class=n>clip</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>soundboard</span><span class=p>.</span><span class=n>GetSound</span><span class=p>(</span><span class=n>nomeSom</span><span class=p>);</span>
+<span class=w>        </span><span class=n>source</span><span class=p>.</span><span class=n>Play</span><span class=p>();</span>
+<span class=w>    </span><span class=p>}</span>
 <span class=p>}</span>
-</code></pre></div><p>Mas agora temos um problema: atualmente, não é possível reproduzir dois clipes de áudio de dois soundboards diferentes a partir do mesmo <code>SoundboardPlayer</code>, já que o componente faz referência a somente um <code>Soundboard</code>.</p><p>Para resolver este problema, precisamos substituir o campo <code>soundboard</code> por um campo novo, do tipo <code>Soundboard[]</code>. Chamaremos este novo campo de <code>soundboards</code>. Ao realizar esta mudança, podemos notar que o novo campo aparece no inspetor, como desejado, mas está vazio. Isso significa que precisaremos atribuir o valor do antigo campo <code>soundboard</code> como um novo elemento da lista. Precisaremos fazer isso para cada instância do componente <code>SoundboardPlayer</code> no projeto, o que pode ser demorado e problemático, dependendo de quantas vezes o componente foi utilizado.</p><p>A USRL foi projetada para resolver estes problemas. Podemos utilizar o statement <code>EVAL</code> para realizar esta atualização de forma automática.</p><div class=hl><pre><span></span><code><span class=k>EVAL</span><span class=w> </span><span class=p>{</span>
-<span class=w>    </span><span class=n>soundboards</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nv>$addList</span><span class=p>();</span>
-<span class=w>    </span><span class=nv>$push</span><span class=p>(</span><span class=n>soundboard</span><span class=p>,</span><span class=w> </span><span class=n>soundboards</span><span class=p>);</span>
+</code></pre></div><p>Mas agora temos um problema: atualmente, não é possível reproduzir dois clipes de áudio de dois soundboards diferentes a partir do mesmo <code>SoundboardPlayer</code>, já que o componente faz referência a somente um <code>Soundboard</code>.</p><p>Para resolver este problema, precisamos substituir o campo <code>soundboard</code> por um campo novo, do tipo <code>Soundboard[]</code>. Chamaremos este novo campo de <code>soundboardList</code>. Ao realizar esta mudança, podemos notar que o novo campo aparece no inspetor, como desejado, mas está vazio. Isso significa que precisaremos atribuir o valor do antigo campo <code>soundboard</code> como um novo elemento da lista. Precisaremos fazer isso para cada instância do componente <code>SoundboardPlayer</code> no projeto, o que pode ser demorado e problemático, dependendo de quantas vezes o componente foi utilizado.</p><p>A USRL foi projetada para resolver estes problemas. Podemos utilizar o statement <code>EVAL</code> para realizar esta atualização de forma automática.</p><div class=hl><pre><span></span><code><span class=k>EVAL</span><span class=w> </span><span class=p>{</span>
+<span class=w>    </span><span class=n>soundboardList</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=nv>$addList</span><span class=p>();</span>
+<span class=w>    </span><span class=nv>$push</span><span class=p>(</span><span class=n>soundboard</span><span class=p>,</span><span class=w> </span><span class=n>soundboardList</span><span class=p>);</span>
 <span class=p>}</span><span class=w> </span><span class=k>OF</span><span class=w> </span><span class=n>SoundboardPlayer</span>
-</code></pre></div><p>Esta consulta USRL atribuirá uma nova lista ao campo <code>soundboards</code> e adicionará o valor do antigo campo <code>soundboard</code> como um elemento dentro da lista. Esta operação será realizada para cada instância do componente no projeto.</p><h2 id=apendices>Apêndices</h2><h3 id=gramatica>Gramática</h3><div class=hl><pre><span></span><code>program &lt;- statement ( ';' statement )* ';'?
+</code></pre></div><p>Esta consulta USRL atribuirá uma nova lista ao campo <code>soundboardList</code> e adicionará o valor do antigo campo <code>soundboard</code> como um elemento dentro da lista. Esta operação será realizada para cada instância do componente no projeto.</p><h2 id=apendices>Apêndices</h2><h3 id=gramatica>Gramática</h3><div class=hl><pre><span></span><code>program &lt;- statement ( ';' statement )* ';'?
 statement &lt;- show / rename / evaluate
 
 show &lt;- 'SHOW' search of in? where?
-rename &lt;- 'RENAME' member 'FOR' ( literal / string ) of in?
+rename &lt;- 'RENAME' field 'FOR' ( literal / string ) of in?
 evaluate &lt;- 'EVAL' expr ( ',' expr )* of in? where?
 
 of &lt;- 'OF' asset ( ',' asset )*
 in &lt;- 'IN' literal / string
 where &lt;- 'WHERE' expr
-having &lt;- 'HAVING' asset variable? ( 'ON' target )?
 
 asset &lt;- literal / string / 'GUID' guid
 guid &lt;- hex{32}
-target &lt;- 'self' / 'parent' / 'anychild'
-member &lt;- literal ( '.' literal )*
+field &lt;- literal ( '.' literal )*
 search &lt;- 'refs' / ( 'direct' / 'indirect' )? 'uses'
 
 expr &lt;- assignment

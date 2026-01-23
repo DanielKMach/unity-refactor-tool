@@ -808,24 +808,29 @@ public class SoundboardPlayer : MonoBehaviour
 {
 	[SerializeField] Soundboard soundboard;
 	
-	public void Play(string nomeClipe) { /* ... */ }
+	public void Play(string nomeSom)
+	{
+		var source = GetComponent<AudioSource>();
+		source.clip = soundboard.GetSound(nomeSom);
+		source.Play();
+	}
 }
 ```
 
 Mas agora temos um problema: atualmente, não é possível reproduzir dois clipes de áudio de dois soundboards diferentes a partir do mesmo `SoundboardPlayer`, já que o componente faz referência a somente um `Soundboard`.
 
-Para resolver este problema, precisamos substituir o campo `soundboard` por um campo novo, do tipo `Soundboard[]`. Chamaremos este novo campo de `soundboards`. Ao realizar esta mudança, podemos notar que o novo campo aparece no inspetor, como desejado, mas está vazio. Isso significa que precisaremos atribuir o valor do antigo campo `soundboard` como um novo elemento da lista. Precisaremos fazer isso para cada instância do componente `SoundboardPlayer` no projeto, o que pode ser demorado e problemático, dependendo de quantas vezes o componente foi utilizado.
+Para resolver este problema, precisamos substituir o campo `soundboard` por um campo novo, do tipo `Soundboard[]`. Chamaremos este novo campo de `soundboardList`. Ao realizar esta mudança, podemos notar que o novo campo aparece no inspetor, como desejado, mas está vazio. Isso significa que precisaremos atribuir o valor do antigo campo `soundboard` como um novo elemento da lista. Precisaremos fazer isso para cada instância do componente `SoundboardPlayer` no projeto, o que pode ser demorado e problemático, dependendo de quantas vezes o componente foi utilizado.
 
 A USRL foi projetada para resolver estes problemas. Podemos utilizar o statement `EVAL` para realizar esta atualização de forma automática.
 
 ```usrl
 EVAL {
-	soundboards = $addList();
-	$push(soundboard, soundboards);
+	soundboardList = $addList();
+	$push(soundboard, soundboardList);
 } OF SoundboardPlayer
 ```
 
-Esta consulta USRL atribuirá uma nova lista ao campo `soundboards` e adicionará o valor do antigo campo `soundboard` como um elemento dentro da lista. Esta operação será realizada para cada instância do componente no projeto.
+Esta consulta USRL atribuirá uma nova lista ao campo `soundboardList` e adicionará o valor do antigo campo `soundboard` como um elemento dentro da lista. Esta operação será realizada para cada instância do componente no projeto.
 
 ## Apêndices
 
@@ -836,18 +841,16 @@ program <- statement ( ';' statement )* ';'?
 statement <- show / rename / evaluate
 
 show <- 'SHOW' search of in? where?
-rename <- 'RENAME' member 'FOR' ( literal / string ) of in?
+rename <- 'RENAME' field 'FOR' ( literal / string ) of in?
 evaluate <- 'EVAL' expr ( ',' expr )* of in? where?
 
 of <- 'OF' asset ( ',' asset )*
 in <- 'IN' literal / string
 where <- 'WHERE' expr
-having <- 'HAVING' asset variable? ( 'ON' target )?
 
 asset <- literal / string / 'GUID' guid
 guid <- hex{32}
-target <- 'self' / 'parent' / 'anychild'
-member <- literal ( '.' literal )*
+field <- literal ( '.' literal )*
 search <- 'refs' / ( 'direct' / 'indirect' )? 'uses'
 
 expr <- assignment
