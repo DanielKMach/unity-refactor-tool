@@ -95,12 +95,14 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
                         .source = source,
                     });
                     continue;
+                } else {
+                    source.deinit();
+                    return false;
                 }
-                return false;
             },
             .file => {
-                var dir: std.fs.Dir = undefined;
                 var source: usrl.Source = undefined;
+                var dir: std.fs.Dir = undefined;
 
                 if (std.fs.path.isAbsolute(arg)) {
                     source = try usrl.Source.fromPathAbsolute(arg, self.allocator);
@@ -119,8 +121,11 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
                         .dir = dir,
                     });
                     continue;
+                } else {
+                    source.deinit();
+                    dir.close();
+                    return false;
                 }
-                return false;
             },
         }
     }
