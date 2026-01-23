@@ -37,13 +37,16 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
     while (args.next()) |arg| {
         defer i += 1;
         if (i == 0) {
-            if (std.mem.eql(u8, arg, "i") or std.mem.eql(u8, arg, "it") or std.mem.eql(u8, arg, "interactive")) {
+            if (std.mem.eql(u8, arg, "interactive") or std.mem.eql(u8, arg, "i") or std.mem.eql(u8, arg, "it")) {
                 return try self.startInteractiveMode();
-            } else if (std.mem.eql(u8, arg, "m") or std.mem.eql(u8, arg, "manual")) {
+            } else if (std.mem.eql(u8, arg, "manual") or std.mem.eql(u8, arg, "m")) {
                 try openManual();
                 return true;
-            } else if (std.mem.eql(u8, arg, "h") or std.mem.eql(u8, arg, "help") or std.mem.eql(u8, arg, "usage") or std.mem.eql(u8, arg, "?")) {
+            } else if (std.mem.eql(u8, arg, "help") or std.mem.eql(u8, arg, "usage") or std.mem.eql(u8, arg, "h") or std.mem.eql(u8, arg, "?")) {
                 try printHelp(&self.out.interface);
+                return true;
+            } else if (std.mem.eql(u8, arg, "version") or std.mem.eql(u8, arg, "v")) {
+                try self.out.interface.print("{s}", .{usrl.version});
                 return true;
             } else if (std.mem.eql(u8, arg, "--")) {
                 var code: [1 << 16]u8 = undefined;
