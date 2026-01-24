@@ -15,8 +15,9 @@ pub const ExecutionMode = enum {
 
 allocator: std.mem.Allocator,
 cwd: std.fs.Dir,
-out: *std.fs.File.Writer,
 in: *std.fs.File.Reader,
+out: *std.fs.File.Writer,
+err: *std.fs.File.Writer,
 
 pub fn process(self: This, args: *std.process.ArgIterator) !bool {
     var check = false;
@@ -192,7 +193,7 @@ pub fn parse(self: This, source: usrl.Source, parser: usrl.Parser) !?usrl.Script
     switch (result) {
         .ok => |script| return script,
         .err => |problems| {
-            for (problems) |p| try printParseProblem(p, source, self.out);
+            for (problems) |p| try printParseProblem(p, source, self.err);
             parser.allocator.free(problems);
         },
     }
@@ -204,7 +205,7 @@ pub fn run(self: This, script: usrl.Script, config: usrl.Script.RunConfig, sourc
     switch (result) {
         .ok => return true,
         .err => |problems| {
-            for (problems) |p| try printRuntimeProblem(p, source, self.out);
+            for (problems) |p| try printRuntimeProblem(p, source, self.err);
             config.allocator.free(problems);
         },
     }

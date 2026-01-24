@@ -9,7 +9,7 @@ pub const std_options: std.Options = .{
     .logFn = logFn,
 };
 
-pub fn main() !void {
+pub fn main() !u8 {
     defer usrl.profiling.finalize();
 
     usrl.profiling.begin(main);
@@ -29,11 +29,13 @@ pub fn main() !void {
         else => std.heap.smp_allocator,
     };
 
-    var out_buf: [4096]u8 = undefined;
-    var out = std.fs.File.stdout().writer(&out_buf);
-
     var in_buf: [4096]u8 = undefined;
+    var out_buf: [4096]u8 = undefined;
+    var err_buf: [4096]u8 = undefined;
+
     var in = std.fs.File.stdin().reader(&in_buf);
+    var out = std.fs.File.stdout().writer(&out_buf);
+    var err = std.fs.File.stderr().writer(&err_buf);
 
     var cwd = try std.fs.cwd().openDir(".", .{ .iterate = true, .access_sub_paths = true });
     defer cwd.close();
@@ -41,6 +43,7 @@ pub fn main() !void {
     const cli = CLI{
         .out = &out,
         .in = &in,
+        .err = &err,
         .allocator = allocator,
         .cwd = cwd,
     };
@@ -49,12 +52,13 @@ pub fn main() !void {
     _ = args.next(); // skip the first argument
     defer args.deinit();
 
-    _ = try cli.process(&args);
-
+    const success = try cli.process(&args);
     try out.interface.flush();
 
     log.info("Total memory allocated {d:.3}MB", .{@as(f32, @floatFromInt(debug_allocator.total_requested_bytes)) / 1000000.0});
     log.info("Total execution time {d}ms", .{std.time.milliTimestamp() - start});
+
+    return if (success) 0 else 1;
 }
 
 /// Prints the standard help message to the given writer.
