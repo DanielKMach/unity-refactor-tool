@@ -42,11 +42,11 @@ pub fn parseEnv(self: Parser, source: core.Source, env: core.Stmt.ParseEnv) core
     defer statements.deinit(self.allocator);
     errdefer for (statements.items) |stmt| stmt.deinit(self.allocator);
 
-    while (iterator.remaining() > 0) {
+    while (!iterator.match(.eof) and iterator.remaining() > 0) {
         const stmt = try core.Stmt.parse(&iterator, env);
         try statements.append(self.allocator, stmt);
         const end = try iterator.grabAny(&.{ .semicolon, .eof }, env.diag);
-        if (end.is(.eof) or iterator.match(.eof)) break;
+        if (end.is(.eof)) break;
     }
 
     return .{
