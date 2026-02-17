@@ -2,11 +2,13 @@ Usage:
     usrl help          Print this message
     usrl manual        Open the language manual
     usrl interactive   Start interactive mode
+    usrl version       Print version
     usrl <args...>     Execute queries (see list below)
 
 Options:
     --file <files...>  Specify one or more files to execute
     --output <file>    Specify the file to output to
+    --check            Validates the code without running
     --                 Executes script through the stdin
     <queries...>       Run the specified queries
 
