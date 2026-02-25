@@ -15,13 +15,16 @@ pub const ExecutionMode = enum {
 
 allocator: std.mem.Allocator,
 cwd: std.fs.Dir,
-out: *std.fs.File.Writer,
 in: *std.fs.File.Reader,
+out: *std.fs.File.Writer,
+err: *std.fs.File.Writer,
 
 pub fn process(self: This, args: *std.process.ArgIterator) !bool {
+    var check = false;
     var mode: ExecutionMode = .args;
     var output: ?std.fs.File = null;
     defer if (output) |o| o.close();
+
     const ansi = ANSI.init(self.out);
 
     const parser = usrl.Parser{
@@ -35,13 +38,16 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
     while (args.next()) |arg| {
         defer i += 1;
         if (i == 0) {
-            if (std.mem.eql(u8, arg, "i") or std.mem.eql(u8, arg, "it") or std.mem.eql(u8, arg, "interactive")) {
+            if (std.mem.eql(u8, arg, "interactive") or std.mem.eql(u8, arg, "i") or std.mem.eql(u8, arg, "it")) {
                 return try self.startInteractiveMode();
-            } else if (std.mem.eql(u8, arg, "m") or std.mem.eql(u8, arg, "manual")) {
+            } else if (std.mem.eql(u8, arg, "manual") or std.mem.eql(u8, arg, "m")) {
                 try openManual();
                 return true;
-            } else if (std.mem.eql(u8, arg, "h") or std.mem.eql(u8, arg, "help") or std.mem.eql(u8, arg, "usage") or std.mem.eql(u8, arg, "?")) {
+            } else if (std.mem.eql(u8, arg, "help") or std.mem.eql(u8, arg, "usage") or std.mem.eql(u8, arg, "h") or std.mem.eql(u8, arg, "?")) {
                 try printHelp(&self.out.interface);
+                return true;
+            } else if (std.mem.eql(u8, arg, "version") or std.mem.eql(u8, arg, "v")) {
+                try self.out.interface.print("{s}", .{usrl.version});
                 return true;
             } else if (std.mem.eql(u8, arg, "--")) {
                 var code: [1 << 16]u8 = undefined;
@@ -59,7 +65,9 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
             }
         }
         if (std.mem.startsWith(u8, arg, "-")) {
-            if (std.mem.eql(u8, arg, "--file") or std.mem.eql(u8, arg, "-f")) {
+            if (std.mem.eql(u8, arg, "--check") or std.mem.eql(u8, arg, "-c")) {
+                check = true;
+            } else if (std.mem.eql(u8, arg, "--file") or std.mem.eql(u8, arg, "-f")) {
                 mode = .file;
             } else if (std.mem.eql(u8, arg, "--output") or std.mem.eql(u8, arg, "-o")) {
                 if (output != null) {
@@ -95,12 +103,14 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
                         .source = source,
                     });
                     continue;
+                } else {
+                    source.deinit();
+                    return false;
                 }
-                return false;
             },
             .file => {
-                var dir: std.fs.Dir = undefined;
                 var source: usrl.Source = undefined;
+                var dir: std.fs.Dir = undefined;
 
                 if (std.fs.path.isAbsolute(arg)) {
                     source = try usrl.Source.fromPathAbsolute(arg, self.allocator);
@@ -119,12 +129,15 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
                         .dir = dir,
                     });
                     continue;
+                } else {
+                    source.deinit();
+                    dir.close();
+                    return false;
                 }
-                return false;
             },
         }
     }
-    for (scripts.items) |script| {
+    if (!check) for (scripts.items) |script| {
         const output_file = output orelse self.out.file;
         var wbuf: [4096]u8 = undefined;
         var fwriter = output_file.writer(&wbuf);
@@ -135,7 +148,7 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
         }, script.source)) {
             return false;
         }
-    }
+    };
     if (i == 0) try printHelp(&self.out.interface);
     return true;
 }
@@ -180,7 +193,7 @@ pub fn parse(self: This, source: usrl.Source, parser: usrl.Parser) !?usrl.Script
     switch (result) {
         .ok => |script| return script,
         .err => |problems| {
-            for (problems) |p| try printParseProblem(p, source, self.out);
+            for (problems) |p| try printParseProblem(p, source, self.err);
             parser.allocator.free(problems);
         },
     }
@@ -192,7 +205,7 @@ pub fn run(self: This, script: usrl.Script, config: usrl.Script.RunConfig, sourc
     switch (result) {
         .ok => return true,
         .err => |problems| {
-            for (problems) |p| try printRuntimeProblem(p, source, self.out);
+            for (problems) |p| try printRuntimeProblem(p, source, self.err);
             config.allocator.free(problems);
         },
     }

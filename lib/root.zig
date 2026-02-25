@@ -1,4 +1,5 @@
 const std = @import("std");
+const config = @import("config");
 
 pub const Stmt = @import("stmt.zig").Stmt;
 pub const Expr = @import("expr.zig").Expr;
@@ -15,6 +16,8 @@ pub const Script = @import("Script.zig");
 pub const Transaction = @import("Transaction.zig");
 pub const Parser = @import("Parser.zig");
 pub const Result = @import("results.zig").Result;
+
+pub const version = config.version;
 
 pub const ParseProblem = union(enum) {
     const Type = @typeInfo(@This()).@"union".tag_type orelse unreachable;

@@ -184,9 +184,11 @@ fn vaif(tokens: *TokenIterator, env: Env) core.ParseAllocError!*Expr {
             errdefer for (args.items) |arg| arg.cleanup(env.allocator);
 
             while (!tokens.match(.right_paren)) {
-                const arg = try parse(tokens, env);
-                errdefer arg.cleanup(env.allocator);
-                try args.append(env.allocator, arg);
+                {
+                    const arg = try parse(tokens, env);
+                    errdefer arg.cleanup(env.allocator);
+                    try args.append(env.allocator, arg);
+                }
                 const end = try tokens.grabAny(&.{ .comma, .right_paren }, env.diag);
                 if (end.is(.right_paren)) break;
             }

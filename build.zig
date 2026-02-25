@@ -21,6 +21,7 @@ pub fn build(b: *std.Build) void {
     const options = b.addOptions();
     options.addOption(bool, "profiling", profile);
     options.addOption(bool, "keep_temp", keep_temp);
+    options.addOption([]const u8, "version", @import("build.zig.zon").version);
     const config = options.createModule();
 
     const mod = b.addModule("usrl", .{
