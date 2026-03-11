@@ -19,7 +19,7 @@ pub fn run(self: This, options: RunConfig) std.mem.Allocator.Error!core.Result(v
         .transaction = &transaction,
         .allocator = options.allocator,
         .out = options.out,
-        .cwd = options.cwd,
+        .proj = options.proj,
     };
 
     self.runEnv(env) catch |err| {
@@ -54,5 +54,5 @@ pub fn deinit(self: This) void {
 pub const RunConfig = struct {
     allocator: std.mem.Allocator,
     out: *std.Io.Writer,
-    cwd: std.fs.Dir,
+    proj: core.Project,
 };

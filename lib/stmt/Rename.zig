@@ -82,7 +82,7 @@ pub fn updateAll(self: This, references: []const []const u8, guids: []const GUID
     var objs: core.runtime.ObjMap = .init(env.allocator);
     defer objs.deinit();
 
-    var assets: core.runtime.AssetMap = .init(env.allocator);
+    var assets: core.runtime.AssetMap = .init(env.allocator, env.proj);
     defer assets.deinit();
 
     for (references) |path| {

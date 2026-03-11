@@ -9,6 +9,7 @@ pub const util = @import("util.zig");
 pub const yaml = @import("yaml.zig");
 
 pub const Source = @import("Source.zig");
+pub const Project = @import("Project.zig");
 pub const Token = @import("Token.zig");
 pub const Tokenizer = @import("Tokenizer.zig");
 pub const Diagnostics = @import("diag.zig").Diagnostics;

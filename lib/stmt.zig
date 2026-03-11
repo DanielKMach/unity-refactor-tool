@@ -32,7 +32,7 @@ pub const Stmt = union(enum) {
         transaction: *core.Transaction,
         diag: *core.RuntimeDiagnostics,
         out: *std.Io.Writer,
-        cwd: std.fs.Dir,
+        proj: core.Project,
 
         pub fn err(self: RunEnv, e: core.RuntimeProblem) core.RuntimeDiagnostics.Error {
             return self.diag.push(e);

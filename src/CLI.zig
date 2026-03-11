@@ -30,16 +30,25 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
     const parser = usrl.Parser{
         .allocator = self.allocator,
     };
-    var scripts = std.ArrayList(LocalizedScript).empty;
+    var scripts = std.ArrayList(ScriptWithSource).empty;
     defer scripts.deinit(self.allocator);
-    defer for (scripts.items) |*s| s.cleanup();
+    defer for (scripts.items) |*s| s.deinit();
+
+    const proj = usrl.Project.fromRoot(self.cwd) catch |err| {
+        switch (err) {
+            error.AssetsNotFound => try ansi.print(eh, "\"Assets\" directory not found", .{}),
+            error.PackagesNotFound => try ansi.print(eh, "\"Packages\" directory not found", .{}),
+            else => |er| try ansi.print(eh, "Unable to scan working directory for Unity project: {t}", .{er}),
+        }
+        return false;
+    };
 
     var i: usize = 0;
     while (args.next()) |arg| {
         defer i += 1;
         if (i == 0) {
             if (std.mem.eql(u8, arg, "interactive") or std.mem.eql(u8, arg, "i") or std.mem.eql(u8, arg, "it")) {
-                return try self.startInteractiveMode();
+                return try self.startInteractiveMode(proj);
             } else if (std.mem.eql(u8, arg, "manual") or std.mem.eql(u8, arg, "m")) {
                 try openManual();
                 return true;
@@ -56,9 +65,9 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
                 defer source.deinit();
                 if (try self.parse(source, parser)) |script| {
                     return try self.run(script, .{
-                        .cwd = self.cwd,
-                        .out = &self.out.interface,
                         .allocator = self.allocator,
+                        .out = &self.out.interface,
+                        .proj = proj,
                     }, source);
                 }
                 return false;
@@ -109,29 +118,20 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
                 }
             },
             .file => {
-                var source: usrl.Source = undefined;
-                var dir: std.fs.Dir = undefined;
-
-                if (std.fs.path.isAbsolute(arg)) {
-                    source = try usrl.Source.fromPathAbsolute(arg, self.allocator);
-                    dir = try std.fs.openDirAbsolute(std.fs.path.dirname(arg).?, .{ .iterate = true });
-                } else {
-                    source = try usrl.Source.fromPath(self.cwd, arg, self.allocator);
-                    const abs_path = try self.cwd.realpathAlloc(self.allocator, arg);
-                    defer self.allocator.free(abs_path);
-                    dir = try std.fs.openDirAbsolute(std.fs.path.dirname(abs_path).?, .{ .iterate = true });
-                }
+                var source: usrl.Source = try if (std.fs.path.isAbsolute(arg))
+                    usrl.Source.fromPathAbsolute(arg, self.allocator)
+                else
+                    usrl.Source.fromPath(self.cwd, arg, self.allocator);
+                errdefer source.deinit();
 
                 if (try self.parse(source, parser)) |script| {
                     try scripts.append(self.allocator, .{
                         .script = script,
                         .source = source,
-                        .dir = dir,
                     });
                     continue;
                 } else {
                     source.deinit();
-                    dir.close();
                     return false;
                 }
             },
@@ -142,9 +142,9 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
         var wbuf: [4096]u8 = undefined;
         var fwriter = output_file.writer(&wbuf);
         if (!try self.run(script.script, .{
-            .cwd = script.dir orelse self.cwd,
-            .out = &fwriter.interface,
             .allocator = self.allocator,
+            .out = &fwriter.interface,
+            .proj = proj,
         }, script.source)) {
             return false;
         }
@@ -153,7 +153,7 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
     return true;
 }
 
-pub fn startInteractiveMode(self: This) !bool {
+pub fn startInteractiveMode(self: This, proj: usrl.Project) !bool {
     const ansi = ANSI.init(self.out);
     const writer = &self.out.interface;
     const reader = &self.in.interface;
@@ -180,8 +180,8 @@ pub fn startInteractiveMode(self: This) !bool {
 
         _ = try self.parseAndRun(source, parser, .{
             .allocator = self.allocator,
-            .cwd = self.cwd,
             .out = &self.out.interface,
+            .proj = proj,
         });
     }
     try writer.writeAll("\r\n");
@@ -491,15 +491,13 @@ pub fn openURL(url: [:0]const u8) void {
     }
 }
 
-pub const LocalizedScript = struct {
+pub const ScriptWithSource = struct {
     script: usrl.Script,
     source: usrl.Source,
-    dir: ?std.fs.Dir = null,
 
-    pub fn cleanup(self: *LocalizedScript) void {
+    pub fn deinit(self: *ScriptWithSource) void {
         self.script.deinit();
         self.source.deinit();
-        if (self.dir) |*d| d.close();
     }
 };
 

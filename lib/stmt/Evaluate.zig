@@ -96,7 +96,7 @@ pub fn searchAndPrint(self: This, refs: []const []const u8, guid: []const GUID, 
     var objs: core.runtime.ObjMap = .init(env.allocator);
     defer objs.deinit();
 
-    var assets: core.runtime.AssetMap = .init(env.allocator);
+    var assets: core.runtime.AssetMap = .init(env.allocator, env.proj);
     defer assets.deinit();
 
     for (refs) |path| {

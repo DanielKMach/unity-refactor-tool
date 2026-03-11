@@ -10,11 +10,9 @@ const open_options = std.fs.Dir.OpenOptions{
     .access_sub_paths = true,
 };
 
-path: core.Token,
+path: ?core.Token,
 
-pub const default: This = .{
-    .path = .new(.{ .string = "." }, .{ .index = 0, .len = 1 }),
-};
+pub const default: This = .{ .path = null };
 
 pub fn parse(tokens: *TokenIterator, env: Stmt.ParseEnv) Stmt.ParseError!This {
     core.profiling.begin(parse);
@@ -29,26 +27,13 @@ pub fn parse(tokens: *TokenIterator, env: Stmt.ParseEnv) Stmt.ParseError!This {
 }
 
 pub fn cleanup(self: This, allocator: std.mem.Allocator) void {
-    self.path.cleanup(allocator);
+    if (self.path) |p| p.cleanup(allocator);
 }
 
 pub fn dir(self: This, env: Stmt.RunEnv) Stmt.RunError!std.fs.Dir {
-    return switch (self.path.value) {
-        .literal => |lit| openDir(lit, false, self.path, env),
-        .string => |str| openDir(str, true, self.path, env),
-        else => unreachable,
+    const tkn = self.path orelse return env.proj.assets;
+    return env.proj.assets.openDir(tkn.asSlice(), open_options) catch |err| switch (err) {
+        error.FileNotFound, error.NotDir => env.err(.{ .invalid_path = .{ .path = tkn.loc } }),
+        else => |e| e,
     };
-}
-
-fn openDir(path: []const u8, possibly_abs: bool, token: core.Token, env: Stmt.RunEnv) Stmt.RunError!std.fs.Dir {
-    return if (possibly_abs and std.fs.path.isAbsolute(path))
-        std.fs.openDirAbsolute(path, open_options) catch |err| switch (err) {
-            error.FileNotFound => env.err(.{ .invalid_path = .{ .path = token.loc } }),
-            else => |e| e,
-        }
-    else
-        env.cwd.openDir(path, open_options) catch |err| switch (err) {
-            error.FileNotFound => env.err(.{ .invalid_path = .{ .path = token.loc } }),
-            else => |e| e,
-        };
 }

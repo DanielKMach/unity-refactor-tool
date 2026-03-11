@@ -77,7 +77,7 @@ pub fn getGUID(self: This, filter: Filter, env: Stmt.RunEnv) Stmt.RunError![]GUI
         try guids.append(env.allocator, switch (target) {
             .guid => |guid| try GUID.fromText(guid.value.string),
             .name => |name| blk: {
-                const path = try searchComponent(name.value.literal, env.cwd, env.allocator) orelse {
+                const path = try searchComponent(name.value.literal, env.proj, env.allocator) orelse {
                     return env.err(.{ .invalid_asset = .{ .path = name.loc } });
                 };
                 defer env.allocator.free(path);
@@ -92,7 +92,7 @@ pub fn getGUID(self: This, filter: Filter, env: Stmt.RunEnv) Stmt.RunError![]GUI
                 };
             },
             .path => |path| blk: {
-                const abs_path = env.cwd.realpathAlloc(env.allocator, path.value.string) catch |e| switch (e) {
+                const abs_path = env.proj.root.realpathAlloc(env.allocator, path.value.string) catch |e| switch (e) {
                     error.FileNotFound => {
                         return env.err(.{ .invalid_asset = .{ .path = path.loc } });
                     },
@@ -126,23 +126,17 @@ fn isCSharpIdentifier(str: []const u8) bool {
     return true;
 }
 
-/// Returns the absolute path of the component file.
-///
-/// The return value is owned by the caller.
-fn searchComponent(name: []const u8, dir: std.fs.Dir, allocator: std.mem.Allocator) !?[]u8 {
+fn searchComponent(name: []const u8, proj: core.Project, allocator: std.mem.Allocator) !?[]u8 {
     core.profiling.begin(searchComponent);
     defer core.profiling.stop();
 
-    var walker = try dir.walk(allocator);
-    defer walker.deinit();
+    return try proj.find([]u8, @ptrCast(&name), &findComponent, allocator);
+}
 
-    const target_name = try std.mem.concat(allocator, u8, &.{ name, ".cs.meta" });
-    defer allocator.free(target_name);
-
-    while (try walker.next()) |e| {
-        if (std.mem.eql(u8, e.basename, target_name)) {
-            return try dir.realpathAlloc(allocator, e.path);
-        }
+fn findComponent(data: *const anyopaque, e: std.fs.Dir.Walker.Entry, allocator: std.mem.Allocator) core.Project.SearchError!?[]u8 {
+    const name = @as(*const []const u8, @ptrCast(@alignCast(data))).*;
+    if (std.mem.eql(u8, e.basename, name)) {
+        return e.dir.realpathAlloc(allocator, e.path) catch error.SearchFailed;
     }
     return null;
 }

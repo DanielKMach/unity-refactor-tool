@@ -122,6 +122,7 @@ pub fn search(self: This, count: ?*usize, times: ?*usize, env: Stmt.RunEnv) Stmt
             .dir = dir,
             .condition = if (where) |w| w.expr else null,
             .diag = env.diag,
+            .proj = env.proj,
             .guids = guids.items[searched..],
             .references = &references,
         };
@@ -200,6 +201,7 @@ const Search = struct {
     guids: []const GUID,
     condition: ?*core.Expr,
     diag: *core.RuntimeDiagnostics,
+    proj: core.Project,
 
     dir: std.fs.Dir,
 
@@ -316,7 +318,7 @@ const Search = struct {
         var iterator = try ObjIterator.init(file, allocator);
         defer iterator.deinit();
 
-        var assets: core.runtime.AssetMap = .init(allocator);
+        var assets: core.runtime.AssetMap = .init(allocator, self.proj);
         defer assets.deinit();
         var objs: core.runtime.ObjMap = .init(allocator);
         defer objs.deinit();
