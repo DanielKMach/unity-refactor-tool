@@ -72,22 +72,21 @@ pub fn cleanup(self: This, allocator: std.mem.Allocator) void {
 }
 
 pub fn run(self: This, env: Stmt.RunEnv) Stmt.RunError!void {
-    var fileCount: usize = 0;
     var loops: usize = 0;
 
     const start = std.time.milliTimestamp();
-    const results = try self.search(&fileCount, &loops, env);
+    const results = try self.search(&loops, env);
     defer env.allocator.free(results);
     defer for (results) |r| env.allocator.free(r);
     const time = std.time.milliTimestamp() - start;
 
     sort(@ptrCast(results));
     for (results) |path| try env.out.print("{s}\r\n", .{trimCwd(path)});
-    log.info("Scanned {d} files {d} times in {d} milliseconds", .{ fileCount, loops, time });
+    log.info("Scanned project {d} times in {d} milliseconds", .{ loops, time });
     try env.out.flush();
 }
 
-pub fn search(self: This, count: ?*usize, times: ?*usize, env: Stmt.RunEnv) Stmt.RunError![][]u8 {
+pub fn search(self: This, times: ?*usize, env: Stmt.RunEnv) Stmt.RunError![][]u8 {
     core.profiling.begin(search);
     defer core.profiling.stop();
 
@@ -99,12 +98,12 @@ pub fn search(self: This, count: ?*usize, times: ?*usize, env: Stmt.RunEnv) Stmt
     defer guids.deinit(env.allocator);
     var searched: usize = 0;
 
-    var dir = try in.dir(env);
-    defer dir.close();
+    var threadsafe = std.heap.ThreadSafeAllocator{ .child_allocator = env.allocator };
+    const allocator = threadsafe.allocator();
 
-    var scanner = Scanner(Search).init(dir, env.allocator);
+    const dir = in.subpath();
 
-    var references = try core.runtime.StringList.init(scanner.allocator.allocator());
+    var references = try core.runtime.StringList.init(allocator);
     defer references.deinit();
     var scanned: usize = 0;
 
@@ -119,7 +118,6 @@ pub fn search(self: This, count: ?*usize, times: ?*usize, env: Stmt.RunEnv) Stmt
     while (guids.items.len > searched) {
         var searchData = Search{
             .mode = self.mode,
-            .dir = dir,
             .condition = if (where) |w| w.expr else null,
             .diag = env.diag,
             .proj = env.proj,
@@ -129,10 +127,13 @@ pub fn search(self: This, count: ?*usize, times: ?*usize, env: Stmt.RunEnv) Stmt
         searched = guids.items.len;
 
         log.info("Scanning...", .{});
-
-        try scanner.scan(&searchData);
-
-        if (count) |c| c.* = searchData.file_count;
+        try env.proj.scan(
+            &searchData,
+            Search.filter,
+            Search.scan,
+            dir,
+            allocator,
+        );
 
         // Feeds the guid list with any prefab references found in the files, if in indirect mode.
         if (self.mode == .indirect_uses) {
@@ -203,39 +204,41 @@ const Search = struct {
     diag: *core.RuntimeDiagnostics,
     proj: core.Project,
 
-    dir: std.fs.Dir,
-
-    file_count: usize = 0,
-    count_mtx: std.Thread.Mutex = .{},
-
     references: *core.runtime.StringList,
-    refs_mtx: std.Thread.Mutex = .{},
+    refs_mtx: std.Thread.RwLock = .{},
 
-    pub fn filter(self: *Search, entry: std.fs.Dir.Walker.Entry, _: std.mem.Allocator) ?std.fs.File {
+    const VerifyError = ObjIterator.IterateError || Yaml.ParseError || core.runtime.GUID.FromFileError || core.Expr.eval.Error || std.mem.Allocator.Error;
+    const AddPathError = VerifyError || std.fs.File.SeekError || std.mem.Allocator.Error;
+
+    pub fn filter(data: *anyopaque, entry: std.fs.Dir.Walker.Entry, _: std.mem.Allocator) core.Project.SearchError!bool {
         core.profiling.begin(filter);
         defer core.profiling.stop();
 
-        if (entry.kind != .file) return null;
+        if (entry.kind != .file) return false;
 
+        const self: *Search = @ptrCast(@alignCast(data));
         const exts: []const []const u8 = switch (self.mode) {
             .refs => refs_files,
             .direct_uses => uses_files,
             .indirect_uses => uses_files,
         };
 
-        for (exts) |ext| {
-            if (std.mem.endsWith(u8, entry.path, ext)) break;
-        } else return null;
-
-        return entry.dir.openFile(entry.basename, .{ .mode = .read_only }) catch |err| {
-            log.warn("Error ({s}) opening file: '{s}'", .{ @errorName(err), entry.path });
-            return null;
-        };
+        return for (exts) |ext| {
+            if (std.mem.endsWith(u8, entry.path, ext)) break true;
+        } else false;
     }
 
-    pub fn scan(self: *Search, path: [:0]const u8, file: std.fs.File, allocator: std.mem.Allocator) anyerror!void {
+    pub fn scan(data: *anyopaque, dir: std.fs.Dir, path: []const u8, allocator: std.mem.Allocator) core.Project.SearchError!void {
         core.profiling.begin(scan);
         defer core.profiling.stop();
+
+        const file = dir.openFile(path, .{ .mode = .read_only }) catch |err| {
+            log.warn("Error ({s}) reading file: '{s}'", .{ @errorName(err), path });
+            return error.SearchFailed;
+        };
+        defer file.close();
+
+        const self: *Search = @ptrCast(@alignCast(data));
 
         var buf: [4096]u8 = undefined;
         var fread = file.reader(&buf);
@@ -248,7 +251,7 @@ const Search = struct {
                 if (reader.bufferedLen() == 0) reader.fillMore() catch |err| {
                     if (err != error.EndOfStream) {
                         log.warn("Error ({s}) reading file: '{s}'", .{ @errorName(err), path });
-                        return err;
+                        return error.SearchFailed;
                     }
                 };
                 if (reader.takeByte()) |b| {
@@ -264,54 +267,48 @@ const Search = struct {
                 } else |err| {
                     if (err == error.EndOfStream) break :main;
                     log.warn("Error ({s}) reading file: '{s}'", .{ @errorName(err), path });
-                    return err;
+                    return error.SearchFailed;
                 }
             }
 
             std.debug.assert(n == 32);
             for (self.guids) |guid| {
                 if (!guid.eql(&maybe_guid)) continue;
-                try self.addPath(path, file, allocator);
+                const abspath = dir.realpath(path, &buf) catch return error.SearchFailed;
+                self.addPath(abspath, file, allocator) catch return error.SearchFailed;
                 break :main;
             }
         }
-
-        self.count_mtx.lock();
-        defer self.count_mtx.unlock();
-        self.file_count += 1;
     }
 
-    /// Add a path to the list of references if it is not already present.
-    /// `path` does not need to be allocated, as it will be duplicated.
+    /// Adds an absolute path to the list of references if it's not already present.
+    /// `abspath` does not need to be allocated, as it will be duplicated.
     ///
     /// This function is thread-safe.
-    fn addPath(self: *Search, path: []const u8, file: std.fs.File, allocator: std.mem.Allocator) !void {
+    fn addPath(self: *Search, abspath: []const u8, file: std.fs.File, allocator: std.mem.Allocator) AddPathError!void {
         core.profiling.begin(addPath);
         defer core.profiling.stop();
 
-        const abs_path = try self.dir.realpathAlloc(allocator, path);
-        defer allocator.free(abs_path);
-
         {
-            self.refs_mtx.lock();
-            defer self.refs_mtx.unlock();
-            if (self.references.has(abs_path)) return;
+            self.refs_mtx.lockShared();
+            defer self.refs_mtx.unlockShared();
+            if (self.references.has(abspath)) return;
         }
 
         if (self.mode == .indirect_uses or self.mode == .direct_uses) {
             try file.seekTo(0);
-            if (!try self.verifyUse(file, abs_path, allocator)) {
+            if (!try self.verifyUse(file, abspath, allocator)) {
                 return;
             }
         }
 
         self.refs_mtx.lock();
         defer self.refs_mtx.unlock();
-        try self.references.push(abs_path);
+        try self.references.push(abspath);
     }
 
     /// Verify if a component or prefab instance of guid `guid` is being used within the file at `path`.
-    fn verifyUse(self: *Search, file: std.fs.File, fpath: []const u8, allocator: std.mem.Allocator) !bool {
+    fn verifyUse(self: *Search, file: std.fs.File, fpath: []const u8, allocator: std.mem.Allocator) VerifyError!bool {
         core.profiling.begin(verifyUse);
         defer core.profiling.stop();
 
@@ -339,7 +336,10 @@ const Search = struct {
                         .type = 3, // TODO: determine type
                     };
 
-                    const doc = try objs.new(guid, e.info.file_id, e.info.class_id);
+                    const doc = objs.new(guid, e.info.file_id, e.info.class_id) catch |err| switch (err) {
+                        error.OutOfMemory => |er| return er,
+                        error.AlreadyExists => unreachable,
+                    };
                     try yaml.loadDocument(doc);
 
                     var vars: core.Expr.VarMap = try .default(allocator);

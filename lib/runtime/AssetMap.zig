@@ -31,7 +31,7 @@ pub fn get(self: *const AssetMap, guid: GUID) ?[]const u8 {
     return self.assets.get(guid);
 }
 
-pub fn put(self: *AssetMap, asset_path: []const u8) !GUID {
+pub fn put(self: *AssetMap, asset_path: []const u8) core.runtime.GUID.FromFileError!GUID {
     const guid = try GUID.fromFile(asset_path, self.allocator);
     if (self.get(guid) != null) return guid;
     const abspath = try self.allocator.dupe(u8, asset_path);
@@ -41,22 +41,22 @@ pub fn put(self: *AssetMap, asset_path: []const u8) !GUID {
 }
 
 pub fn fetch(self: *AssetMap, guid: GUID) !?[]const u8 {
-    const abspath = try self.proj.find([]u8, &guid, &find, self.allocator) orelse return null;
-    errdefer self.allocator.free(abspath);
-    try self.assets.put(guid, abspath);
-    return abspath;
+    const metafile = try self.proj.find(&guid, &find, self.allocator) orelse return null;
+    errdefer self.allocator.free(metafile);
+    try self.assets.put(guid, metafile[0 .. metafile.len - 5]);
+    return metafile[0 .. metafile.len - 5];
 }
 
 pub fn entries(self: *const AssetMap) std.AutoHashMap(GUID, []const u8).Iterator {
     return self.assets.iterator();
 }
 
-fn find(data: *const anyopaque, e: std.fs.Dir.Walker.Entry, allocator: std.mem.Allocator) core.Project.SearchError!?[]u8 {
-    if (e.kind != .file) return null;
-    if (!std.mem.endsWith(u8, e.path, ".meta")) return null;
+fn find(data: *const anyopaque, e: std.fs.Dir.Walker.Entry, allocator: std.mem.Allocator) core.Project.SearchError!bool {
+    if (e.kind != .file) return false;
+    if (!std.mem.endsWith(u8, e.path, ".meta")) return false;
 
-    const file = e.dir.openFile(e.path, .{ .mode = .read_only }) catch |err| switch (err) {
-        error.FileNotFound => return null,
+    const file = e.dir.openFile(e.basename, .{ .mode = .read_only }) catch |err| switch (err) {
+        error.FileNotFound => return false,
         else => return error.SearchFailed,
     };
     defer file.close();
@@ -65,10 +65,8 @@ fn find(data: *const anyopaque, e: std.fs.Dir.Walker.Entry, allocator: std.mem.A
     var reader = file.reader(&buf);
 
     var guid_buf: [32]u8 = undefined;
-    const file_guid = GUID.scanMetafile(&reader.interface, &guid_buf, allocator) catch return null;
+    const file_guid = GUID.scanMetafile(&reader.interface, &guid_buf, allocator) catch return false;
 
     const guid = @as(*const GUID, @ptrCast(@alignCast(data))).*;
-    if (guid.eql(file_guid)) {
-        return e.dir.realpathAlloc(allocator, e.path[0 .. e.path.len - 5]) catch return error.SearchFailed;
-    } else return null;
+    return guid.eql(file_guid);
 }

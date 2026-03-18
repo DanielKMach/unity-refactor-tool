@@ -30,10 +30,6 @@ pub fn cleanup(self: This, allocator: std.mem.Allocator) void {
     if (self.path) |p| p.cleanup(allocator);
 }
 
-pub fn dir(self: This, env: Stmt.RunEnv) Stmt.RunError!std.fs.Dir {
-    const tkn = self.path orelse return env.proj.assets;
-    return env.proj.assets.openDir(tkn.asSlice(), open_options) catch |err| switch (err) {
-        error.FileNotFound, error.NotDir => env.err(.{ .invalid_path = .{ .path = tkn.loc } }),
-        else => |e| e,
-    };
+pub fn subpath(self: This) ?[]const u8 {
+    return if (self.path) |p| p.asSlice() else null;
 }

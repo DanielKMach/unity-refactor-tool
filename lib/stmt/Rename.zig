@@ -67,7 +67,7 @@ pub fn run(self: This, env: Stmt.RunEnv) Stmt.RunError!void {
         .where = null,
     };
 
-    const targets = try show.search(null, null, env);
+    const targets = try show.search(null, env);
     defer env.allocator.free(targets);
     defer for (targets) |asset| env.allocator.free(asset);
 

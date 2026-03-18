@@ -130,15 +130,15 @@ fn searchComponent(name: []const u8, proj: core.Project, allocator: std.mem.Allo
     core.profiling.begin(searchComponent);
     defer core.profiling.stop();
 
-    return try proj.find([]u8, @ptrCast(&name), &findComponent, allocator);
+    const filename = try std.mem.concat(allocator, u8, &.{ name, ".cs.meta" });
+    defer allocator.free(filename);
+
+    return try proj.find(@ptrCast(&filename), &findComponent, allocator);
 }
 
-fn findComponent(data: *const anyopaque, e: std.fs.Dir.Walker.Entry, allocator: std.mem.Allocator) core.Project.SearchError!?[]u8 {
-    const name = @as(*const []const u8, @ptrCast(@alignCast(data))).*;
-    if (std.mem.eql(u8, e.basename, name)) {
-        return e.dir.realpathAlloc(allocator, e.path) catch error.SearchFailed;
-    }
-    return null;
+fn findComponent(data: *const anyopaque, e: std.fs.Dir.Walker.Entry, _: std.mem.Allocator) core.Project.SearchError!bool {
+    const filename = @as(*const []const u8, @ptrCast(@alignCast(data))).*;
+    return std.mem.eql(u8, e.basename, filename);
 }
 
 fn validatePath(path: []const u8, filter: Filter) bool {

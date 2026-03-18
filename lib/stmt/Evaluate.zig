@@ -78,7 +78,7 @@ pub fn run(self: This, env: core.Stmt.RunEnv) core.Stmt.RunError!void {
 
     log.info("Searching for references...", .{});
 
-    const target_assets = try show.search(null, null, env);
+    const target_assets = try show.search(null, env);
     defer env.allocator.free(target_assets);
     defer for (target_assets) |asset| {
         env.allocator.free(asset);

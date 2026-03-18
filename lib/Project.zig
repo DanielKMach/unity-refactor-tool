@@ -44,26 +44,23 @@ pub fn deinit(proj: *Project) void {
     proj.* = undefined;
 }
 
-pub const FiltFn = fn (*anyopaque, std.fs.Dir.Walker.Entry, std.mem.Allocator) ?std.fs.File;
-pub const FragFn = fn (*anyopaque, std.fs.File, [:0]const u8, std.mem.Allocator) SearchError!void;
-pub fn FindFn(comptime T: type) type {
-    return fn (*const anyopaque, std.fs.Dir.Walker.Entry, std.mem.Allocator) SearchError!?T;
-}
+pub const FindFn = fn (*const anyopaque, std.fs.Dir.Walker.Entry, std.mem.Allocator) SearchError!bool;
+pub const FiltFn = fn (*anyopaque, std.fs.Dir.Walker.Entry, std.mem.Allocator) SearchError!bool;
+pub const FragFn = fn (*anyopaque, std.fs.Dir, []const u8, std.mem.Allocator) SearchError!void;
 
 // idk why walker.next uses implicit error set on return type.
 const WalkerError = @typeInfo(@typeInfo(@TypeOf(std.fs.Dir.Walker.next)).@"fn".return_type.?).error_union.error_set;
 pub const SearchError = std.mem.Allocator.Error || error{SearchFailed};
 
-pub const ScanError: type = std.mem.Allocator.Error || SearchError || WalkerError;
-pub const FindError: type = std.mem.Allocator.Error || SearchError || WalkerError;
+pub const FindError: type = SearchError || WalkerError || std.fs.Dir.RealPathError || std.mem.Allocator.Error;
+pub const ScanError: type = SearchError || WalkerError || std.fs.Dir.OpenError || std.Thread.SpawnError || std.mem.Allocator.Error;
 
 pub fn find(
     proj: Project,
-    comptime T: type,
     data: *const anyopaque,
-    func: *const FindFn(T),
+    func: *const FindFn,
     allocator: std.mem.Allocator,
-) FindError!?T {
+) FindError!?[]u8 {
     const dirs = [3]?std.fs.Dir{ proj.assets, proj.packages, proj.pkgcache };
     for (dirs) |d| {
         const dir = d orelse continue;
@@ -72,12 +69,15 @@ pub fn find(
         defer walker.deinit();
 
         while (try walker.next()) |e| {
-            if (try @call(.auto, func, .{ data, e, allocator })) |t| return t;
+            if (try @call(.auto, func, .{ data, e, allocator })) {
+                return try e.dir.realpathAlloc(allocator, e.basename);
+            }
         }
     }
     return null;
 }
 
+/// Requires thread-safe allocator.
 pub fn scan(
     proj: Project,
     data: *anyopaque,
@@ -86,31 +86,27 @@ pub fn scan(
     path: ?[]const u8,
     allocator: std.mem.Allocator,
 ) ScanError!void {
-    const threadsafe: std.heap.ThreadSafeAllocator = .{ .child_allocator = allocator };
-    const alloc = threadsafe.allocator();
-
-    const dir = if (path) |sub| try proj.assets.openDir(sub, opts) else proj.assets;
+    var dir = if (path) |sub| try proj.assets.openDir(sub, opts) else proj.assets;
     defer if (path != null) dir.close() else {};
 
-    var walker = try dir.walk(alloc);
+    var walker = try dir.walk(allocator);
     defer walker.deinit();
     var walker_mtx: std.Thread.Mutex = .{};
-    var has_error: ?anyerror = null;
-    var error_mtx: std.Thread.Mutex = .{};
+    var err: ?ScanError = null;
 
-    const threads = try alloc.alloc(std.Thread, 4);
-    defer alloc.free(threads);
+    const threads = try allocator.alloc(std.Thread, 4);
+    defer allocator.free(threads);
 
     for (threads) |*t| {
-        t.* = try std.Thread.spawn(.{ .allocator = alloc }, loop, .{
+        t.* = try std.Thread.spawn(.{ .allocator = allocator }, loop, .{
             data,
             filt,
             frag,
+            dir,
             &walker,
             &walker_mtx,
-            &has_error,
-            &error_mtx,
-            alloc,
+            &err,
+            allocator,
         });
     }
 
@@ -118,43 +114,39 @@ pub fn scan(
         thread.join();
     }
 
-    if (has_error != null) {
-        return has_error.?;
-    }
+    return err orelse {};
 }
 
 fn loop(
     data: *anyopaque,
     filt: *const FiltFn,
     frag: *const FragFn,
+    dir: std.fs.Dir,
     walker: *std.fs.Dir.Walker,
     w_mtx: *std.Thread.Mutex,
-    has_error: *?anyerror,
-    e_mtx: *std.Thread.Mutex,
+    err: *?ScanError,
     allocator: std.mem.Allocator,
-) (ScanError || WalkerError)!void {
-    while (has_error.* == null) {
-        var file: ?std.fs.File = null;
-        defer if (file) |f| f.close();
-        var path: ?[:0]const u8 = null;
-        defer if (path) |p| allocator.free(p);
+) void {
+    var buf: [std.fs.max_path_bytes]u8 = undefined;
 
-        {
-            w_mtx.lock();
-            defer w_mtx.unlock();
+    return blk: {
+        while (err.* == null) {
+            var path: []u8 = undefined;
 
-            const entry = try walker.next() orelse break;
-            file = @call(.auto, filt, .{ data, entry, allocator });
-            path = try allocator.dupeZ(u8, entry.path);
+            {
+                w_mtx.lock();
+                defer w_mtx.unlock();
+
+                const entry = (walker.next() catch |e| break :blk e) orelse break;
+                if (@call(.auto, filt, .{ data, entry, allocator }) catch |e| break :blk e) {
+                    @memcpy(buf[0..entry.path.len], entry.path);
+                    path = buf[0..entry.path.len];
+                } else continue;
+            }
+
+            @call(.auto, frag, .{ data, dir, path, allocator }) catch |e| break :blk e;
         }
-
-        if (file != null and path != null) {
-            @call(.auto, frag, .{ data, path.?, file.?, allocator }) catch |e| {
-                e_mtx.lock();
-                defer e_mtx.unlock();
-                if (has_error.* == null) has_error.* = e;
-                break;
-            };
-        }
-    }
+    } catch |e| {
+        err.* = e;
+    };
 }

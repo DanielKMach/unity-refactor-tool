@@ -4,8 +4,8 @@ const core = @import("core");
 const GUID = @This();
 
 const ScanError = std.mem.Allocator.Error || core.yaml.LibyamlError || error{InvalidMetaFile};
-const FromTextError = error{InvalidGUID};
-const FromFileError = ScanError || std.fs.File.OpenError;
+pub const FromTextError = error{InvalidGUID};
+pub const FromFileError = ScanError || std.fs.File.OpenError;
 
 /// The value of the GUID consisting of 32 hexadecimal digits.
 id: u128,
