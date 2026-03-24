@@ -45,6 +45,9 @@ pub const ParseProblem = union(enum) {
     invalid_csharp_identifier: struct {
         token: Token,
     },
+    absolute_path: struct {
+        token: Token,
+    },
 
     // Clause related errors
     duplicate_clause: struct {

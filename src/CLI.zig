@@ -263,6 +263,10 @@ pub fn printParseProblem(parse_error: usrl.ParseProblem, source: usrl.Source, fw
             try ansi.print(e, "Invalid GUID '{s}'\r\n", .{err.token.asSlice()});
             try printLineHighlight(err.token.loc, source, fw);
         },
+        .absolute_path => |err| {
+            try ansi.print(e, "Path must be relative to project. Absolute path found: '{s}'\r\n", .{err.token.asSlice()});
+            try printLineHighlight(err.token.loc, source, fw);
+        },
         .duplicate_clause => |err| {
             try ansi.print(e, "Duplicate clause '{s}' appeared at:\r\n", .{err.clause});
             try printLineHighlight(err.first.loc, source, fw);

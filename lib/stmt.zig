@@ -20,7 +20,7 @@ pub const Stmt = union(enum) {
         allocator: std.mem.Allocator,
         diag: *core.ParseDiagnostics,
 
-        pub fn err(self: ParseEnv, e: core.ParseProblem) core.ParseDiagnostics.Error {
+        pub inline fn err(self: ParseEnv, e: core.ParseProblem) core.ParseDiagnostics.Error {
             return self.diag.push(e);
         }
     };
@@ -34,7 +34,7 @@ pub const Stmt = union(enum) {
         out: *std.Io.Writer,
         proj: core.Project,
 
-        pub fn err(self: RunEnv, e: core.RuntimeProblem) core.RuntimeDiagnostics.Error {
+        pub inline fn err(self: RunEnv, e: core.RuntimeProblem) core.RuntimeDiagnostics.Error {
             return self.diag.push(e);
         }
     };

@@ -23,6 +23,10 @@ pub fn parse(tokens: *TokenIterator, env: Stmt.ParseEnv) Stmt.ParseError!This {
     const path = try (try tokens.grabAny(&.{ .string, .literal }, env.diag)).dupe(env.allocator);
     errdefer path.cleanup(env.allocator);
 
+    if (std.fs.path.isAbsolute(path.asSlice())) {
+        return env.err(.{ .absolute_path = .{ .token = path } });
+    }
+
     return .{ .path = path };
 }
 

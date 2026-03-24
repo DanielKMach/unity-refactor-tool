@@ -45,9 +45,15 @@ pub fn parse(tokens: *TokenIterator, env: Stmt.ParseEnv) Stmt.ParseError!This {
                     .token = tkn,
                 } });
             },
-            .string => try targets.append(env.allocator, .{
-                .path = try tkn.dupe(env.allocator),
-            }),
+            .string => |str| {
+                if (!std.fs.path.isAbsolute(str)) {
+                    try targets.append(env.allocator, .{
+                        .path = try tkn.dupe(env.allocator),
+                    });
+                } else return env.err(.{ .absolute_path = .{
+                    .token = tkn,
+                } });
+            },
             else => unreachable,
         }
 

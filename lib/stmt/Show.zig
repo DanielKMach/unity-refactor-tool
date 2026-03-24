@@ -127,13 +127,16 @@ pub fn search(self: This, times: ?*usize, env: Stmt.RunEnv) Stmt.RunError![][]u8
         searched = guids.items.len;
 
         log.info("Scanning...", .{});
-        try env.proj.scan(
+        env.proj.scan(
             &searchData,
             Search.filter,
             Search.scan,
             dir,
             allocator,
-        );
+        ) catch |err| switch (err) {
+            error.FileNotFound => return env.err(.{ .invalid_path = .{ .path = in.path.?.loc } }),
+            else => |e| return e,
+        };
 
         // Feeds the guid list with any prefab references found in the files, if in indirect mode.
         if (self.mode == .indirect_uses) {
