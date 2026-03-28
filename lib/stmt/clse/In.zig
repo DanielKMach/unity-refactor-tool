@@ -20,18 +20,13 @@ pub fn parse(tokens: *TokenIterator, env: Stmt.ParseEnv) Stmt.ParseError!This {
 
     if (!tokens.match(.IN)) return error.TokenMismatch;
 
-    const path = try (try tokens.grabAny(&.{ .string, .literal }, env.diag)).dupe(env.allocator);
-    errdefer path.cleanup(env.allocator);
+    const path = try tokens.grabAny(&.{ .string, .literal }, env.diag);
 
     if (std.fs.path.isAbsolute(path.asSlice())) {
         return env.err(.{ .absolute_path = .{ .token = path } });
     }
 
     return .{ .path = path };
-}
-
-pub fn cleanup(self: This, allocator: std.mem.Allocator) void {
-    if (self.path) |p| p.cleanup(allocator);
 }
 
 pub fn subpath(self: This) ?[]const u8 {

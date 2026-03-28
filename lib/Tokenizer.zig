@@ -69,7 +69,7 @@ fn sliceForward(self: This, start_offset: isize, len: usize) []const u8 {
     return self.source[start .. start + len];
 }
 
-pub fn token(self: *This, diag: *core.ParseDiagnostics) core.ParseError!?Token {
+pub fn token(self: *This, allocator: std.mem.Allocator, diag: *core.TokenizeDiagnostics) core.TokenizeAllocError!?Token {
     var start = self.index;
     while (self.match(whitespace ++ "#")) {
         if (self.at(self.index - 1) == '#') {
@@ -95,12 +95,18 @@ pub fn token(self: *This, diag: *core.ParseDiagnostics) core.ParseError!?Token {
                 return .new(kw[1], .fromSlice(self.source, word));
             }
         }
-        return .new(.{ .literal = word }, .fromSlice(self.source, word));
+        return .new(
+            .{ .literal = try allocator.dupe(u8, word) },
+            .fromSlice(self.source, word),
+        );
     } else if (self.match("`")) {
         while (self.next()) |c| {
             if (c == self.at(start)) {
                 const word = self.slice(start + 1, -1);
-                return .new(.{ .literal = word }, .fromSlice(self.source, word));
+                return .new(
+                    .{ .literal = try allocator.dupe(u8, word) },
+                    .fromSlice(self.source, word),
+                );
             }
         } else {
             return diag.push(.{ .never_closed_string = .{ .location = .init(start, 1) } });
@@ -113,12 +119,18 @@ pub fn token(self: *This, diag: *core.ParseDiagnostics) core.ParseError!?Token {
         }
         while (self.match(alphanumeric ++ "_")) {}
         const word = self.slice(start, 0);
-        return .new(.{ .variable = word[1..] }, .fromSlice(self.source, word));
+        return .new(
+            .{ .variable = try allocator.dupe(u8, word[1..]) },
+            .fromSlice(self.source, word),
+        );
     } else if (self.match("\"'")) { // strings
         while (self.next()) |c| {
             if (c == self.at(start)) {
                 const str = self.slice(start + 1, -1);
-                return .new(.{ .string = str }, .init(start, str.len + 2));
+                return .new(
+                    .{ .string = try allocator.dupe(u8, str) },
+                    .init(start, str.len + 2),
+                );
             }
         } else {
             return diag.push(.{ .never_closed_string = .{ .location = .init(start, 1) } });
@@ -145,26 +157,4 @@ pub fn token(self: *This, diag: *core.ParseDiagnostics) core.ParseError!?Token {
             return diag.push(.{ .unexpected_character = .{ .location = .init(self.index, 1) } });
         }
     }
-}
-
-/// Tokenizes the given expression into a slice of tokens.
-///
-/// The slice is owned by the caller.
-pub fn tokenize(expression: []const u8, allocator: std.mem.Allocator, diag: *core.ParseDiagnostics) core.ParseAllocError![]Token {
-    core.profiling.begin(tokenize);
-    defer core.profiling.stop();
-
-    var list = try std.ArrayList(Token).initCapacity(allocator, 16);
-    defer list.deinit(allocator);
-
-    var tokenizer = This.init(expression);
-    while (try tokenizer.token(diag)) |tkn| {
-        try list.append(allocator, tkn);
-    }
-
-    for (list.items) |tkn| {
-        log.info("Token({s}, <{s}>)", .{ @tagName(tkn.value), tkn.loc.lexeme(expression) });
-    }
-
-    return try list.toOwnedSlice(allocator);
 }

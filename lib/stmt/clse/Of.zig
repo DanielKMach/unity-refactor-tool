@@ -17,11 +17,6 @@ pub fn parse(tokens: *TokenIterator, env: Stmt.ParseEnv) Stmt.ParseError!This {
 
     var targets = std.ArrayList(AssetTarget).empty;
     defer targets.deinit(env.allocator);
-    errdefer for (targets.items) |target| switch (target) {
-        .guid => |guid| guid.cleanup(env.allocator),
-        .name => |name| name.cleanup(env.allocator),
-        .path => |path| path.cleanup(env.allocator),
-    };
 
     while (true) {
         const tkn = try tokens.grabAny(&.{ .GUID, .literal, .string }, env.diag);
@@ -29,27 +24,21 @@ pub fn parse(tokens: *TokenIterator, env: Stmt.ParseEnv) Stmt.ParseError!This {
             .GUID => {
                 const guid_tkn = try tokens.grab(.string, env.diag);
                 if (GUID.isGUID(guid_tkn.value.string)) {
-                    try targets.append(env.allocator, .{
-                        .guid = try guid_tkn.dupe(env.allocator),
-                    });
+                    try targets.append(env.allocator, .{ .guid = guid_tkn });
                 } else return env.err(.{ .invalid_guid = .{
                     .token = guid_tkn,
                 } });
             },
             .literal => |lit| {
                 if (isCSharpIdentifier(lit)) {
-                    try targets.append(env.allocator, .{
-                        .name = try tkn.dupe(env.allocator),
-                    });
+                    try targets.append(env.allocator, .{ .name = tkn });
                 } else return env.err(.{ .invalid_csharp_identifier = .{
                     .token = tkn,
                 } });
             },
             .string => |str| {
                 if (!std.fs.path.isAbsolute(str)) {
-                    try targets.append(env.allocator, .{
-                        .path = try tkn.dupe(env.allocator),
-                    });
+                    try targets.append(env.allocator, .{ .path = tkn });
                 } else return env.err(.{ .absolute_path = .{
                     .token = tkn,
                 } });
@@ -64,11 +53,6 @@ pub fn parse(tokens: *TokenIterator, env: Stmt.ParseEnv) Stmt.ParseError!This {
 }
 
 pub fn cleanup(self: This, allocator: std.mem.Allocator) void {
-    for (self.targets) |target| switch (target) {
-        .guid => |guid| guid.cleanup(allocator),
-        .name => |name| name.cleanup(allocator),
-        .path => |path| path.cleanup(allocator),
-    };
     allocator.free(self.targets);
 }
 

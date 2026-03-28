@@ -8,7 +8,7 @@ pub fn Diagnostics(comptime T: type, comptime e: anytype) type {
         pub const Problem = T;
         pub const Error = @TypeOf(e);
 
-        pub const dummy: This = .{
+        pub const none: This = .{
             .allocator = failing,
             .errors = .empty,
         };

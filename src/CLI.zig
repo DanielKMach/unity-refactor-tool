@@ -2,7 +2,9 @@ const builtin = @import("builtin");
 const std = @import("std");
 const usrl = @import("usrl");
 
+const Source = @import("Source.zig");
 const This = @This();
+
 const log = std.log.scoped(.cli);
 
 const e = "R";
@@ -11,6 +13,7 @@ const eh = "r";
 pub const ExecutionMode = enum {
     args,
     file,
+    stdin,
 };
 
 allocator: std.mem.Allocator,
@@ -27,12 +30,9 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
 
     const ansi = ANSI.init(self.out);
 
-    const parser = usrl.Parser{
-        .allocator = self.allocator,
-    };
-    var scripts = std.ArrayList(ScriptWithSource).empty;
-    defer scripts.deinit(self.allocator);
-    defer for (scripts.items) |*s| s.deinit();
+    var tocompile = std.ArrayList(Source).empty;
+    defer tocompile.deinit(self.allocator);
+    defer for (tocompile.items) |s| s.deinit(self.allocator);
 
     const proj = usrl.Project.fromRoot(self.cwd) catch |err| {
         switch (err) {
@@ -59,18 +59,15 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
                 try self.out.interface.print("{s}", .{usrl.version});
                 return true;
             } else if (std.mem.eql(u8, arg, "--")) {
+                mode = .stdin;
                 var code: [1 << 16]u8 = undefined;
                 const len = try self.in.interface.readSliceShort(&code);
-                const source = try usrl.Source.named(code[0..len], "stdin", self.allocator);
-                defer source.deinit();
-                if (try self.parse(source, parser)) |script| {
-                    return try self.run(script, .{
-                        .allocator = self.allocator,
-                        .out = &self.out.interface,
-                        .proj = proj,
-                    }, source);
-                }
-                return false;
+
+                const source = try Source.dupe(self.allocator, code[0..len], "stdin");
+                errdefer source.deinit(self.allocator);
+
+                try tocompile.append(self.allocator, source);
+                break;
             }
         }
         if (std.mem.startsWith(u8, arg, "-")) {
@@ -104,51 +101,71 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
         }
         switch (mode) {
             .args => {
-                const source = try usrl.Source.anonymous(arg, self.allocator);
-                errdefer source.deinit();
-                if (try self.parse(source, parser)) |script| {
-                    try scripts.append(self.allocator, .{
-                        .script = script,
-                        .source = source,
-                    });
-                    continue;
-                } else {
-                    source.deinit();
-                    return false;
-                }
+                const source = try Source.dupe(self.allocator, arg, null);
+                errdefer source.deinit(self.allocator);
+
+                try tocompile.append(self.allocator, source);
             },
             .file => {
-                var source: usrl.Source = try if (std.fs.path.isAbsolute(arg))
-                    usrl.Source.fromPathAbsolute(arg, self.allocator)
+                var file: std.fs.File = if (std.fs.path.isAbsolute(arg))
+                    try std.fs.openFileAbsolute(arg, .{})
                 else
-                    usrl.Source.fromPath(self.cwd, arg, self.allocator);
-                errdefer source.deinit();
+                    try self.cwd.openFile(arg, .{});
 
-                if (try self.parse(source, parser)) |script| {
-                    try scripts.append(self.allocator, .{
-                        .script = script,
-                        .source = source,
-                    });
-                    continue;
-                } else {
-                    source.deinit();
-                    return false;
-                }
+                var buf: [256]u8 = undefined;
+                var reader = file.reader(&buf);
+
+                var code: [1 << 16]u8 = undefined;
+                const len = try reader.interface.readSliceShort(&code);
+
+                const source = try Source.dupe(self.allocator, code[0..len], std.fs.path.basename(arg));
+                errdefer source.deinit(self.allocator);
+
+                try tocompile.append(self.allocator, source);
+            },
+            .stdin => {
+                try ansi.print(e, "Positional arguments are not allowed with '--'", .{});
+                return false;
             },
         }
     }
-    if (!check) for (scripts.items) |script| {
-        const output_file = output orelse self.out.file;
-        var wbuf: [4096]u8 = undefined;
-        var fwriter = output_file.writer(&wbuf);
-        if (!try self.run(script.script, .{
-            .allocator = self.allocator,
-            .out = &fwriter.interface,
-            .proj = proj,
-        }, script.source)) {
-            return false;
+
+    var tokens = std.ArrayList([]const usrl.Token).empty;
+    defer tokens.deinit(self.allocator);
+    defer for (tokens.items) |t| usrl.Token.free(self.allocator, t);
+
+    var torun = std.ArrayList(usrl.Script).empty;
+    defer torun.deinit(self.allocator);
+    defer for (torun.items) |s| s.deinit(self.allocator);
+
+    if (tocompile.items.len == 0) return true;
+    for (tocompile.items) |source| {
+        const tkns = self.tokenize(source) orelse continue;
+        const script = self.parse(tkns, source) orelse {
+            usrl.Token.free(self.allocator, tkns);
+            continue;
+        };
+        errdefer script.deinit(self.allocator);
+
+        {
+            errdefer usrl.Token.free(self.allocator, tkns);
+            try tokens.append(self.allocator, tkns);
         }
-    };
+
+        try torun.append(self.allocator, script);
+    }
+
+    if (check) return torun.items.len == tocompile.items.len;
+    if (torun.items.len < tocompile.items.len) return false;
+
+    const output_file = output orelse self.out.file;
+    var wbuf: [4096]u8 = undefined;
+    var fout = output_file.writer(&wbuf);
+
+    for (torun.items, 0..) |script, j| {
+        if (!self.run(script, proj, &fout.interface, tocompile.items[j])) return false;
+    }
+
     if (i == 0) try printHelp(&self.out.interface);
     return true;
 }
@@ -157,9 +174,6 @@ pub fn startInteractiveMode(self: This, proj: usrl.Project) !bool {
     const ansi = ANSI.init(self.out);
     const writer = &self.out.interface;
     const reader = &self.in.interface;
-    const parser = usrl.Parser{
-        .allocator = self.allocator,
-    };
 
     it: while (true) {
         try ansi.print("D", ">> ", .{});
@@ -171,67 +185,102 @@ pub fn startInteractiveMode(self: This, proj: usrl.Project) !bool {
         };
 
         const query = std.mem.trim(u8, line, " \n\t\r");
-        if (query.len == 0) {
-            continue; // skip empty lines
-        }
+        if (query.len == 0) continue; // skip empty lines
 
-        const source = try usrl.Source.anonymous(query, self.allocator);
-        defer source.deinit();
+        const source = Source{
+            .name = null,
+            .source = query,
+        };
 
-        _ = try self.parseAndRun(source, parser, .{
-            .allocator = self.allocator,
-            .out = &self.out.interface,
-            .proj = proj,
-        });
+        const tkns = self.tokenize(source) orelse continue;
+        defer usrl.Token.free(self.allocator, tkns);
+
+        const script = self.parse(tkns, source) orelse continue;
+        defer script.deinit(self.allocator);
+
+        _ = self.run(script, proj, writer, source);
     }
     try writer.writeAll("\r\n");
     return true;
 }
 
-pub fn parse(self: This, source: usrl.Source, parser: usrl.Parser) !?usrl.Script {
-    const result = try parser.parse(source);
-    switch (result) {
-        .ok => |script| return script,
-        .err => |problems| {
-            for (problems) |p| try printParseProblem(p, source, self.err);
-            parser.allocator.free(problems);
-        },
-    }
-    return null;
+pub fn tokenize(self: This, source: Source) ?[]usrl.Token {
+    var diag: usrl.TokenizeDiagnostics = .init(self.allocator);
+    defer diag.deinit();
+
+    return usrl.tokenize(source.source, self.allocator, &diag) catch |err| {
+        switch (err) {
+            error.USRLTokenizeError => while (diag.pop()) |prob| {
+                printTokenizeProblem(prob, source, self.err) catch continue;
+            },
+            else => self.err.interface.print("ERROR: {t}", .{err}) catch {},
+        }
+        return null;
+    };
 }
 
-pub fn run(self: This, script: usrl.Script, config: usrl.Script.RunConfig, source: usrl.Source) !bool {
-    const result = try script.run(config);
-    switch (result) {
-        .ok => return true,
-        .err => |problems| {
-            for (problems) |p| try printRuntimeProblem(p, source, self.err);
-            config.allocator.free(problems);
-        },
-    }
-    return false;
+pub fn parse(self: This, tokens: []usrl.Token, source: Source) ?usrl.Script {
+    var diag: usrl.ParseDiagnostics = .init(self.allocator);
+    defer diag.deinit();
+
+    return usrl.parse(tokens, self.allocator, &diag) catch |err| {
+        switch (err) {
+            error.USRLParseError => while (diag.pop()) |prob| {
+                printParseProblem(prob, source, self.err) catch continue;
+            },
+            else => self.err.interface.print("ERROR: {t}", .{err}) catch {},
+        }
+        return null;
+    };
 }
 
-pub fn parseAndRun(self: This, source: usrl.Source, parser: usrl.Parser, config: usrl.Script.RunConfig) !bool {
-    const script = try self.parse(source, parser);
-    if (script) |s| {
-        defer s.deinit();
-        return try self.run(s, config, source);
-    }
-    return false;
+pub fn run(self: This, script: usrl.Script, proj: usrl.Project, out: *std.Io.Writer, source: Source) bool {
+    var diag: usrl.RuntimeDiagnostics = .init(self.allocator);
+    defer diag.deinit();
+
+    usrl.run(script, self.allocator, &diag, proj, out) catch |err| {
+        switch (err) {
+            error.USRLRuntimeError => while (diag.pop()) |prob| {
+                printRuntimeProblem(prob, source, self.err) catch continue;
+            },
+            else => self.err.interface.print("ERROR: {t}", .{err}) catch {},
+        }
+        return false;
+    };
+    return true;
 }
 
-pub fn printParseProblem(parse_error: usrl.ParseProblem, source: usrl.Source, fw: *std.fs.File.Writer) !void {
+pub fn printTokenizeProblem(tokenize_error: usrl.TokenizeProblem, source: Source, fw: *std.fs.File.Writer) std.Io.Writer.Error!void {
     var ansi = ANSI.init(fw);
     var out = &fw.interface;
 
-    try ansi.print(eh, "PARSING ERROR: ", .{});
+    try ansi.print(eh, "SYNTAX ERROR: ", .{});
 
-    switch (parse_error) {
+    switch (tokenize_error) {
         .never_closed_string => |err| {
             try ansi.print(e, "Never closed string at index {d}\r\n", .{err.location.index});
             try printLineHighlight(err.location, source, fw);
         },
+        .unexpected_character => |err| {
+            try ansi.print(e, "Unexpected character '{s}'\r\n", .{err.location.lexeme(source.source)});
+            try printLineHighlight(err.location, source, fw);
+        },
+        .invalid_number => |err| {
+            try ansi.print(e, "Invalid number '{s}'\r\n", .{err.location.lexeme(source.source)});
+            try printLineHighlight(err.location, source, fw);
+        },
+    }
+
+    try out.flush();
+}
+
+pub fn printParseProblem(parse_error: usrl.ParseProblem, source: Source, fw: *std.fs.File.Writer) std.Io.Writer.Error!void {
+    var ansi = ANSI.init(fw);
+    var out = &fw.interface;
+
+    try ansi.print(eh, "SYNTAX ERROR: ", .{});
+
+    switch (parse_error) {
         .unexpected_token => |err| {
             {
                 ansi.begin(e);
@@ -246,14 +295,6 @@ pub fn printParseProblem(parse_error: usrl.ParseProblem, source: usrl.Source, fw
                 try out.print("\r\n", .{});
             }
             try printLineHighlight(err.found.loc, source, fw);
-        },
-        .unexpected_character => |err| {
-            try ansi.print(e, "Unexpected character '{s}'\r\n", .{err.location.lexeme(source.source)});
-            try printLineHighlight(err.location, source, fw);
-        },
-        .invalid_number => |err| {
-            try ansi.print(e, "Invalid number '{s}'\r\n", .{err.location.lexeme(source.source)});
-            try printLineHighlight(err.location, source, fw);
         },
         .invalid_csharp_identifier => |err| {
             try ansi.print(e, "Invalid C# identifier '{s}'\r\n", .{err.token.asSlice()});
@@ -293,7 +334,7 @@ pub fn printParseProblem(parse_error: usrl.ParseProblem, source: usrl.Source, fw
     try out.flush();
 }
 
-pub fn printRuntimeProblem(runtime_error: usrl.RuntimeProblem, source: usrl.Source, fw: *std.fs.File.Writer) !void {
+pub fn printRuntimeProblem(runtime_error: usrl.RuntimeProblem, source: Source, fw: *std.fs.File.Writer) std.Io.Writer.Error!void {
     const ansi = ANSI.init(fw);
     const out = &fw.interface;
 
@@ -420,9 +461,10 @@ pub fn printRuntimeProblem(runtime_error: usrl.RuntimeProblem, source: usrl.Sour
     try out.flush();
 }
 
-pub fn printLineHighlight(loc: usrl.Token.Location, source: usrl.Source, out: *std.fs.File.Writer) !void {
-    const line_index = source.lineIndex(loc.index) orelse return error.InvalidLocation;
-    const line = source.line(line_index) orelse return error.InvalidLocation;
+pub fn printLineHighlight(loc: usrl.Token.Location, source: Source, out: *std.fs.File.Writer) std.Io.Writer.Error!void {
+    std.debug.assert(loc.index <= source.source.len);
+    const line_index = source.lineIndex(loc.index).?;
+    const line = source.line(line_index).?;
 
     var ansi = ANSI.init(out);
     if (source.name) |name| {
@@ -430,7 +472,7 @@ pub fn printLineHighlight(loc: usrl.Token.Location, source: usrl.Source, out: *s
     }
     try out.interface.print("{s}\r\n", .{line});
 
-    const index = loc.index - (source.lineStart(line_index) orelse unreachable);
+    const index = loc.index - source.lineStart(line_index).?;
     const start = offset(index, line);
     const len = offset(@min(index + @max(loc.len, 1) - 1, line.len - 1), line) + 1 - start;
 
@@ -459,12 +501,12 @@ pub fn offset(index: usize, line: []const u8) usize {
 }
 
 /// Prints the standard help message to the given writer.
-pub fn printHelp(out: *std.Io.Writer) anyerror!void {
+pub fn printHelp(out: *std.Io.Writer) std.Io.Writer.Error!void {
     try out.writeAll(@embedFile("help.txt"));
 }
 
 /// Opens the language manual
-pub fn openManual() anyerror!void {
+pub fn openManual() !void {
     const cwd = std.fs.cwd();
     const manual_file = try cwd.createFile("manual.html", .{});
     try manual_file.writeAll(@embedFile("manual.html"));
@@ -495,14 +537,9 @@ pub fn openURL(url: [:0]const u8) void {
     }
 }
 
-pub const ScriptWithSource = struct {
-    script: usrl.Script,
-    source: usrl.Source,
-
-    pub fn deinit(self: *ScriptWithSource) void {
-        self.script.deinit();
-        self.source.deinit();
-    }
+pub const SourcedScript = struct {
+    source: Source,
+    script: usrl.Script.Managed,
 };
 
 pub const ANSI = struct {
@@ -566,7 +603,7 @@ pub const ANSI = struct {
         }
     }
 
-    pub fn print(self: ANSI, tags: []const u8, comptime format: []const u8, args: anytype) !void {
+    pub fn print(self: ANSI, tags: []const u8, comptime format: []const u8, args: anytype) std.Io.Writer.Error!void {
         if (!self.enabled) {
             try self.out.print(format, args);
             return;

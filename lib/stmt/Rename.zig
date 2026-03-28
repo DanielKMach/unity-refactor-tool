@@ -24,13 +24,11 @@ pub fn parse(tokens: *TokenIterator, env: Stmt.ParseEnv) Stmt.ParseError!This {
 
     if (!tokens.match(.RENAME)) return error.TokenMismatch;
 
-    const old_name = try (try tokens.grabAny(&.{ .string, .literal }, env.diag)).dupe(env.allocator);
-    errdefer old_name.cleanup(env.allocator);
+    const old_name = try tokens.grabAny(&.{ .string, .literal }, env.diag);
 
     _ = try tokens.grab(.FOR, env.diag);
 
-    const new_name = try (try tokens.grabAny(&.{ .string, .literal }, env.diag)).dupe(env.allocator);
-    errdefer new_name.cleanup(env.allocator);
+    const new_name = try tokens.grabAny(&.{ .string, .literal }, env.diag);
 
     const Clauses = struct {
         OF: clse.Of,
@@ -48,9 +46,6 @@ pub fn parse(tokens: *TokenIterator, env: Stmt.ParseEnv) Stmt.ParseError!This {
 
 pub fn cleanup(self: This, allocator: std.mem.Allocator) void {
     self.of.cleanup(allocator);
-    if (self.in) |in| in.cleanup(allocator);
-    self.old_name.cleanup(allocator);
-    self.new_name.cleanup(allocator);
 }
 
 pub fn run(self: This, env: Stmt.RunEnv) Stmt.RunError!void {

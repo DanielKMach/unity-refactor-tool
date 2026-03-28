@@ -67,7 +67,6 @@ pub fn parse(tokens: *TokenIterator, env: Stmt.ParseEnv) Stmt.ParseError!This {
 
 pub fn cleanup(self: This, allocator: std.mem.Allocator) void {
     self.of.cleanup(allocator);
-    if (self.in) |in| in.cleanup(allocator);
     if (self.where) |where| where.cleanup(allocator);
 }
 

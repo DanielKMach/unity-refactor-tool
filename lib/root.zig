@@ -8,19 +8,20 @@ pub const profiling = @import("profiling.zig");
 pub const util = @import("util.zig");
 pub const yaml = @import("yaml.zig");
 
-pub const Source = @import("Source.zig");
 pub const Project = @import("Project.zig");
 pub const Token = @import("Token.zig");
 pub const Tokenizer = @import("Tokenizer.zig");
 pub const Diagnostics = @import("diag.zig").Diagnostics;
 pub const Script = @import("Script.zig");
 pub const Transaction = @import("Transaction.zig");
-pub const Parser = @import("Parser.zig");
-pub const Result = @import("results.zig").Result;
 
 pub const version = config.version;
 
-pub const ParseProblem = union(enum) {
+pub const TokenizeError = error{USRLTokenizeError};
+pub const TokenizeAllocError = TokenizeError || std.mem.Allocator.Error;
+pub const TokenizeDiagnostics = Diagnostics(TokenizeProblem, error.USRLTokenizeError);
+
+pub const TokenizeProblem = union(enum) {
     const Type = @typeInfo(@This()).@"union".tag_type orelse unreachable;
 
     // Syntax related errors
@@ -33,6 +34,14 @@ pub const ParseProblem = union(enum) {
     invalid_number: struct {
         location: Token.Location,
     },
+};
+
+pub const ParseError = error{USRLParseError};
+pub const ParseAllocError = ParseError || std.mem.Allocator.Error;
+pub const ParseDiagnostics = Diagnostics(ParseProblem, error.USRLParseError);
+
+pub const ParseProblem = union(enum) {
+    const Type = @typeInfo(@This()).@"union".tag_type orelse unreachable;
 
     // Token related errors
     unexpected_token: struct {
@@ -74,9 +83,8 @@ pub const ParseProblem = union(enum) {
     unexpected: anyerror,
 };
 
-pub const ParseError = error{USRLParseError};
-pub const ParseAllocError = ParseError || std.mem.Allocator.Error;
-pub const ParseDiagnostics = Diagnostics(ParseProblem, error.USRLParseError);
+pub const RuntimeError = error{USRLRuntimeError};
+pub const RuntimeDiagnostics = Diagnostics(RuntimeProblem, error.USRLRuntimeError);
 
 pub const RuntimeProblem = union(enum) {
     const Type = @typeInfo(RuntimeProblem).@"union".tag_type orelse unreachable;
@@ -171,5 +179,85 @@ pub const RuntimeProblem = union(enum) {
     unexpected: anyerror,
 };
 
-pub const RuntimeError = error{USRLRuntimeError};
-pub const RuntimeDiagnostics = Diagnostics(RuntimeProblem, error.USRLRuntimeError);
+/// Tokenizes the given expression into a slice of tokens.
+///
+/// The slice is owned by the caller.
+pub fn tokenize(
+    expression: []const u8,
+    allocator: std.mem.Allocator,
+    diag: *TokenizeDiagnostics,
+) TokenizeAllocError![]Token {
+    profiling.begin(tokenize);
+    defer profiling.stop();
+
+    var list = try std.ArrayList(Token).initCapacity(allocator, 16);
+    defer list.deinit(allocator);
+    errdefer Token.cleanup(allocator, list.items);
+
+    var tokenizer = Tokenizer.init(expression);
+    while (try tokenizer.token(allocator, diag)) |tkn| {
+        errdefer Token.cleanup(allocator, &.{tkn});
+
+        try list.append(allocator, tkn);
+    }
+
+    return try list.toOwnedSlice(allocator);
+}
+
+pub fn parse(
+    tokens: []const Token,
+    allocator: std.mem.Allocator,
+    diag: *ParseDiagnostics,
+) ParseAllocError!Script {
+    profiling.begin(parse);
+    defer profiling.stop();
+
+    var iterator = Token.Iterator.init(tokens);
+
+    var statements = std.ArrayList(Stmt).empty;
+    defer statements.deinit(allocator);
+    errdefer for (statements.items) |stmt| stmt.deinit(allocator);
+
+    const env: Stmt.ParseEnv = .{
+        .diag = diag,
+        .allocator = allocator,
+    };
+
+    while (!iterator.match(.eof) and iterator.remaining() > 0) {
+        const stmt = try Stmt.parse(&iterator, env);
+        try statements.append(env.allocator, stmt);
+        const end = try iterator.grabAny(&.{ .semicolon, .eof }, env.diag);
+        if (end.is(.eof)) break;
+    }
+
+    return .{ .statements = try statements.toOwnedSlice(allocator) };
+}
+
+pub fn run(
+    script: Script,
+    allocator: std.mem.Allocator,
+    diag: *RuntimeDiagnostics,
+    proj: Project,
+    out: *std.Io.Writer,
+) anyerror!void {
+    profiling.begin(run);
+    defer profiling.stop();
+
+    var transaction = Transaction.init(allocator);
+    defer transaction.deinit();
+
+    const env = Stmt.RunEnv{
+        .transaction = &transaction,
+        .allocator = allocator,
+        .diag = diag,
+        .proj = proj,
+        .out = out,
+    };
+
+    script.run(env) catch |err| {
+        transaction.rollback();
+        return err;
+    };
+
+    transaction.commit();
+}

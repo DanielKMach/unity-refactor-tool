@@ -81,32 +81,32 @@ pub fn asSlice(self: Token) []const u8 {
     }
 }
 
-/// Duplicates the token, the caller owns the returned token.
-///
-/// Safe to call but unnecessary if token is not a string or literal
-pub fn dupe(self: Token, allocator: std.mem.Allocator) std.mem.Allocator.Error!Token {
-    const new_value: Value = switch (self.value) {
-        .string => |s| .{ .string = try allocator.dupe(u8, s) },
-        .literal => |l| .{ .literal = try allocator.dupe(u8, l) },
-        .variable => |v| .{ .variable = try allocator.dupe(u8, v) },
-        else => self.value,
-    };
-    return Token{
-        .value = new_value,
-        .loc = self.loc,
+/// Duplicates the tokens from `src` into `dst`, allocating new memory.
+pub fn dupe(allocator: std.mem.Allocator, dst: []Token, src: []const Token) std.mem.Allocator.Error!void {
+    std.debug.assert(dst.len == src.len);
+    for (src, 0..) |tkn, i| {
+        const v: Value = switch (tkn.value) {
+            .string => |s| .{ .string = try allocator.dupe(u8, s) },
+            .literal => |l| .{ .literal = try allocator.dupe(u8, l) },
+            .variable => |v| .{ .variable = try allocator.dupe(u8, v) },
+            else => tkn.value,
+        };
+        dst[i] = .{ .value = v, .loc = tkn.loc };
+    }
+}
+
+pub fn cleanup(allocator: std.mem.Allocator, tokens: []const Token) void {
+    for (tokens) |tkn| switch (tkn.value) {
+        .string => |str| allocator.free(str),
+        .literal => |lit| allocator.free(lit),
+        .variable => |var_| allocator.free(var_),
+        else => {},
     };
 }
 
-/// Free token if duped.
-///
-/// Unnecessary to call if token is not a string or literal.
-pub fn cleanup(self: Token, allocator: std.mem.Allocator) void {
-    switch (self.value) {
-        .string => |s| allocator.free(s),
-        .literal => |l| allocator.free(l),
-        .variable => |v| allocator.free(v),
-        else => {},
-    }
+pub fn free(allocator: std.mem.Allocator, tokens: []const Token) void {
+    cleanup(allocator, tokens);
+    allocator.free(tokens);
 }
 
 pub const Type = enum {

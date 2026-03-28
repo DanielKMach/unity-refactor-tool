@@ -54,7 +54,7 @@ fn genBinaryFunc(next_call: *const ParseFn, expected_tokens: []const core.Token.
                 const expr = try env.allocator.create(Expr);
                 expr.* = .{ .binary = .{
                     .left = left,
-                    .op = try t.dupe(env.allocator),
+                    .op = t,
                     .right = right,
                 } };
                 left = expr;
@@ -72,7 +72,7 @@ fn genUnaryFunc(next_call: *const ParseFn, expected_tokens: []const core.Token.T
                 const operand = try @This().parse(tokens, env);
                 const expr = try env.allocator.create(Expr);
                 expr.* = .{ .unary = .{
-                    .op = try t.dupe(env.allocator),
+                    .op = t,
                     .operand = operand,
                 } };
                 return expr;
@@ -108,7 +108,7 @@ fn assignment(tokens: *TokenIterator, env: Env) core.ParseAllocError!*Expr {
                     };
                     const unroll = try env.allocator.create(Expr);
                     unroll.* = .{ .binary = .{
-                        .left = try left.dupe(env.allocator),
+                        .left = left,
                         .op = .new(v, t.loc),
                         .right = right,
                     } };
@@ -120,7 +120,7 @@ fn assignment(tokens: *TokenIterator, env: Env) core.ParseAllocError!*Expr {
             const expr = try env.allocator.create(Expr);
             expr.* = .{ .assignment = .{
                 .target = left,
-                .op = try op.dupe(env.allocator),
+                .op = op,
                 .value = right,
             } };
             left = expr;
@@ -148,12 +148,8 @@ fn vaif(tokens: *TokenIterator, env: Env) core.ParseAllocError!*Expr {
         const varprop: *Expr = try env.allocator.create(Expr);
         errdefer env.allocator.destroy(varprop);
         varprop.* = switch (t.value) {
-            .literal => .{ .property = .{
-                .name = try t.dupe(env.allocator),
-            } },
-            .variable => .{ .variable = .{
-                .name = try t.dupe(env.allocator),
-            } },
+            .literal => .{ .property = .{ .name = t } },
+            .variable => .{ .variable = .{ .name = t } },
             else => unreachable,
         };
         break :blk varprop;
@@ -165,7 +161,7 @@ fn vaif(tokens: *TokenIterator, env: Env) core.ParseAllocError!*Expr {
             const expr = try env.allocator.create(Expr);
             expr.* = .{ .access = .{
                 .base = left,
-                .property = try t.dupe(env.allocator),
+                .property = t,
             } };
             left = expr;
         } else if (tokens.match(.left_bracket)) {
@@ -175,7 +171,7 @@ fn vaif(tokens: *TokenIterator, env: Env) core.ParseAllocError!*Expr {
             expr.* = .{ .indexing = .{
                 .base = left,
                 .index = index,
-                .bracket = try rb.dupe(env.allocator),
+                .bracket = rb,
             } };
             left = expr;
         } else if (tokens.match(.left_paren)) {
@@ -201,7 +197,7 @@ fn vaif(tokens: *TokenIterator, env: Env) core.ParseAllocError!*Expr {
             expr.* = .{ .call = .{
                 .callee = left,
                 .args = try args.toOwnedSlice(env.allocator),
-                .paren = try rp.dupe(env.allocator),
+                .paren = rp,
             } };
             left = expr;
         } else break;
@@ -213,7 +209,7 @@ fn value(tokens: *TokenIterator, env: Env) core.ParseAllocError!*Expr {
     if (tokens.consumeAny(&.{ .string, .number, .NIL })) |t| {
         const expr = try env.allocator.create(Expr);
         expr.* = .{ .literal = .{
-            .token = try t.dupe(env.allocator),
+            .token = t,
         } };
         return expr;
     } else if (tokens.consume(.left_paren)) |lp| {
@@ -242,8 +238,8 @@ fn value(tokens: *TokenIterator, env: Env) core.ParseAllocError!*Expr {
         const expr = try env.allocator.create(Expr);
         errdefer env.allocator.destroy(expr);
         expr.* = .{ .block = .{
-            .lbrace = try lb.dupe(env.allocator),
-            .rbrace = try rb.dupe(env.allocator),
+            .lbrace = lb,
+            .rbrace = rb,
             .children = try children.toOwnedSlice(env.allocator),
         } };
         return expr;
