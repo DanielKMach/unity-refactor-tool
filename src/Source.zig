@@ -4,7 +4,7 @@ const core = @import("core");
 const Source = @This();
 
 source: []const u8,
-name: ?[]const u8,
+name: ?[]const u8 = null,
 
 pub fn dupe(allocator: std.mem.Allocator, source: []const u8, name: ?[]const u8) std.mem.Allocator.Error!Source {
     return .{

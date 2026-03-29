@@ -3,6 +3,7 @@ const std = @import("std");
 const usrl = @import("usrl");
 
 const Source = @import("Source.zig");
+const Glep = @import("Glep.zig");
 const This = @This();
 
 const log = std.log.scoped(.cli);
@@ -22,12 +23,7 @@ in: *std.fs.File.Reader,
 out: *std.fs.File.Writer,
 err: *std.fs.File.Writer,
 
-pub fn process(self: This, args: *std.process.ArgIterator) !bool {
-    var check = false;
-    var mode: ExecutionMode = .args;
-    var output: ?std.fs.File = null;
-    defer if (output) |o| o.close();
-
+pub fn process(self: This, _: *std.process.ArgIterator) !bool {
     const ansi = ANSI.init(self.out);
 
     var tocompile = std.ArrayList(Source).empty;
@@ -43,92 +39,105 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
         return false;
     };
 
-    var i: usize = 0;
-    while (args.next()) |arg| {
-        defer i += 1;
-        if (i == 0) {
-            if (std.mem.eql(u8, arg, "interactive") or std.mem.eql(u8, arg, "i") or std.mem.eql(u8, arg, "it")) {
-                return try self.startInteractiveMode(proj);
-            } else if (std.mem.eql(u8, arg, "manual") or std.mem.eql(u8, arg, "m")) {
-                try openManual();
-                return true;
-            } else if (std.mem.eql(u8, arg, "help") or std.mem.eql(u8, arg, "usage") or std.mem.eql(u8, arg, "h") or std.mem.eql(u8, arg, "?")) {
-                try printHelp(&self.out.interface);
-                return true;
-            } else if (std.mem.eql(u8, arg, "version") or std.mem.eql(u8, arg, "v")) {
-                try self.out.interface.print("{s}", .{usrl.version});
-                return true;
-            } else if (std.mem.eql(u8, arg, "--")) {
-                mode = .stdin;
-                var code: [1 << 16]u8 = undefined;
-                const len = try self.in.interface.readSliceShort(&code);
+    var glep = try Glep.init(self.allocator);
+    defer glep.deinit(self.allocator);
 
-                const source = try Source.dupe(self.allocator, code[0..len], "stdin");
-                errdefer source.deinit(self.allocator);
+    _ = glep.next(); // executable name
 
-                try tocompile.append(self.allocator, source);
-                break;
-            }
+    const sub = glep.peek() orelse {
+        try printHelp(&self.out.interface);
+        return true;
+    };
+
+    if (std.mem.eql(u8, sub, "interactive") or std.mem.eql(u8, sub, "i") or std.mem.eql(u8, sub, "it")) {
+        return try self.startInteractiveMode(proj);
+    } else if (std.mem.eql(u8, sub, "manual") or std.mem.eql(u8, sub, "m")) {
+        try openManual();
+        return true;
+    } else if (std.mem.eql(u8, sub, "help") or std.mem.eql(u8, sub, "usage") or std.mem.eql(u8, sub, "h") or std.mem.eql(u8, sub, "?")) {
+        try printHelp(&self.out.interface);
+        return true;
+    } else if (std.mem.eql(u8, sub, "version") or std.mem.eql(u8, sub, "v")) {
+        try self.out.interface.print("{s}\r\n", .{usrl.version});
+        return true;
+    }
+
+    const check = glep.has("--check");
+    const output = if (glep.has("--out")) blk: {
+        if (check) {
+            try ansi.print(e, "'--check' and '--out' cannot be used together.\r\n", .{});
+            return false;
         }
-        if (std.mem.startsWith(u8, arg, "-")) {
-            if (std.mem.eql(u8, arg, "--check") or std.mem.eql(u8, arg, "-c")) {
-                check = true;
-            } else if (std.mem.eql(u8, arg, "--file") or std.mem.eql(u8, arg, "-f")) {
-                mode = .file;
-            } else if (std.mem.eql(u8, arg, "--output") or std.mem.eql(u8, arg, "-o")) {
-                if (output != null) {
-                    try ansi.print(e, "Output file already specified\r\n", .{});
-                    try printHelp(&self.out.interface);
-                    return false;
-                }
-                if (args.next()) |output_arg| {
-                    if (std.fs.path.isAbsolute(output_arg)) {
-                        output = try std.fs.createFileAbsolute(output_arg, .{});
-                    } else {
-                        output = try self.cwd.createFile(output_arg, .{});
-                    }
-                } else {
-                    try ansi.print(e, "Missing output file argument\r\n", .{});
-                    try printHelp(&self.out.interface);
-                    return false;
-                }
-            } else {
-                try ansi.print(e, "Unknown option: {s}\r\n", .{arg});
-                try printHelp(&self.out.interface);
+        break :blk glep.get("--out") orelse {
+            try ansi.print(e, "Unspecified output file after '--out'.\r\n", .{});
+            return false;
+        };
+    } else null;
+
+    const mode: ExecutionMode = blk: {
+        const stdin = glep.has("--");
+        const file = glep.has("--file");
+        if (stdin and file) {
+            try ansi.print(e, "'--file' and '--' cannot be used together.\r\n", .{});
+            return false;
+        }
+        if (stdin) break :blk .stdin;
+        if (file) break :blk .file;
+        break :blk .args;
+    };
+
+    switch (mode) {
+        .stdin => {
+            if (glep.next()) |arg| {
+                try ansi.print(e, "Unnecessary argument '{s}' found.\r\n", .{arg});
                 return false;
             }
-            continue;
-        }
-        switch (mode) {
-            .args => {
-                const source = try Source.dupe(self.allocator, arg, null);
-                errdefer source.deinit(self.allocator);
 
-                try tocompile.append(self.allocator, source);
-            },
-            .file => {
-                var file: std.fs.File = if (std.fs.path.isAbsolute(arg))
-                    try std.fs.openFileAbsolute(arg, .{})
-                else
-                    try self.cwd.openFile(arg, .{});
+            var query: [1 << 16]u8 = undefined;
+            const len = try self.in.interface.readSliceShort(&query);
+
+            try tocompile.append(self.allocator, try .dupe(self.allocator, query[0..len], "stdin"));
+        },
+        .file => {
+            while (glep.get("--file")) |path| {
+                var file: std.fs.File = blk: {
+                    if (std.fs.path.isAbsolute(path)) {
+                        break :blk std.fs.openFileAbsolute(path, .{});
+                    } else {
+                        break :blk self.cwd.openFile(path, .{});
+                    }
+                } catch |err| {
+                    const name = std.fs.path.basename(path);
+                    try ansi.print(e, "Failed to open script file '{s}': {t}\r\n", .{ name, err });
+                    return false;
+                };
+                defer file.close();
 
                 var buf: [256]u8 = undefined;
                 var reader = file.reader(&buf);
 
-                var code: [1 << 16]u8 = undefined;
-                const len = try reader.interface.readSliceShort(&code);
+                var query: [1 << 16]u8 = undefined;
+                const len = try reader.interface.readSliceShort(&query);
 
-                const source = try Source.dupe(self.allocator, code[0..len], std.fs.path.basename(arg));
-                errdefer source.deinit(self.allocator);
+                try tocompile.append(self.allocator, try .dupe(
+                    self.allocator,
+                    query[0..len],
+                    std.fs.path.basename(path),
+                ));
+            }
 
-                try tocompile.append(self.allocator, source);
-            },
-            .stdin => {
-                try ansi.print(e, "Positional arguments are not allowed with '--'", .{});
+            if (glep.next()) |arg| {
+                try ansi.print(e, "Unnecessary argument '{s}' found.\r\n", .{arg});
                 return false;
-            },
-        }
+            }
+        },
+        .args => {
+            while (glep.next()) |stmt| {
+                try tocompile.append(self.allocator, try .dupe(self.allocator, stmt, null));
+            }
+        },
     }
+    std.debug.assert(glep.remaining() == 0);
 
     var tokens = std.ArrayList([]const usrl.Token).empty;
     defer tokens.deinit(self.allocator);
@@ -158,15 +167,25 @@ pub fn process(self: This, args: *std.process.ArgIterator) !bool {
     if (check) return torun.items.len == tocompile.items.len;
     if (torun.items.len < tocompile.items.len) return false;
 
-    const output_file = output orelse self.out.file;
+    const outfile = if (output) |outpath| blk: {
+        if (std.fs.path.isAbsolute(outpath)) {
+            break :blk std.fs.createFileAbsolute(outpath, .{});
+        } else {
+            break :blk self.cwd.createFile(outpath, .{});
+        }
+    } catch |err| {
+        const name = std.fs.path.basename(outpath);
+        try ansi.print(e, "Failed to open output file '{s}': {t}\r\n", .{ name, err });
+        return false;
+    } else self.out.file;
+    defer outfile.close();
+
     var wbuf: [4096]u8 = undefined;
-    var fout = output_file.writer(&wbuf);
+    var out = outfile.writer(&wbuf);
 
     for (torun.items, 0..) |script, j| {
-        if (!self.run(script, proj, &fout.interface, tocompile.items[j])) return false;
+        if (!self.run(script, proj, &out.interface, tocompile.items[j])) return false;
     }
-
-    if (i == 0) try printHelp(&self.out.interface);
     return true;
 }
 
