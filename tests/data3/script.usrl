@@ -1,3 +1,0 @@
-SHOW uses OF Player;
-RENAME _spd FOR _speed OF Player;
-EVAL _speed OF Player

@@ -60,18 +60,7 @@ pub fn build(b: *std.Build) void {
     }
 
     // Tests
-    const tests = b.addTest(.{
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("tests/tests.zig"),
-            .target = target,
-            .optimize = optimize,
-        }),
-    });
-
-    tests.root_module.addImport("usrl", mod);
-
+    const tests = b.addTest(.{ .root_module = mod });
     const run_tests = b.addRunArtifact(tests);
-    run_tests.setCwd(b.path("tests"));
-
     test_step.dependOn(&run_tests.step);
 }
