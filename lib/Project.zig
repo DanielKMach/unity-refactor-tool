@@ -40,7 +40,7 @@ pub fn fromRoot(root: std.fs.Dir) !Project {
 pub fn deinit(proj: *Project) void {
     proj.assets.close();
     proj.packages.close();
-    if (proj.pkgcache) |d| d.close();
+    if (proj.pkgcache) |*d| d.close();
     proj.* = undefined;
 }
 
