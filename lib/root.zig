@@ -24,7 +24,6 @@ pub const TokenizeDiagnostics = Diagnostics(TokenizeProblem, error.USRLTokenizeE
 pub const TokenizeProblem = union(enum) {
     const Type = @typeInfo(@This()).@"union".tag_type orelse unreachable;
 
-    // Syntax related errors
     never_closed_string: struct {
         location: Token.Location,
     },
@@ -34,6 +33,22 @@ pub const TokenizeProblem = union(enum) {
     invalid_number: struct {
         location: Token.Location,
     },
+
+    pub fn loc(prob: TokenizeProblem) Token.Location {
+        return switch (prob) {
+            .never_closed_string => |p| p.location,
+            .unexpected_character => |p| p.location,
+            .invalid_number => |p| p.location,
+        };
+    }
+
+    pub fn format(prob: TokenizeProblem, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        return switch (prob) {
+            .never_closed_string => w.writeAll("Never closed string"),
+            .unexpected_character => w.writeAll("Unexpected character"),
+            .invalid_number => w.writeAll("Invalid number"),
+        };
+    }
 };
 
 pub const ParseError = error{USRLParseError};
@@ -43,7 +58,6 @@ pub const ParseDiagnostics = Diagnostics(ParseProblem, error.USRLParseError);
 pub const ParseProblem = union(enum) {
     const Type = @typeInfo(@This()).@"union".tag_type orelse unreachable;
 
-    // Token related errors
     unexpected_token: struct {
         expected: []const Token.Type,
         found: Token,
@@ -79,8 +93,39 @@ pub const ParseProblem = union(enum) {
         location: Token.Location,
     },
 
-    // Generic errors
-    unexpected: anyerror,
+    pub fn loc(prob: ParseProblem) Token.Location {
+        return switch (prob) {
+            .unexpected_token => |p| p.found.loc,
+            .invalid_csharp_identifier => |p| p.token.loc,
+            .invalid_guid => |p| p.token.loc,
+            .absolute_path => |p| p.token.loc,
+            .duplicate_clause => |p| p.second.loc,
+            .missing_clause => |p| p.placement.loc,
+            .invalid_assignment_target => |p| p.location,
+            .invalid_mode_for_clause => |p| p.location,
+        };
+    }
+
+    pub fn format(prob: ParseProblem, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        return switch (prob) {
+            .unexpected_token => |p| {
+                try w.print("Unexpected {f}", .{p.found.value});
+                if (p.expected.len > 0) try w.writeAll(", expected ");
+                for (p.expected, 0..) |e, i| {
+                    try w.print("{f}", .{e});
+                    if (i < p.expected.len - 2) try w.writeAll(", ");
+                    if (i == p.expected.len - 2) try w.writeAll(" or ");
+                }
+            },
+            .invalid_csharp_identifier => |p| w.print("Invalid C# identifier '{s}'", .{p.token.asSlice()}),
+            .invalid_guid => |p| w.print("Invalid GUID '{s}'", .{p.token.asSlice()}),
+            .absolute_path => w.writeAll("Path must be relative to project"),
+            .duplicate_clause => |p| w.print("Duplicate clause '{s}'", .{p.clause}),
+            .missing_clause => |p| w.print("Missing clause '{s}'", .{p.clause}),
+            .invalid_assignment_target => w.writeAll("Invalid assignment target"),
+            .invalid_mode_for_clause => |p| w.print("Cannot use search mode '{t}' with clause '{s}'", .{ p.mode, p.clause }),
+        };
+    }
 };
 
 pub const RuntimeError = error{USRLRuntimeError};
@@ -176,7 +221,85 @@ pub const RuntimeProblem = union(enum) {
         location: Token.Location,
     },
 
-    unexpected: anyerror,
+    pub fn loc(prob: RuntimeProblem) ?Token.Location {
+        return switch (prob) {
+            .invalid_asset => |p| p.path,
+            .invalid_path => |p| p.path,
+            .division_by_zero => |p| p.location,
+            .type_mismatch => |p| Token.Location.merge(&.{ p.left_loc, p.right_loc }),
+            .unexpected_type => |p| p.location,
+            .invalid_argument_count => |p| p.location,
+            .invalid_argument => |p| p.location,
+            .undefined_variable => |p| p.location,
+            .already_defined_variable => |p| p.location,
+            .overriding_readonly => |p| p.location,
+            .invalid_index => |p| p.location,
+            .out_of_bounds => |p| p.location,
+            .invalid_asset_reference => |p| p.location,
+            .asset_not_found => |p| p.location,
+            .object_definition_not_found => |p| p.location,
+            .null_object_definition_reference => |p| p.location,
+            .unassignable_value => |p| p.location,
+            .undefinable_target => |p| p.location,
+            .update_during_readonly_eval => |p| p.location,
+            .invalid_target_asset => |p| p.location,
+            .search_failed => null,
+        };
+    }
+
+    pub fn format(prob: RuntimeProblem, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        return switch (prob) {
+            .invalid_asset => w.writeAll("Invalid asset path"),
+            .invalid_path => w.writeAll("Invalid path"),
+            .division_by_zero => w.writeAll("Division by zero"),
+            .type_mismatch => |p| w.print("Found {t} as lhs and {t} as rhs", .{ p.left, p.right }),
+            .unexpected_type => |p| {
+                try w.print("Unexpected type {t}", .{p.found});
+                if (p.expected.len > 0) try w.writeAll(", expected ");
+                for (p.expected, 0..) |e, i| {
+                    try w.print("{t}", .{e});
+                    if (i < p.expected.len - 2) try w.writeAll(", ");
+                    if (i == p.expected.len - 2) try w.writeAll(" or ");
+                }
+            },
+            .invalid_argument_count => |p| {
+                const mode = switch (p.mode) {
+                    .exact => "exactly",
+                    .at_least => "at least",
+                    .at_most => "at most",
+                };
+                try w.print("Invalid argument count: expected {s} {d}, found {d}", .{ mode, p.expected, p.found });
+            },
+            .invalid_argument => |p| w.print("Invalid argument: {s}", .{p.reason}),
+            .undefined_variable => |p| w.print("Undefined {f}. Use '{f} := (...)' to define it", .{
+                p.varr.value,
+                std.fmt.alt(p.varr.value, .raw),
+            }),
+            .already_defined_variable => |p| w.print("{f} is already defined. Use '{f} = (...)' to update its value", .{
+                p.varr.value,
+                std.fmt.alt(p.varr.value, .raw),
+            }),
+            .overriding_readonly => |p| w.print("Cannot override read-only {f}", .{p.varr.value}),
+            .invalid_index => |p| w.print("Invalid index {d}", .{p.index}),
+            .out_of_bounds => |p| w.print("Index {d} is out of bounds (length: {d})", .{ p.index, p.len }),
+            .invalid_asset_reference => |p| w.print("Invalid asset with GUID '{f}'. This could be because the asset could not be opened properly or it wasn't properly configured", .{p.guid}),
+            .asset_not_found => |p| w.print("Asset with GUID '{f}' was not found", .{p.guid}),
+            .object_definition_not_found => |p| w.print("Object definition with file ID {d} was not found in asset with GUID '{f}'", .{ p.file_id, p.guid }),
+            .null_object_definition_reference => w.writeAll("Object definition is null"),
+            .unassignable_value => |p| w.print("Value of type {t} cannot be assigned to {t}", .{ p.value_type, p.assigned_to }),
+            .undefinable_target => |p| w.print("Cannot define {t}. The ':=' operator can only be used with variables", .{p.target}),
+            .search_failed => |p| w.print("Search for object with GUID '{f}' failed", .{p.guid}),
+            .update_during_readonly_eval => w.writeAll("Cannot perform update during read-only evaluation"),
+            .invalid_target_asset => |err| {
+                const filter = switch (err.filter) {
+                    .any => "any asset",
+                    .prefabs_and_components => "prefab or component",
+                    .components_only => "component",
+                };
+                try w.print("Invalid target asset. Expected {s} type", .{filter});
+            },
+        };
+    }
 };
 
 /// Tokenizes the given expression into a slice of tokens.
@@ -231,6 +354,15 @@ pub fn parse(
     }
 
     return .{ .statements = try statements.toOwnedSlice(allocator) };
+}
+
+pub fn check(
+    tokens: []const Token,
+    allocator: std.mem.Allocator,
+    diag: *ParseDiagnostics,
+) ParseAllocError!void {
+    const script = try parse(tokens, allocator, diag);
+    script.deinit(allocator);
 }
 
 pub fn run(

@@ -269,215 +269,31 @@ pub fn run(self: This, script: usrl.Script, proj: usrl.Project, out: *std.Io.Wri
     return true;
 }
 
-pub fn printTokenizeProblem(tokenize_error: usrl.TokenizeProblem, source: Source, fw: *std.fs.File.Writer) std.Io.Writer.Error!void {
+pub fn printTokenizeProblem(prob: usrl.TokenizeProblem, source: Source, fw: *std.fs.File.Writer) std.Io.Writer.Error!void {
     var ansi = ANSI.init(fw);
-    var out = &fw.interface;
 
     try ansi.print(eh, "SYNTAX ERROR: ", .{});
-
-    switch (tokenize_error) {
-        .never_closed_string => |err| {
-            try ansi.print(e, "Never closed string at index {d}\r\n", .{err.location.index});
-            try printLineHighlight(err.location, source, fw);
-        },
-        .unexpected_character => |err| {
-            try ansi.print(e, "Unexpected character '{s}'\r\n", .{err.location.lexeme(source.source)});
-            try printLineHighlight(err.location, source, fw);
-        },
-        .invalid_number => |err| {
-            try ansi.print(e, "Invalid number '{s}'\r\n", .{err.location.lexeme(source.source)});
-            try printLineHighlight(err.location, source, fw);
-        },
-    }
-
-    try out.flush();
+    try ansi.print(e, "{f}.\r\n", .{prob});
+    try printLineHighlight(prob.loc(), source, fw);
+    try fw.interface.flush();
 }
 
-pub fn printParseProblem(parse_error: usrl.ParseProblem, source: Source, fw: *std.fs.File.Writer) std.Io.Writer.Error!void {
+pub fn printParseProblem(prob: usrl.ParseProblem, source: Source, fw: *std.fs.File.Writer) std.Io.Writer.Error!void {
     var ansi = ANSI.init(fw);
-    var out = &fw.interface;
 
     try ansi.print(eh, "SYNTAX ERROR: ", .{});
-
-    switch (parse_error) {
-        .unexpected_token => |err| {
-            {
-                ansi.begin(e);
-                defer ansi.end(e);
-                try out.print("Unexpected {f}", .{err.found.value});
-                if (err.expected.len > 0) try out.print(", expected ", .{});
-                for (err.expected, 0..) |expected_type, i| {
-                    if (i > 0 and i != err.expected.len - 1) try out.print(", ", .{});
-                    if (i != 0 and i == err.expected.len - 1) try out.print(" or ", .{});
-                    try out.print("{f}", .{expected_type});
-                }
-                try out.print("\r\n", .{});
-            }
-            try printLineHighlight(err.found.loc, source, fw);
-        },
-        .invalid_csharp_identifier => |err| {
-            try ansi.print(e, "Invalid C# identifier '{s}'\r\n", .{err.token.asSlice()});
-            try printLineHighlight(err.token.loc, source, fw);
-        },
-        .invalid_guid => |err| {
-            try ansi.print(e, "Invalid GUID '{s}'\r\n", .{err.token.asSlice()});
-            try printLineHighlight(err.token.loc, source, fw);
-        },
-        .absolute_path => |err| {
-            try ansi.print(e, "Path must be relative to project. Absolute path found: '{s}'\r\n", .{err.token.asSlice()});
-            try printLineHighlight(err.token.loc, source, fw);
-        },
-        .duplicate_clause => |err| {
-            try ansi.print(e, "Duplicate clause '{s}' appeared at:\r\n", .{err.clause});
-            try printLineHighlight(err.first.loc, source, fw);
-            try ansi.print(e, "But also at:\r\n", .{});
-            try printLineHighlight(err.second.loc, source, fw);
-        },
-        .missing_clause => |err| {
-            try ansi.print(e, "Missing clause '{s}'\r\n", .{err.clause});
-            try printLineHighlight(err.placement.loc, source, fw);
-        },
-        .invalid_assignment_target => |err| {
-            try ansi.print(e, "Invalid assignment target\r\n", .{});
-            try printLineHighlight(err.location, source, fw);
-        },
-        .invalid_mode_for_clause => |err| {
-            try ansi.print(e, "Cannot use search mode '{t}' with clause '{s}'\r\n", .{ err.mode, err.clause });
-            try printLineHighlight(err.location, source, fw);
-        },
-        .unexpected => |err| {
-            try ansi.print(e, "Unexpected {t}\r\n", .{err});
-        },
-    }
-
-    try out.flush();
+    try ansi.print(e, "{f}.\r\n", .{prob});
+    try printLineHighlight(prob.loc(), source, fw);
+    try fw.interface.flush();
 }
 
-pub fn printRuntimeProblem(runtime_error: usrl.RuntimeProblem, source: Source, fw: *std.fs.File.Writer) std.Io.Writer.Error!void {
+pub fn printRuntimeProblem(prob: usrl.RuntimeProblem, source: Source, fw: *std.fs.File.Writer) std.Io.Writer.Error!void {
     const ansi = ANSI.init(fw);
-    const out = &fw.interface;
 
     try ansi.print(eh, "RUNTIME ERROR: ", .{});
-
-    switch (runtime_error) {
-        .invalid_asset => |err| {
-            try ansi.print(e, "Invalid asset path\r\n", .{});
-            try printLineHighlight(err.path, source, fw);
-        },
-        .invalid_path => |err| {
-            try ansi.print(e, "Invalid path\r\n", .{});
-            try printLineHighlight(err.path, source, fw);
-        },
-        .division_by_zero => |err| {
-            try ansi.print(e, "Division by zero\r\n", .{});
-            try printLineHighlight(err.location, source, fw);
-        },
-        .type_mismatch => |err| {
-            try ansi.print(e, "Found {s} as lhs\r\n", .{@tagName(err.left)});
-            try printLineHighlight(err.left_loc, source, fw);
-            try ansi.print(e, "And {s} as rhs\r\n", .{@tagName(err.right)});
-            try printLineHighlight(err.right_loc, source, fw);
-        },
-        .unexpected_type => |err| {
-            {
-                ansi.begin(e);
-                defer ansi.end(e);
-                try out.print("Unexpected type {s}", .{@tagName(err.found)});
-                if (err.expected.len > 0) try out.print(", expected ", .{});
-                for (err.expected, 0..) |expected_type, i| {
-                    if (i > 0 and i != err.expected.len - 1) try out.print(", ", .{});
-                    if (i != 0 and i == err.expected.len - 1) try out.print(" or ", .{});
-                    try out.print("{s}", .{@tagName(expected_type)});
-                }
-                try out.print("\r\n", .{});
-            }
-            try printLineHighlight(err.location, source, fw);
-        },
-        .invalid_argument_count => |err| {
-            const mode_str = switch (err.mode) {
-                .exact => "exactly",
-                .at_least => "at least",
-                .at_most => "at most",
-            };
-            try ansi.print(e, "Invalid argument count: expected {s} {d}, found {d}\r\n", .{ mode_str, err.expected, err.found });
-            try printLineHighlight(err.location, source, fw);
-        },
-        .invalid_argument => |err| {
-            try ansi.print(e, "Invalid argument: {s}\r\n", .{err.reason});
-            try printLineHighlight(err.location, source, fw);
-        },
-        .undefined_variable => |err| {
-            try ansi.print(e, "Undefined {f}. Use '{f} := (...)' to define it.\r\n", .{
-                err.varr.value,
-                std.fmt.alt(err.varr.value, .raw),
-            });
-            try printLineHighlight(err.location, source, fw);
-        },
-        .already_defined_variable => |err| {
-            try ansi.print(e, "{f} is already defined. Use '{f} = (...)' to update it.\r\n", .{
-                err.varr.value,
-                std.fmt.alt(err.varr.value, .raw),
-            });
-            try printLineHighlight(err.location, source, fw);
-        },
-        .overriding_readonly => |err| {
-            try ansi.print(e, "Cannot override read-only {f}\r\n", .{err.varr.value});
-            try printLineHighlight(err.location, source, fw);
-        },
-        .invalid_index => |err| {
-            try ansi.print(e, "Invalid index {d}\r\n", .{err.index});
-            try printLineHighlight(err.location, source, fw);
-        },
-        .out_of_bounds => |err| {
-            try ansi.print(e, "Index {d} out of bounds (length: {d})\r\n", .{ err.index, err.len });
-            try printLineHighlight(err.location, source, fw);
-        },
-        .invalid_asset_reference => |err| {
-            try ansi.print(e, "Invalid asset with GUID '{f}'. This could be because the asset could not be opened properly or it wasn't properly configured.\r\n", .{err.guid});
-            try printLineHighlight(err.location, source, fw);
-        },
-        .asset_not_found => |err| {
-            try ansi.print(e, "Asset with GUID '{f}' was not found.\r\n", .{err.guid});
-            try printLineHighlight(err.location, source, fw);
-        },
-        .object_definition_not_found => |err| {
-            try ansi.print(e, "Object definition with file ID {d} was not found in asset with GUID '{f}'.\r\n", .{ err.file_id, err.guid });
-            try printLineHighlight(err.location, source, fw);
-        },
-        .null_object_definition_reference => |err| {
-            try ansi.print(e, "Object definition is null\r\n", .{});
-            try printLineHighlight(err.location, source, fw);
-        },
-        .unassignable_value => |err| {
-            try ansi.print(e, "Value of type {t} cannot be assigned to {t}\r\n", .{ err.value_type, err.assigned_to });
-            try printLineHighlight(err.location, source, fw);
-        },
-        .undefinable_target => |err| {
-            try ansi.print(e, "Cannot define {t}. The ':=' operator can only be used with variables.\r\n", .{err.target});
-            try printLineHighlight(err.location, source, fw);
-        },
-        .search_failed => |err| {
-            try ansi.print(e, "Search for object with GUID '{f}' failed.\r\n", .{err.guid});
-        },
-        .update_during_readonly_eval => |err| {
-            try ansi.print(e, "Cannot perform update during read-only evaluation.\r\n", .{});
-            try printLineHighlight(err.location, source, fw);
-        },
-        .invalid_target_asset => |err| {
-            const filter_str = switch (err.filter) {
-                .any => "any asset",
-                .prefabs_and_components => "prefab or component",
-                .components_only => "component",
-            };
-            try ansi.print(e, "Invalid target asset. Expected {s} type.\r\n", .{filter_str});
-            try printLineHighlight(err.location, source, fw);
-        },
-        .unexpected => |err| {
-            try ansi.print(e, "Unexpected {t}\r\n", .{err});
-        },
-    }
-
-    try out.flush();
+    try ansi.print(e, "{f}.\r\n", .{prob});
+    if (prob.loc()) |loc| try printLineHighlight(loc, source, fw);
+    try fw.interface.flush();
 }
 
 pub fn printLineHighlight(loc: usrl.Token.Location, source: Source, out: *std.fs.File.Writer) std.Io.Writer.Error!void {
