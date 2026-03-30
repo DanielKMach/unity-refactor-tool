@@ -393,3 +393,48 @@ pub fn run(
 
     transaction.commit();
 }
+
+test tokenize {
+    const query = "SHOW uses OF Test";
+
+    const tkns = try tokenize(query, std.testing.allocator, .none);
+    defer Token.free(std.testing.allocator, tkns);
+
+    try std.testing.expectEqual(5, tkns.len);
+    try std.testing.expectEqual(Token.new(.SHOW, .init(0, 4)), tkns[0]);
+    try std.testing.expectEqual(Token.new(.USES, .init(5, 4)), tkns[1]);
+    try std.testing.expectEqual(Token.new(.OF, .init(10, 2)), tkns[2]);
+    try std.testing.expectEqual(.literal, @as(Token.Type, tkns[3].value));
+    try std.testing.expectEqualStrings("Test", tkns[3].value.literal);
+    try std.testing.expectEqual(Token.Location.init(13, 4), tkns[3].loc);
+    try std.testing.expectEqual(Token.new(.eof, .init(17, 0)), tkns[4]);
+}
+
+test parse {
+    const tkns: []const Token = &.{
+        .new(.SHOW, .init(0, 4)),
+        .new(.USES, .init(5, 4)),
+        .new(.OF, .init(10, 2)),
+        .new(.{ .literal = "Test" }, .init(13, 4)),
+        .new(.eof, .init(17, 0)),
+    };
+
+    const s0 = try parse(tkns, std.testing.allocator, .none);
+    s0.deinit(std.testing.allocator);
+
+    const s1 = try parse(&.{.new(.eof, .init(0, 0))}, std.testing.allocator, .none);
+    s1.deinit(std.testing.allocator);
+}
+
+test check {
+    const tkns: []const Token = &.{
+        .new(.SHOW, .init(0, 4)),
+        .new(.USES, .init(5, 4)),
+        .new(.OF, .init(10, 2)),
+        .new(.{ .literal = "Test" }, .init(13, 4)),
+        .new(.eof, .init(17, 0)),
+    };
+
+    try check(tkns, std.testing.allocator, .none);
+    try check(&.{.new(.eof, .init(0, 0))}, std.testing.allocator, .none);
+}
