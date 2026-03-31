@@ -2,14 +2,6 @@ const std = @import("std");
 
 const Glep = @This();
 
-// usrl STMT STMT -c
-// usrl -c STMT STMT
-// usrl STMT -c STMT
-// usrl STMT -o out.txt STMT
-// usrl -f FILE FILE -o out.txt FILE
-// usrl -f -o out.txt -c FILE FILE
-// usrl -c -o out.txt --
-
 args: []const [:0]u8,
 claimed: []bool,
 
@@ -29,8 +21,15 @@ pub fn deinit(glep: *Glep, allocator: std.mem.Allocator) void {
 }
 
 pub fn has(glep: *Glep, option: []const u8) bool {
+    var aliases = std.mem.splitScalar(u8, option, '/');
     return for (glep.args, 0..) |arg, i| {
-        if (glep.unclaimed(i) and std.mem.eql(u8, option, arg)) {
+        if (glep.unclaimed(i)) {
+            aliases.reset();
+            const match = while (aliases.next()) |a| {
+                if (std.mem.eql(u8, arg, a)) break true;
+            } else false;
+            if (!match) continue;
+
             _ = glep.claim(i);
             break true;
         }
@@ -38,12 +37,17 @@ pub fn has(glep: *Glep, option: []const u8) bool {
 }
 
 pub fn get(glep: *Glep, option: []const u8) ?[:0]const u8 {
+    var aliases = std.mem.splitScalar(u8, option, '/');
     var found = false;
     return for (glep.args, 0..) |arg, i| {
         if (glep.unclaimed(i)) {
             if (found) break glep.claim(i);
         } else {
-            if (std.mem.eql(u8, option, arg)) found = true;
+            aliases.reset();
+            const match = while (aliases.next()) |a| {
+                if (std.mem.eql(u8, arg, a)) break true;
+            } else false;
+            if (match) found = true;
         }
     } else {
         std.debug.assert(found);

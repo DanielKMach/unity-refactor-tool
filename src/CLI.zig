@@ -62,13 +62,13 @@ pub fn process(self: This, _: *std.process.ArgIterator) !bool {
         return true;
     }
 
-    const check = glep.has("--check");
-    const output = if (glep.has("--out")) blk: {
+    const check = glep.has("--check/-c");
+    const output = if (glep.has("--out/-o")) blk: {
         if (check) {
             try ansi.print(e, "'--check' and '--out' cannot be used together.\r\n", .{});
             return false;
         }
-        break :blk glep.get("--out") orelse {
+        break :blk glep.get("--out/-o") orelse {
             try ansi.print(e, "Unspecified output file after '--out'.\r\n", .{});
             return false;
         };
@@ -76,7 +76,7 @@ pub fn process(self: This, _: *std.process.ArgIterator) !bool {
 
     const mode: ExecutionMode = blk: {
         const stdin = glep.has("--");
-        const file = glep.has("--file");
+        const file = glep.has("--file/-f");
         if (stdin and file) {
             try ansi.print(e, "'--file' and '--' cannot be used together.\r\n", .{});
             return false;
@@ -99,7 +99,7 @@ pub fn process(self: This, _: *std.process.ArgIterator) !bool {
             try tocompile.append(self.allocator, try .dupe(self.allocator, query[0..len], "stdin"));
         },
         .file => {
-            while (glep.get("--file")) |path| {
+            while (glep.get("--file/-f")) |path| {
                 var file: std.fs.File = blk: {
                     if (std.fs.path.isAbsolute(path)) {
                         break :blk std.fs.openFileAbsolute(path, .{});
