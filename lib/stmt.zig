@@ -31,6 +31,7 @@ pub const Stmt = union(enum) {
         allocator: std.mem.Allocator,
         transaction: *core.Transaction,
         diag: *core.RuntimeDiagnostics,
+        pool: *std.Thread.Pool,
         out: *std.Io.Writer,
         proj: core.Project,
 

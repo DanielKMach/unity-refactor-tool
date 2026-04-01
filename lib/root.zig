@@ -378,9 +378,14 @@ pub fn run(
     var transaction = Transaction.init(allocator);
     defer transaction.deinit();
 
+    var pool: std.Thread.Pool = undefined;
+    try pool.init(.{ .allocator = allocator, .n_jobs = config.scan_thread_count });
+    defer pool.deinit();
+
     const env = Stmt.RunEnv{
         .transaction = &transaction,
         .allocator = allocator,
+        .pool = &pool,
         .diag = diag,
         .proj = proj,
         .out = out,

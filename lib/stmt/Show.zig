@@ -132,6 +132,7 @@ pub fn search(self: This, times: ?*usize, env: Stmt.RunEnv) Stmt.RunError![][]u8
             Search.filter,
             Search.scan,
             dir,
+            env.pool,
             allocator,
         ) catch |err| switch (err) {
             error.FileNotFound => return env.err(.{ .invalid_path = .{ .path = in.path.?.loc } }),

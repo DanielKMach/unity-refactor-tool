@@ -8,6 +8,7 @@ pub fn build(b: *std.Build) void {
     const profiling = b.option(bool, "profiling", "Enable profiling with tracy") orelse false;
     const keep_temp = b.option(bool, "keep-temp", "Keep transaction and temp files.") orelse false;
     const max_script_size = b.option(usize, "max-script-size", "The maximum amount of bytes a script can take") orelse 1 << 16;
+    const scan_thread_count = b.option(usize, "scan-thread-count", "The number of threads that will be used when scanning") orelse 4;
 
     const install_step = b.getInstallStep();
     const run_step = b.step("run", "Run the CLI");
@@ -28,6 +29,7 @@ pub fn build(b: *std.Build) void {
     options.addOption(bool, "profiling", profiling);
     options.addOption(bool, "keep_temp", keep_temp);
     options.addOption(usize, "max_script_size", max_script_size);
+    options.addOption(usize, "scan_thread_count", scan_thread_count);
     options.addOption([]const u8, "version", @import("build.zig.zon").version);
     const config = options.createModule();
 

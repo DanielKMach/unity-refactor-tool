@@ -1,4 +1,5 @@
 const std = @import("std");
+const core = @import("core");
 const tracy = @import("tracy");
 
 const Project = @This();
@@ -85,6 +86,7 @@ pub fn scan(
     filt: *const FiltFn,
     frag: *const FragFn,
     path: ?[]const u8,
+    pool: *std.Thread.Pool,
     allocator: std.mem.Allocator,
 ) ScanError!void {
     var dir = if (path) |sub| try proj.assets.openDir(sub, opts) else proj.assets;
@@ -95,11 +97,11 @@ pub fn scan(
     var walker_mtx: std.Thread.Mutex = .{};
     var err: ?ScanError = null;
 
-    const threads = try allocator.alloc(std.Thread, 4);
-    defer allocator.free(threads);
+    const count = @min(core.config.scan_thread_count, pool.threads.len);
+    var group = std.Thread.WaitGroup{};
 
-    for (threads) |*t| {
-        t.* = try std.Thread.spawn(.{ .allocator = allocator }, loop, .{
+    for (0..count) |_| {
+        pool.spawnWg(&group, loop, .{
             data,
             filt,
             frag,
@@ -111,10 +113,7 @@ pub fn scan(
         });
     }
 
-    for (threads) |thread| {
-        thread.join();
-    }
-
+    group.wait();
     return err orelse {};
 }
 
@@ -128,8 +127,6 @@ fn loop(
     err: *?ScanError,
     allocator: std.mem.Allocator,
 ) void {
-    tracy.SetThreadName("Scan Thread");
-
     var buf: [std.fs.max_path_bytes]u8 = undefined;
 
     return blk: {
