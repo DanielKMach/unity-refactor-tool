@@ -1,4 +1,5 @@
 const std = @import("std");
+const tracy = @import("tracy");
 
 const Project = @This();
 
@@ -127,6 +128,8 @@ fn loop(
     err: *?ScanError,
     allocator: std.mem.Allocator,
 ) void {
+    tracy.SetThreadName("Scan Thread");
+
     var buf: [std.fs.max_path_bytes]u8 = undefined;
 
     return blk: {

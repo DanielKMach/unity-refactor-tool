@@ -1,10 +1,10 @@
 const std = @import("std");
-const config = @import("config");
+const tracy = @import("tracy");
+pub const config = @import("config");
 
 pub const Stmt = @import("stmt.zig").Stmt;
 pub const Expr = @import("expr.zig").Expr;
 pub const runtime = @import("runtime.zig");
-pub const profiling = @import("profiling.zig");
 pub const util = @import("util.zig");
 pub const yaml = @import("yaml.zig");
 
@@ -310,8 +310,8 @@ pub fn tokenize(
     allocator: std.mem.Allocator,
     diag: *TokenizeDiagnostics,
 ) TokenizeAllocError![]Token {
-    profiling.begin(tokenize);
-    defer profiling.stop();
+    const zone = tracy.Zone(@src());
+    defer zone.End();
 
     var list = try std.ArrayList(Token).initCapacity(allocator, 16);
     defer list.deinit(allocator);
@@ -332,8 +332,8 @@ pub fn parse(
     allocator: std.mem.Allocator,
     diag: *ParseDiagnostics,
 ) ParseAllocError!Script {
-    profiling.begin(parse);
-    defer profiling.stop();
+    const zone = tracy.Zone(@src());
+    defer zone.End();
 
     var iterator = Token.Iterator.init(tokens);
 
@@ -372,8 +372,8 @@ pub fn run(
     proj: Project,
     out: *std.Io.Writer,
 ) anyerror!void {
-    profiling.begin(run);
-    defer profiling.stop();
+    const zone = tracy.Zone(@src());
+    defer zone.End();
 
     var transaction = Transaction.init(allocator);
     defer transaction.deinit();

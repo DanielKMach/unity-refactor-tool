@@ -1,5 +1,6 @@
 const std = @import("std");
 const core = @import("core");
+const tracy = @import("tracy");
 const log = std.log.scoped(.rename_statement);
 
 const This = @This();
@@ -19,8 +20,8 @@ of: clse.Of,
 in: ?clse.In,
 
 pub fn parse(tokens: *TokenIterator, env: Stmt.ParseEnv) Stmt.ParseError!This {
-    core.profiling.begin(parse);
-    defer core.profiling.stop();
+    const zone = tracy.Zone(@src());
+    defer zone.End();
 
     if (!tokens.match(.RENAME)) return error.TokenMismatch;
 
@@ -49,8 +50,8 @@ pub fn cleanup(self: This, allocator: std.mem.Allocator) void {
 }
 
 pub fn run(self: This, env: Stmt.RunEnv) Stmt.RunError!void {
-    core.profiling.begin(run);
-    defer core.profiling.stop();
+    const zone = tracy.Zone(@src());
+    defer zone.End();
 
     const guids = try self.of.getGUID(.components_only, env);
     defer env.allocator.free(guids);
@@ -71,8 +72,8 @@ pub fn run(self: This, env: Stmt.RunEnv) Stmt.RunError!void {
 }
 
 pub fn updateAll(self: This, references: []const []const u8, guids: []const GUID, env: Stmt.RunEnv) !void {
-    core.profiling.begin(updateAll);
-    defer core.profiling.stop();
+    const zone = tracy.Zone(@src());
+    defer zone.End();
 
     var objs: core.runtime.ObjMap = .init(env.allocator);
     defer objs.deinit();

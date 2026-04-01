@@ -1,5 +1,6 @@
 const std = @import("std");
 const core = @import("core");
+const tracy = @import("tracy");
 const ly = @import("libyaml");
 const log = std.log.scoped(.evaluate_statement);
 
@@ -19,8 +20,8 @@ in: ?clse.In,
 where: ?clse.Where = null,
 
 pub fn parse(tokens: *TokenIterator, env: Stmt.ParseEnv) Stmt.ParseError!This {
-    core.profiling.begin(parse);
-    defer core.profiling.stop();
+    const zone = tracy.Zone(@src());
+    defer zone.End();
 
     if (!tokens.match(.EVAL)) return error.TokenMismatch;
 
@@ -62,8 +63,8 @@ pub fn cleanup(self: This, allocator: std.mem.Allocator) void {
 }
 
 pub fn run(self: This, env: core.Stmt.RunEnv) core.Stmt.RunError!void {
-    core.profiling.begin(run);
-    defer core.profiling.stop();
+    const zone = tracy.Zone(@src());
+    defer zone.End();
 
     const guid = try self.of.getGUID(.components_only, env);
     defer env.allocator.free(guid);
@@ -89,8 +90,8 @@ pub fn run(self: This, env: core.Stmt.RunEnv) core.Stmt.RunError!void {
 }
 
 pub fn searchAndPrint(self: This, refs: []const []const u8, guid: []const GUID, env: core.Stmt.RunEnv) core.Stmt.RunError!void {
-    core.profiling.begin(searchAndPrint);
-    defer core.profiling.stop();
+    const zone = tracy.Zone(@src());
+    defer zone.End();
 
     var objs: core.runtime.ObjMap = .init(env.allocator);
     defer objs.deinit();
@@ -112,8 +113,8 @@ pub fn searchAndPrint(self: This, refs: []const []const u8, guid: []const GUID, 
 }
 
 pub fn scanAndPrint(self: This, path: []const u8, guids: []const GUID, assets: *core.runtime.AssetMap, objs: *core.runtime.ObjMap, env: core.Stmt.RunEnv) !void {
-    core.profiling.begin(scanAndPrint);
-    defer core.profiling.stop();
+    const zone = tracy.Zone(@src());
+    defer zone.End();
 
     const file = try std.fs.openFileAbsolute(path, .{ .mode = .read_write });
     defer file.close();
@@ -181,8 +182,8 @@ pub fn scanAndPrint(self: This, path: []const u8, guids: []const GUID, assets: *
 }
 
 pub fn saveChanges(assetmap: core.runtime.AssetMap, objmap: core.runtime.ObjMap, env: core.Stmt.RunEnv) !void {
-    core.profiling.begin(saveChanges);
-    defer core.profiling.stop();
+    const zone = tracy.Zone(@src());
+    defer zone.End();
 
     var fetched = assetmap.entries();
     while (fetched.next()) |entry| {
@@ -223,8 +224,8 @@ pub fn saveChanges(assetmap: core.runtime.AssetMap, objmap: core.runtime.ObjMap,
 }
 
 pub fn print(path: []const u8, value: []core.Expr.Value, out: *std.Io.Writer) !void {
-    core.profiling.begin(print);
-    defer core.profiling.stop();
+    const zone = tracy.Zone(@src());
+    defer zone.End();
 
     try out.print("{s}\r\n", .{Stmt.Show.trimCwd(path)});
     for (value) |v| {

@@ -1,5 +1,6 @@
 const std = @import("std");
 const core = @import("core");
+const tracy = @import("tracy");
 const log = std.log.scoped(.show_statement);
 
 const This = @This();
@@ -26,8 +27,8 @@ in: ?clse.In,
 where: ?clse.Where,
 
 pub fn parse(tokens: *TokenIterator, env: Stmt.ParseEnv) Stmt.ParseError!This {
-    core.profiling.begin(parse);
-    defer core.profiling.stop();
+    const zone = tracy.Zone(@src());
+    defer zone.End();
 
     if (!tokens.match(.SHOW)) return error.TokenMismatch;
 
@@ -86,8 +87,8 @@ pub fn run(self: This, env: Stmt.RunEnv) Stmt.RunError!void {
 }
 
 pub fn search(self: This, times: ?*usize, env: Stmt.RunEnv) Stmt.RunError![][]u8 {
-    core.profiling.begin(search);
-    defer core.profiling.stop();
+    const zone = tracy.Zone(@src());
+    defer zone.End();
 
     const in = self.in orelse clse.In.default;
     const of = self.of;
@@ -158,8 +159,8 @@ pub fn matchScriptOrPrefabGUID(guids: []const GUID, yaml: *Yaml) Yaml.ParseError
 
 /// Check if the GUID of the document in `yaml` matches any of the GUIDs in `guids`.
 pub fn matchGUID(guids: []const GUID, yaml: *Yaml) Yaml.ParseError!?GUID {
-    core.profiling.begin(matchGUID);
-    defer core.profiling.stop();
+    const zone = tracy.Zone(@src());
+    defer zone.End();
 
     var buf: [32]u8 = undefined;
     var nullableGuid = try yaml.get(&.{ "MonoBehaviour", "m_Script", "guid" }, &buf);
@@ -213,8 +214,8 @@ const Search = struct {
     const AddPathError = VerifyError || std.fs.File.SeekError || std.mem.Allocator.Error;
 
     pub fn filter(data: *anyopaque, entry: std.fs.Dir.Walker.Entry, _: std.mem.Allocator) core.Project.SearchError!bool {
-        core.profiling.begin(filter);
-        defer core.profiling.stop();
+        const zone = tracy.Zone(@src());
+        defer zone.End();
 
         if (entry.kind != .file) return false;
 
@@ -231,8 +232,8 @@ const Search = struct {
     }
 
     pub fn scan(data: *anyopaque, dir: std.fs.Dir, path: []const u8, allocator: std.mem.Allocator) core.Project.SearchError!void {
-        core.profiling.begin(scan);
-        defer core.profiling.stop();
+        const zone = tracy.Zone(@src());
+        defer zone.End();
 
         const file = dir.openFile(path, .{ .mode = .read_only }) catch |err| {
             log.warn("Error ({s}) reading file: '{s}'", .{ @errorName(err), path });
@@ -288,8 +289,8 @@ const Search = struct {
     ///
     /// This function is thread-safe.
     fn addPath(self: *Search, abspath: []const u8, file: std.fs.File, allocator: std.mem.Allocator) AddPathError!void {
-        core.profiling.begin(addPath);
-        defer core.profiling.stop();
+        const zone = tracy.Zone(@src());
+        defer zone.End();
 
         {
             self.refs_mtx.lockShared();
@@ -311,8 +312,8 @@ const Search = struct {
 
     /// Verify if a component or prefab instance of guid `guid` is being used within the file at `path`.
     fn verifyUse(self: *Search, file: std.fs.File, fpath: []const u8, allocator: std.mem.Allocator) VerifyError!bool {
-        core.profiling.begin(verifyUse);
-        defer core.profiling.stop();
+        const zone = tracy.Zone(@src());
+        defer zone.End();
 
         var iterator = try ObjIterator.init(file, allocator);
         defer iterator.deinit();

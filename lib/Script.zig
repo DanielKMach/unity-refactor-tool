@@ -1,5 +1,6 @@
 const std = @import("std");
 const core = @import("core");
+const tracy = @import("tracy");
 
 const This = @This();
 const log = std.log.scoped(.script);
@@ -7,8 +8,8 @@ const log = std.log.scoped(.script);
 statements: []core.Stmt,
 
 pub fn run(self: This, env: core.Stmt.RunEnv) anyerror!void {
-    core.profiling.begin(run);
-    defer core.profiling.stop();
+    const zone = tracy.Zone(@src());
+    defer zone.End();
 
     for (self.statements) |stmt| {
         try stmt.run(env);

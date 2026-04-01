@@ -1,5 +1,6 @@
 const std = @import("std");
 const core = @import("core");
+const tracy = @import("tracy");
 
 const This = @This();
 const Stmt = core.Stmt;
@@ -15,8 +16,8 @@ path: ?core.Token,
 pub const default: This = .{ .path = null };
 
 pub fn parse(tokens: *TokenIterator, env: Stmt.ParseEnv) Stmt.ParseError!This {
-    core.profiling.begin(parse);
-    defer core.profiling.stop();
+    const zone = tracy.Zone(@src());
+    defer zone.End();
 
     if (!tokens.match(.IN)) return error.TokenMismatch;
 

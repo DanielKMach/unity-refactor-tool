@@ -1,5 +1,6 @@
 const std = @import("std");
 const core = @import("core");
+const tracy = @import("tracy");
 
 const This = @This();
 const Stmt = core.Stmt;
@@ -10,8 +11,8 @@ const GUID = core.runtime.GUID;
 targets: []AssetTarget,
 
 pub fn parse(tokens: *TokenIterator, env: Stmt.ParseEnv) Stmt.ParseError!This {
-    core.profiling.begin(parse);
-    defer core.profiling.stop();
+    const zone = tracy.Zone(@src());
+    defer zone.End();
 
     if (!tokens.match(.OF)) return error.TokenMismatch;
 
@@ -57,8 +58,8 @@ pub fn cleanup(self: This, allocator: std.mem.Allocator) void {
 }
 
 pub fn getGUID(self: This, filter: Filter, env: Stmt.RunEnv) Stmt.RunError![]GUID {
-    core.profiling.begin(getGUID);
-    defer core.profiling.stop();
+    const zone = tracy.Zone(@src());
+    defer zone.End();
 
     var guids = std.ArrayList(GUID).empty;
     defer guids.deinit(env.allocator);
@@ -117,8 +118,8 @@ fn isCSharpIdentifier(str: []const u8) bool {
 }
 
 fn searchComponent(name: []const u8, proj: core.Project, allocator: std.mem.Allocator) !?[]u8 {
-    core.profiling.begin(searchComponent);
-    defer core.profiling.stop();
+    const zone = tracy.Zone(@src());
+    defer zone.End();
 
     const filename = try std.mem.concat(allocator, u8, &.{ name, ".cs.meta" });
     defer allocator.free(filename);

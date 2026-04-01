@@ -1,6 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const usrl = @import("usrl");
+const tracy = @import("tracy");
 const CLI = @import("CLI.zig");
 
 const log = std.log.scoped(.main);
@@ -10,24 +11,22 @@ pub const std_options: std.Options = .{
 };
 
 pub fn main() !u8 {
-    defer usrl.profiling.finalize();
-
-    usrl.profiling.begin(main);
-    defer usrl.profiling.stop();
-
     const start = std.time.milliTimestamp();
 
     var debug_allocator: std.heap.DebugAllocator(.{ .enable_memory_limit = true }) = undefined;
     defer _ = if (builtin.mode == .Debug) debug_allocator.deinit();
+    var tracy_allocator: tracy.TracyAllocator = undefined;
+    var allocator: std.mem.Allocator = std.heap.smp_allocator;
 
-    const allocator = switch (builtin.mode) {
-        .Debug => bdy: {
-            debug_allocator = .init;
-            debug_allocator.backing_allocator = std.heap.smp_allocator;
-            break :bdy debug_allocator.allocator();
-        },
-        else => std.heap.smp_allocator,
-    };
+    if (builtin.mode == .Debug) {
+        debug_allocator = .init;
+        debug_allocator.backing_allocator = std.heap.smp_allocator;
+        allocator = debug_allocator.allocator();
+    }
+    if (usrl.config.profiling) {
+        tracy_allocator = .{ .child_allocator = allocator };
+        allocator = tracy_allocator.allocator();
+    }
 
     var in_buf: [4096]u8 = undefined;
     var out_buf: [4096]u8 = undefined;
