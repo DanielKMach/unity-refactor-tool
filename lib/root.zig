@@ -365,6 +365,31 @@ pub fn check(
     script.deinit(allocator);
 }
 
+pub fn parseManaged(
+    tokens: []const Token,
+    allocator: std.mem.Allocator,
+    diag: *ParseDiagnostics,
+) ParseAllocError!Script.Managed {
+    try check(tokens, allocator, diag);
+
+    const tkns = try allocator.alloc(Token, tokens.len);
+    errdefer allocator.free(tkns);
+    try Token.dupe(allocator, tkns, tokens);
+    errdefer Token.cleanup(allocator, tkns);
+
+    const script = parse(tkns, allocator, diag) catch |err| switch (err) {
+        error.USRLParseError => unreachable,
+        error.OutOfMemory => |e| return e,
+    };
+    errdefer script.deinit(allocator);
+
+    return .{
+        .allocator = allocator,
+        .script = script,
+        .tokens = tkns,
+    };
+}
+
 pub fn run(
     script: Script,
     allocator: std.mem.Allocator,

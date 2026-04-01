@@ -22,3 +22,14 @@ pub fn deinit(self: This, allocator: std.mem.Allocator) void {
     }
     allocator.free(self.statements);
 }
+
+pub const Managed = struct {
+    allocator: std.mem.Allocator,
+    tokens: []core.Token,
+    script: This,
+
+    pub fn deinit(self: Managed) void {
+        self.script.deinit(self.allocator);
+        core.Token.free(self.allocator, self.tokens);
+    }
+};

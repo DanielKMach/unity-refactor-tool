@@ -139,27 +139,17 @@ pub fn process(self: This, _: *std.process.ArgIterator) !bool {
     }
     std.debug.assert(glep.remaining() == 0);
 
-    var tokens = std.ArrayList([]const usrl.Token).empty;
-    defer tokens.deinit(self.allocator);
-    defer for (tokens.items) |t| usrl.Token.free(self.allocator, t);
-
-    var torun = std.ArrayList(usrl.Script).empty;
+    var torun = std.ArrayList(usrl.Script.Managed).empty;
     defer torun.deinit(self.allocator);
-    defer for (torun.items) |s| s.deinit(self.allocator);
+    defer for (torun.items) |s| s.deinit();
 
     if (tocompile.items.len == 0) return true;
     for (tocompile.items) |source| {
         const tkns = self.tokenize(source) orelse continue;
-        const script = self.parse(tkns, source) orelse {
-            usrl.Token.free(self.allocator, tkns);
-            continue;
-        };
-        errdefer script.deinit(self.allocator);
+        defer usrl.Token.free(self.allocator, tkns);
 
-        {
-            errdefer usrl.Token.free(self.allocator, tkns);
-            try tokens.append(self.allocator, tkns);
-        }
+        const script = self.parse(tkns, source) orelse continue;
+        errdefer script.deinit();
 
         try torun.append(self.allocator, script);
     }
@@ -183,8 +173,8 @@ pub fn process(self: This, _: *std.process.ArgIterator) !bool {
     var wbuf: [4096]u8 = undefined;
     var out = outfile.writer(&wbuf);
 
-    for (torun.items, 0..) |script, j| {
-        if (!self.run(script, proj, &out.interface, tocompile.items[j])) return false;
+    for (torun.items, 0..) |s, j| {
+        if (!self.run(s.script, proj, &out.interface, tocompile.items[j])) return false;
     }
     return true;
 }
@@ -215,9 +205,9 @@ pub fn startInteractiveMode(self: This, proj: usrl.Project) !bool {
         defer usrl.Token.free(self.allocator, tkns);
 
         const script = self.parse(tkns, source) orelse continue;
-        defer script.deinit(self.allocator);
+        defer script.deinit();
 
-        _ = self.run(script, proj, writer, source);
+        _ = self.run(script.script, proj, writer, source);
     }
     try writer.writeAll("\r\n");
     return true;
@@ -238,11 +228,11 @@ pub fn tokenize(self: This, source: Source) ?[]usrl.Token {
     };
 }
 
-pub fn parse(self: This, tokens: []usrl.Token, source: Source) ?usrl.Script {
+pub fn parse(self: This, tokens: []usrl.Token, source: Source) ?usrl.Script.Managed {
     var diag: usrl.ParseDiagnostics = .init(self.allocator);
     defer diag.deinit();
 
-    return usrl.parse(tokens, self.allocator, &diag) catch |err| {
+    return usrl.parseManaged(tokens, self.allocator, &diag) catch |err| {
         switch (err) {
             error.USRLParseError => while (diag.pop()) |prob| {
                 printParseProblem(prob, source, self.err) catch continue;
