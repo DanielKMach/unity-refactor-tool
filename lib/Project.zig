@@ -54,8 +54,8 @@ pub const FragFn = fn (*anyopaque, std.fs.Dir, []const u8, std.mem.Allocator) Se
 const WalkerError = @typeInfo(@typeInfo(@TypeOf(std.fs.Dir.Walker.next)).@"fn".return_type.?).error_union.error_set;
 pub const SearchError = std.mem.Allocator.Error || error{SearchFailed};
 
-pub const FindError: type = SearchError || WalkerError || std.fs.Dir.RealPathError || std.mem.Allocator.Error;
-pub const ScanError: type = SearchError || WalkerError || std.fs.Dir.OpenError || std.Thread.SpawnError || std.mem.Allocator.Error;
+pub const FindError = SearchError || WalkerError || std.fs.Dir.RealPathError || std.mem.Allocator.Error;
+pub const ScanError = SearchError || WalkerError || std.fs.Dir.OpenError || std.Thread.SpawnError || std.mem.Allocator.Error;
 
 pub fn find(
     proj: Project,
@@ -63,6 +63,9 @@ pub fn find(
     func: *const FindFn,
     allocator: std.mem.Allocator,
 ) FindError!?[]u8 {
+    const zone = tracy.Zone(@src());
+    defer zone.End();
+
     const dirs = [3]?std.fs.Dir{ proj.assets, proj.packages, proj.pkgcache };
     for (dirs) |d| {
         const dir = d orelse continue;
@@ -89,6 +92,9 @@ pub fn scan(
     pool: *std.Thread.Pool,
     allocator: std.mem.Allocator,
 ) ScanError!void {
+    const zone = tracy.Zone(@src());
+    defer zone.End();
+
     var dir = if (path) |sub| try proj.assets.openDir(sub, opts) else proj.assets;
     defer if (path != null) dir.close() else {};
 
@@ -127,8 +133,10 @@ fn loop(
     err: *?ScanError,
     allocator: std.mem.Allocator,
 ) void {
-    var buf: [std.fs.max_path_bytes]u8 = undefined;
+    const zone = tracy.Zone(@src());
+    defer zone.End();
 
+    var buf: [std.fs.max_path_bytes]u8 = undefined;
     return blk: {
         while (err.* == null) {
             var path: []u8 = undefined;

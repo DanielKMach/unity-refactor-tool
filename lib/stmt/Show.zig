@@ -129,8 +129,8 @@ pub fn search(self: This, times: ?*usize, env: Stmt.RunEnv) Stmt.RunError![][]u8
         log.info("Scanning...", .{});
         env.proj.scan(
             &searchData,
-            Search.filter,
-            Search.scan,
+            Search.filt,
+            Search.frag,
             dir,
             env.pool,
             allocator,
@@ -214,10 +214,7 @@ const Search = struct {
     const VerifyError = ObjIterator.IterateError || Yaml.ParseError || core.runtime.GUID.FromFileError || core.Expr.eval.Error || std.mem.Allocator.Error;
     const AddPathError = VerifyError || std.fs.File.SeekError || std.mem.Allocator.Error;
 
-    pub fn filter(data: *anyopaque, entry: std.fs.Dir.Walker.Entry, _: std.mem.Allocator) core.Project.SearchError!bool {
-        const zone = tracy.Zone(@src());
-        defer zone.End();
-
+    pub fn filt(data: *anyopaque, entry: std.fs.Dir.Walker.Entry, _: std.mem.Allocator) core.Project.SearchError!bool {
         if (entry.kind != .file) return false;
 
         const self: *Search = @ptrCast(@alignCast(data));
@@ -232,9 +229,12 @@ const Search = struct {
         } else false;
     }
 
-    pub fn scan(data: *anyopaque, dir: std.fs.Dir, path: []const u8, allocator: std.mem.Allocator) core.Project.SearchError!void {
+    pub fn frag(data: *anyopaque, dir: std.fs.Dir, path: []const u8, allocator: std.mem.Allocator) core.Project.SearchError!void {
         const zone = tracy.Zone(@src());
         defer zone.End();
+
+        var zonemsg: [512]u8 = undefined;
+        tracy.Message(std.fmt.bufPrint(&zonemsg, "Scanning '{s}'", .{path}) catch "Too long");
 
         const file = dir.openFile(path, .{ .mode = .read_only }) catch |err| {
             log.warn("Error ({s}) reading file: '{s}'", .{ @errorName(err), path });
