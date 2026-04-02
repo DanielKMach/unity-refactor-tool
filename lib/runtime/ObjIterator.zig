@@ -1,6 +1,7 @@
 //! Iterates through all Unity object definitions in a file.
 
 const std = @import("std");
+const tracy = @import("tracy");
 const core = @import("core");
 
 const log = std.log.scoped(.component_iterator);
@@ -45,6 +46,9 @@ pub fn deinit(self: *This) void {
 }
 
 pub fn next(self: *This) IterateError!?Entry {
+    const zone = tracy.Zone(@src());
+    defer zone.End();
+
     var reader = &self.freader.interface;
 
     var target: usize = 0;
@@ -75,6 +79,9 @@ fn freeLast(self: *This) void {
 }
 
 fn findNextComponent(freader: *std.fs.File.Reader) !Info {
+    const zone = tracy.Zone(@src());
+    defer zone.End();
+
     var reader = &freader.interface;
     var line: []u8 = &.{};
 

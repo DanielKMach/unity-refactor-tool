@@ -1,4 +1,5 @@
 const std = @import("std");
+const tracy = @import("tracy");
 const core = @import("core");
 const log = std.log.scoped(.ast_parser);
 
@@ -17,6 +18,9 @@ pub const Env = struct {
 };
 
 pub fn parse(tokens: *TokenIterator, env: Env) core.ParseAllocError!*Expr {
+    const zone = tracy.Zone(@src());
+    defer zone.End();
+
     const expr = try assignment(tokens, env);
     log.info("Parsed expression {f}", .{expr});
     return expr;

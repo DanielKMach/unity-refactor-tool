@@ -1,6 +1,7 @@
 //! A map of assets with their associated GUID.
 
 const std = @import("std");
+const tracy = @import("tracy");
 const core = @import("core");
 const yaml = core.yaml;
 const GUID = core.runtime.GUID;
@@ -41,6 +42,9 @@ pub fn put(self: *AssetMap, asset_path: []const u8) core.runtime.GUID.FromFileEr
 }
 
 pub fn fetch(self: *AssetMap, guid: GUID) !?[]const u8 {
+    const zone = tracy.Zone(@src());
+    defer zone.End();
+
     const metafile = try self.proj.find(&guid, &find, self.allocator) orelse return null;
     errdefer self.allocator.free(metafile);
     try self.assets.put(guid, metafile[0 .. metafile.len - 5]);
