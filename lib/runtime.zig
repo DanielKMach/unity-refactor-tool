@@ -11,3 +11,7 @@ pub const ClassID = @import("runtime/classid.zig").ClassID;
 pub const FilePatcher = @import("runtime/FilePatcher.zig");
 pub const ObjMap = @import("runtime/ObjMap.zig");
 pub const AssetMap = @import("runtime/AssetMap.zig");
+
+test {
+    _ = std.testing.refAllDecls(@This());
+}

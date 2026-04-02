@@ -126,15 +126,17 @@ fn findNextComponent(freader: *std.fs.File.Reader) !Info {
 }
 
 fn parseHeader(line: []const u8) !struct { u32, u64, bool } {
-    if (!std.mem.startsWith(u8, line, "--- !u!")) return error.InvalidHeader;
-    var i: usize = 7;
-    while (std.ascii.isDigit(line[i])) i += 1;
-    const class_id = std.fmt.parseInt(u32, line[7..i], 10) catch return error.InvalidHeader;
-    while (!std.ascii.isDigit(line[i])) i += 1;
-    const s = i;
-    while (i < line.len and std.ascii.isDigit(line[i])) i += 1;
-    const file_id = std.fmt.parseInt(u64, line[s..i], 10) catch return error.InvalidHeader;
-    const stripped = (i + 8 == line.len and std.mem.eql(u8, line[i..], " stripped"));
+    var rdr: std.Io.Reader = .fixed(std.mem.trimRight(u8, line, "\r\n"));
+
+    var buf: []u8 = rdr.take(7) catch return error.InvalidHeader;
+    if (!std.mem.eql(u8, buf, "--- !u!")) return error.InvalidHeader;
+    buf = rdr.takeDelimiterExclusive(' ') catch return error.InvalidHeader;
+    const class_id = std.fmt.parseInt(u32, buf, 10) catch return error.InvalidHeader;
+    buf = rdr.takeDelimiterExclusive(' ') catch return error.InvalidHeader;
+    if (buf[0] != '&') return error.InvalidHeader;
+    const file_id = std.fmt.parseInt(u64, buf[1..], 10) catch return error.InvalidHeader;
+    buf = rdr.buffered();
+    const stripped = buf.len > 0 and std.mem.eql(u8, buf, "stripped");
 
     return .{ class_id, file_id, stripped };
 }
@@ -153,4 +155,36 @@ pub fn patch(self: *This, out: *std.Io.Writer, entries: []const Entry) PatchErro
 
     _ = try reader.streamRemaining(out);
     try out.flush();
+}
+
+test parseHeader {
+    inline for (.{
+        "--- !u!104 &2",
+        "--- !u!104 &2\n",
+        "--- !u!104 &2\r\n",
+    }) |i| {
+        const h = try parseHeader(i);
+        try std.testing.expectEqual(104, h[0]);
+        try std.testing.expectEqual(2, h[1]);
+        try std.testing.expectEqual(false, h[2]);
+    }
+
+    inline for (.{
+        "--- !u!4 &986831988 stripped",
+        "--- !u!4 &986831988 stripped\n",
+        "--- !u!4 &986831988 stripped\r\n",
+    }) |i| {
+        const h = try parseHeader(i);
+        try std.testing.expectEqual(4, h[0]);
+        try std.testing.expectEqual(986831988, h[1]);
+        try std.testing.expectEqual(true, h[2]);
+    }
+
+    try std.testing.expectError(error.InvalidHeader, parseHeader(""));
+    try std.testing.expectError(error.InvalidHeader, parseHeader("--- !u!"));
+    try std.testing.expectError(error.InvalidHeader, parseHeader("--- !u!104"));
+    try std.testing.expectError(error.InvalidHeader, parseHeader("--- !u!104 &"));
+    try std.testing.expectError(error.InvalidHeader, parseHeader("--- !u! &2"));
+    try std.testing.expectError(error.InvalidHeader, parseHeader("\n--- !u!104 &2"));
+    try std.testing.expectError(error.InvalidHeader, parseHeader("\r\n--- !u!104 &2"));
 }

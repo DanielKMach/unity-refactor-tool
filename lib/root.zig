@@ -474,3 +474,7 @@ test check {
 
     try std.testing.expectError(error.OutOfMemory, check(tkns, std.testing.failing_allocator, .none));
 }
+
+test {
+    _ = std.testing.refAllDecls(@This());
+}
