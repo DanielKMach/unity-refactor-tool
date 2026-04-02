@@ -55,6 +55,8 @@ pub const operator_list: []const struct { []const u8, Value } = &.{
     .{ ";", .semicolon },
 };
 
+pub const empty: []const Token = &.{.new(.eof, .init(0, 0))};
+
 /// The type of the token.
 value: Value,
 loc: Location,

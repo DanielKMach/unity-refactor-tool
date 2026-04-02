@@ -438,6 +438,8 @@ test tokenize {
     try std.testing.expectEqualStrings("Test", tkns[3].value.literal);
     try std.testing.expectEqual(Token.Location.init(13, 4), tkns[3].loc);
     try std.testing.expectEqual(Token.new(.eof, .init(17, 0)), tkns[4]);
+
+    try std.testing.expectError(error.OutOfMemory, tokenize(query, std.testing.failing_allocator, .none));
 }
 
 test parse {
@@ -452,8 +454,10 @@ test parse {
     const s0 = try parse(tkns, std.testing.allocator, .none);
     s0.deinit(std.testing.allocator);
 
-    const s1 = try parse(&.{.new(.eof, .init(0, 0))}, std.testing.allocator, .none);
+    const s1 = try parse(Token.empty, std.testing.allocator, .none);
     s1.deinit(std.testing.allocator);
+
+    try std.testing.expectError(error.OutOfMemory, parse(tkns, std.testing.failing_allocator, .none));
 }
 
 test check {
@@ -466,5 +470,7 @@ test check {
     };
 
     try check(tkns, std.testing.allocator, .none);
-    try check(&.{.new(.eof, .init(0, 0))}, std.testing.allocator, .none);
+    try check(Token.empty, std.testing.allocator, .none);
+
+    try std.testing.expectError(error.OutOfMemory, check(tkns, std.testing.failing_allocator, .none));
 }
