@@ -7,7 +7,6 @@ const core = @import("core");
 const log = std.log.scoped(.component_iterator);
 
 const This = @This();
-const History = @import("history.zig").History;
 
 pub const ParseHeaderError = error{InvalidHeader};
 pub const IterateError = ParseHeaderError || std.mem.Allocator.Error || std.Io.Reader.Error || std.Io.Reader.DelimiterError || std.fs.File.Reader.SeekError;
