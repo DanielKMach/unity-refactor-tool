@@ -137,10 +137,9 @@ fn loop(
     defer zone.End();
 
     var buf: [std.fs.max_path_bytes]u8 = undefined;
+    var path: []u8 = undefined;
     return blk: {
         while (err.* == null) {
-            var path: []u8 = undefined;
-
             {
                 w_mtx.lock();
                 defer w_mtx.unlock();

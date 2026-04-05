@@ -152,7 +152,7 @@ pub const Value = union(enum) {
                     var @"type": ?u4 = null;
                     if (yaml.getNode(doc.*, node.*, "guid")) |guid_node| {
                         const guid_str = yaml.fromBuffer(u8, guid_node.data.scalar);
-                        guid = core.runtime.GUID.fromText(guid_str) catch unreachable;
+                        guid = core.runtime.GUID.from(guid_str) catch unreachable;
                         const type_node = yaml.getNode(doc.*, node.*, "type") orelse unreachable;
                         const type_str = yaml.fromBuffer(u8, type_node.data.scalar);
                         @"type" = std.fmt.parseInt(u4, type_str, 10) catch unreachable;

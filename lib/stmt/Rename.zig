@@ -186,7 +186,7 @@ pub fn updateObj(
                 const file_id_node = yaml.getNode(doc.*, reference_node.*, "fileID") orelse return error.InvalidObject;
                 const guid_node = yaml.getNode(doc.*, reference_node.*, "guid") orelse return error.InvalidObject;
                 const target_file_id = try std.fmt.parseInt(u64, yaml.fromBuffer(u8, file_id_node.data.scalar), 10);
-                const target_guid = try GUID.fromText(yaml.fromBuffer(u8, guid_node.data.scalar));
+                const target_guid = try GUID.from(yaml.fromBuffer(u8, guid_node.data.scalar));
 
                 // Check if the referenced object is one of the target GUIDs
                 const asset_path = assetmap.get(target_guid) orelse try assetmap.fetch(target_guid) orelse {

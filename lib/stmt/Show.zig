@@ -143,7 +143,7 @@ pub fn search(self: This, times: ?*usize, env: Stmt.RunEnv) Stmt.RunError![][]u8
         if (self.mode == .indirect_uses) {
             for (references.ctx.items[scanned..]) |ref| {
                 if (!std.mem.endsWith(u8, ref, ".prefab")) continue;
-                try guids.append(env.allocator, try GUID.fromFile(ref, env.allocator));
+                try guids.append(env.allocator, try GUID.fromAsset(ref, env.allocator));
             }
             scanned = references.length();
         }

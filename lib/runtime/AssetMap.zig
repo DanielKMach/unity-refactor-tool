@@ -33,7 +33,7 @@ pub fn get(self: *const AssetMap, guid: GUID) ?[]const u8 {
 }
 
 pub fn put(self: *AssetMap, asset_path: []const u8) core.runtime.GUID.FromFileError!GUID {
-    const guid = try GUID.fromFile(asset_path, self.allocator);
+    const guid = try GUID.fromAsset(asset_path, self.allocator);
     if (self.get(guid) != null) return guid;
     const abspath = try self.allocator.dupe(u8, asset_path);
     errdefer self.allocator.free(abspath);
@@ -41,7 +41,7 @@ pub fn put(self: *AssetMap, asset_path: []const u8) core.runtime.GUID.FromFileEr
     return guid;
 }
 
-pub fn fetch(self: *AssetMap, guid: GUID) !?[]const u8 {
+pub fn fetch(self: *AssetMap, guid: GUID) core.Project.FindError!?[]const u8 {
     const zone = tracy.Zone(@src());
     defer zone.End();
 

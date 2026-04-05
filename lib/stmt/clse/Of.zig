@@ -66,7 +66,7 @@ pub fn getGUID(self: This, filter: Filter, env: Stmt.RunEnv) Stmt.RunError![]GUI
 
     for (self.targets) |target| {
         try guids.append(env.allocator, switch (target) {
-            .guid => |guid| try GUID.fromText(guid.value.string),
+            .guid => |guid| try GUID.from(guid.value.string),
             .name => |name| blk: {
                 const path = try searchComponent(name.value.literal, env.proj, env.allocator) orelse {
                     return env.err(.{ .invalid_asset = .{ .path = name.loc } });
@@ -75,7 +75,7 @@ pub fn getGUID(self: This, filter: Filter, env: Stmt.RunEnv) Stmt.RunError![]GUI
 
                 std.debug.assert(validatePath(path, filter));
 
-                break :blk GUID.fromFile(path, env.allocator) catch |err| switch (err) {
+                break :blk GUID.fromAsset(path, env.allocator) catch |err| switch (err) {
                     error.InvalidMetaFile, error.FileNotFound => {
                         return env.err(.{ .invalid_asset = .{ .path = name.loc } });
                     },
@@ -96,7 +96,7 @@ pub fn getGUID(self: This, filter: Filter, env: Stmt.RunEnv) Stmt.RunError![]GUI
                     .location = path.loc,
                 } });
 
-                break :blk GUID.fromFile(abs_path, env.allocator) catch |e| switch (e) {
+                break :blk GUID.fromAsset(abs_path, env.allocator) catch |e| switch (e) {
                     error.InvalidMetaFile, error.FileNotFound => {
                         return env.err(.{ .invalid_asset = .{ .path = path.loc } });
                     },
