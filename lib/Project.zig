@@ -137,19 +137,18 @@ fn loop(
     defer zone.End();
 
     var buf: [std.fs.max_path_bytes]u8 = undefined;
-    var path: []u8 = undefined;
     return blk: {
         while (err.* == null) {
-            {
+            const path = filt: {
                 w_mtx.lock();
                 defer w_mtx.unlock();
 
                 const entry = (walker.next() catch |e| break :blk e) orelse break;
                 if (@call(.auto, filt, .{ data, entry, allocator }) catch |e| break :blk e) {
                     @memcpy(buf[0..entry.path.len], entry.path);
-                    path = buf[0..entry.path.len];
+                    break :filt buf[0..entry.path.len];
                 } else continue;
-            }
+            };
 
             @call(.auto, frag, .{ data, dir, path, allocator }) catch |e| break :blk e;
         }
