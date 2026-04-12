@@ -232,29 +232,24 @@ const Search = struct {
         var zonemsg: [512]u8 = undefined;
         tracy.Message(std.fmt.bufPrint(&zonemsg, "Scanning '{s}'", .{path}) catch "Too long");
 
-        const file = dir.openFile(path, .{ .mode = .read_only }) catch |err| {
-            log.warn("Error ({s}) reading file: '{s}'", .{ @errorName(err), path });
-            return error.SearchFailed;
-        };
-        defer file.close();
+        _ = ctrl: {
+            const file = dir.openFile(path, .{ .mode = .read_only }) catch |e| break :ctrl e;
+            defer file.close();
 
-        const self: *Search = @ptrCast(@alignCast(data));
+            const self: *Search = @ptrCast(@alignCast(data));
 
-        var buf: [4096]u8 = undefined;
-        var fread = file.reader(&buf);
-        var reader = &fread.interface;
-        var maybe_guid: [32]u8 = undefined;
-        var n: usize = 0;
+            var buf: [4096]u8 = undefined;
+            var fread = file.reader(&buf);
+            var reader = &fread.interface;
+            var maybe_guid: [32]u8 = undefined;
+            var n: usize = 0;
 
-        main: while (true) {
             while (true) {
-                if (reader.bufferedLen() == 0) reader.fillMore() catch |err| {
-                    if (err != error.EndOfStream) {
-                        log.warn("Error ({s}) reading file: '{s}'", .{ @errorName(err), path });
-                        return error.SearchFailed;
-                    }
-                };
-                if (reader.takeByte()) |b| {
+                while (reader.takeByte()) |b| {
+                    if (reader.bufferedLen() == 0) reader.fillMore() catch |e| {
+                        if (e != error.EndOfStream) break :ctrl e;
+                    };
+
                     if (std.ascii.isHex(b)) {
                         if (n == 32) {
                             @memmove(maybe_guid[0..31], maybe_guid[1..]);
@@ -264,21 +259,24 @@ const Search = struct {
                         n += 1;
                         if (n == 32) break;
                     } else n = 0;
-                } else |err| {
-                    if (err == error.EndOfStream) break :main;
-                    log.warn("Error ({s}) reading file: '{s}'", .{ @errorName(err), path });
-                    return error.SearchFailed;
+                } else |e| {
+                    if (e != error.EndOfStream) break :ctrl e;
+                    break;
+                }
+
+                std.debug.assert(n == 32);
+                if (for (self.guids) |guid| {
+                    if (guid.eql(&maybe_guid)) break true;
+                } else false) {
+                    const abspath = dir.realpath(path, &buf) catch |e| break :ctrl e;
+                    self.addPath(abspath, file, allocator) catch |e| break :ctrl e;
+                    break;
                 }
             }
-
-            std.debug.assert(n == 32);
-            for (self.guids) |guid| {
-                if (!guid.eql(&maybe_guid)) continue;
-                const abspath = dir.realpath(path, &buf) catch return error.SearchFailed;
-                self.addPath(abspath, file, allocator) catch return error.SearchFailed;
-                break :main;
-            }
-        }
+        } catch |err| {
+            log.err("Error {t} while scanning file: '{s}'", .{ err, path });
+            return error.SearchFailed;
+        };
     }
 
     /// Adds an absolute path to the list of references if it's not already present.
