@@ -147,7 +147,7 @@ pub const Value = union(enum) {
             ly.YAML_MAPPING_NODE => blk: {
                 if (yaml.getNode(doc.*, node.*, "fileID")) |file_id_node| {
                     const file_id_str = yaml.fromBuffer(u8, file_id_node.data.scalar);
-                    const file_id = std.fmt.parseInt(u64, file_id_str, 10) catch unreachable;
+                    const file_id = std.fmt.parseInt(core.runtime.FileID, file_id_str, 10) catch unreachable;
                     var guid: ?core.runtime.GUID = null;
                     var @"type": ?u4 = null;
                     if (yaml.getNode(doc.*, node.*, "guid")) |guid_node| {

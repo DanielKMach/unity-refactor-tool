@@ -5,12 +5,13 @@ const core = @import("core");
 const yaml = core.yaml;
 const GUID = core.runtime.GUID;
 const ClassID = core.runtime.ClassID;
+const FileID = core.runtime.FileID;
 
 const ObjMap = @This();
 
 pub const Ref = struct {
     guid: GUID,
-    file_id: u64,
+    file_id: FileID,
 };
 
 pub const ObjDef = struct {
@@ -34,7 +35,7 @@ pub fn init(allocator: std.mem.Allocator) ObjMap {
     };
 }
 
-pub fn new(self: *ObjMap, guid: GUID, file_id: u64, class_id: ClassID) !*yaml.Document {
+pub fn new(self: *ObjMap, guid: GUID, file_id: FileID, class_id: ClassID) !*yaml.Document {
     const key: Ref = .{ .guid = guid, .file_id = file_id };
     const result = try self.objs.getOrPut(key);
     if (result.found_existing) return error.AlreadyExists;
@@ -42,7 +43,7 @@ pub fn new(self: *ObjMap, guid: GUID, file_id: u64, class_id: ClassID) !*yaml.Do
     return &result.value_ptr.doc;
 }
 
-pub fn get(self: *const ObjMap, guid: GUID, file_id: u64) ?Entry {
+pub fn get(self: *const ObjMap, guid: GUID, file_id: FileID) ?Entry {
     const key: Ref = .{ .guid = guid, .file_id = file_id };
     const def = self.objs.getPtr(key) orelse return null;
     return .{

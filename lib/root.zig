@@ -195,7 +195,7 @@ pub const RuntimeProblem = union(enum) {
     },
     object_definition_not_found: struct {
         guid: runtime.GUID,
-        file_id: u64,
+        file_id: runtime.FileID,
         location: Token.Location,
     },
     null_object_definition_reference: struct {

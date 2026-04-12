@@ -7,7 +7,6 @@ const This = @This();
 const Stmt = core.Stmt;
 const clse = core.Stmt.clse;
 const TokenIterator = core.Token.Iterator;
-const Scanner = core.runtime.Scanner;
 const ObjIterator = core.runtime.ObjIterator;
 const Yaml = core.runtime.Yaml;
 const GUID = core.runtime.GUID;
@@ -130,7 +129,7 @@ pub fn update(
 pub fn updateObj(
     self: This,
     yml: *core.runtime.Yaml,
-    file_id: u64,
+    file_id: core.runtime.FileID,
     class_id: core.runtime.ClassID,
     guid: GUID,
     guids: []const GUID,
@@ -185,7 +184,7 @@ pub fn updateObj(
                 std.debug.assert(reference_node.type == yaml.ly.YAML_MAPPING_NODE);
                 const file_id_node = yaml.getNode(doc.*, reference_node.*, "fileID") orelse return error.InvalidObject;
                 const guid_node = yaml.getNode(doc.*, reference_node.*, "guid") orelse return error.InvalidObject;
-                const target_file_id = try std.fmt.parseInt(u64, yaml.fromBuffer(u8, file_id_node.data.scalar), 10);
+                const target_file_id = try std.fmt.parseInt(core.runtime.FileID, yaml.fromBuffer(u8, file_id_node.data.scalar), 10);
                 const target_guid = try GUID.from(yaml.fromBuffer(u8, guid_node.data.scalar));
 
                 // Check if the referenced object is one of the target GUIDs
@@ -210,7 +209,12 @@ pub fn updateObj(
     }
 }
 
-pub fn hasObjInstance(asset: []const u8, file_id: u64, guids: []const GUID, allocator: std.mem.Allocator) !bool {
+pub fn hasObjInstance(
+    asset: []const u8,
+    file_id: core.runtime.FileID,
+    guids: []const GUID,
+    allocator: std.mem.Allocator,
+) !bool {
     const file = try std.fs.openFileAbsolute(asset, .{ .mode = .read_only });
     defer file.close();
 

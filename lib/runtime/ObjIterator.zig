@@ -16,7 +16,7 @@ pub const Info = struct {
     pos: usize,
     len: usize,
     class_id: core.runtime.ClassID,
-    file_id: u64,
+    file_id: core.runtime.FileID,
     stripped: bool,
 };
 
@@ -124,7 +124,7 @@ fn findNextComponent(freader: *std.fs.File.Reader) !Info {
     };
 }
 
-fn parseHeader(line: []const u8) !struct { u32, u64, bool } {
+fn parseHeader(line: []const u8) !struct { u32, core.runtime.FileID, bool } {
     var rdr: std.Io.Reader = .fixed(std.mem.trimRight(u8, line, "\r\n"));
 
     var buf: []u8 = rdr.take(7) catch return error.InvalidHeader;
@@ -133,7 +133,7 @@ fn parseHeader(line: []const u8) !struct { u32, u64, bool } {
     const class_id = std.fmt.parseInt(u32, buf, 10) catch return error.InvalidHeader;
     buf = rdr.takeDelimiterExclusive(' ') catch return error.InvalidHeader;
     if (buf[0] != '&') return error.InvalidHeader;
-    const file_id = std.fmt.parseInt(u64, buf[1..], 10) catch return error.InvalidHeader;
+    const file_id = std.fmt.parseInt(i64, buf[1..], 10) catch return error.InvalidHeader;
     buf = rdr.buffered();
     const stripped = buf.len > 0 and std.mem.eql(u8, buf, "stripped");
 
@@ -179,10 +179,22 @@ test parseHeader {
         try std.testing.expectEqual(true, h[2]);
     }
 
+    inline for (.{
+        "--- !u!114 &-8338380993658723609",
+        "--- !u!114 &-8338380993658723609\n",
+        "--- !u!114 &-8338380993658723609\r\n",
+    }) |i| {
+        const h = try parseHeader(i);
+        try std.testing.expectEqual(114, h[0]);
+        try std.testing.expectEqual(-8338380993658723609, h[1]);
+        try std.testing.expectEqual(false, h[2]);
+    }
+
     try std.testing.expectError(error.InvalidHeader, parseHeader(""));
     try std.testing.expectError(error.InvalidHeader, parseHeader("--- !u!"));
     try std.testing.expectError(error.InvalidHeader, parseHeader("--- !u!104"));
     try std.testing.expectError(error.InvalidHeader, parseHeader("--- !u!104 &"));
+    try std.testing.expectError(error.InvalidHeader, parseHeader("--- !u!104 &-"));
     try std.testing.expectError(error.InvalidHeader, parseHeader("--- !u! &2"));
     try std.testing.expectError(error.InvalidHeader, parseHeader("\n--- !u!104 &2"));
     try std.testing.expectError(error.InvalidHeader, parseHeader("\r\n--- !u!104 &2"));
