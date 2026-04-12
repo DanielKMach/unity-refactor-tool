@@ -53,6 +53,7 @@ pub fn main() !u8 {
 
     const success = try cli.process(&args);
     try out.interface.flush();
+    try err.interface.flush();
 
     log.info("Total memory allocated {d:.3}MB", .{@as(f32, @floatFromInt(debug_allocator.total_requested_bytes)) / 1000000.0});
     log.info("Total execution time {d}ms", .{std.time.milliTimestamp() - start});

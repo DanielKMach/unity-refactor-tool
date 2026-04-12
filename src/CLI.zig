@@ -32,9 +32,9 @@ pub fn process(self: This, _: *std.process.ArgIterator) !bool {
 
     const proj = usrl.Project.fromRoot(self.cwd) catch |err| {
         switch (err) {
-            error.AssetsNotFound => try ansi.print(eh, "\"Assets\" directory not found", .{}),
-            error.PackagesNotFound => try ansi.print(eh, "\"Packages\" directory not found", .{}),
-            else => |er| try ansi.print(eh, "Unable to scan working directory for Unity project: {t}", .{er}),
+            error.AssetsNotFound => try ansi.print(e, "\"Assets\" directory not found.\r\n", .{}),
+            error.PackagesNotFound => try ansi.print(e, "\"Packages\" directory not found.\r\n", .{}),
+            else => |er| try ansi.print(e, "Unable to scan working directory for Unity project: {t}\r\n", .{er}),
         }
         return false;
     };
@@ -222,7 +222,11 @@ pub fn tokenize(self: This, source: Source) ?[]usrl.Token {
             error.USRLTokenizeError => while (diag.pop()) |prob| {
                 printTokenizeProblem(prob, source, self.err) catch continue;
             },
-            else => self.err.interface.print("ERROR: {t}", .{err}) catch {},
+            else => {
+                const ansi = ANSI.init(self.err);
+                ansi.print(eh, "SYNTAX ERROR: ", .{}) catch {};
+                ansi.print(e, "Unexpected {t}\r\n", .{err}) catch {};
+            },
         }
         return null;
     };
@@ -237,7 +241,11 @@ pub fn parse(self: This, tokens: []usrl.Token, source: Source) ?usrl.Script.Mana
             error.USRLParseError => while (diag.pop()) |prob| {
                 printParseProblem(prob, source, self.err) catch continue;
             },
-            else => self.err.interface.print("ERROR: {t}", .{err}) catch {},
+            else => {
+                const ansi = ANSI.init(self.err);
+                ansi.print(eh, "SYNTAX ERROR: ", .{}) catch {};
+                ansi.print(e, "Unexpected {t}\r\n", .{err}) catch {};
+            },
         }
         return null;
     };
@@ -252,7 +260,11 @@ pub fn run(self: This, script: usrl.Script, proj: usrl.Project, out: *std.Io.Wri
             error.USRLRuntimeError => while (diag.pop()) |prob| {
                 printRuntimeProblem(prob, source, self.err) catch continue;
             },
-            else => self.err.interface.print("ERROR: {t}", .{err}) catch {},
+            else => {
+                const ansi = ANSI.init(self.err);
+                ansi.print(eh, "RUNTIME ERROR: ", .{}) catch {};
+                ansi.print(e, "Unexpected {t}\r\n", .{err}) catch {};
+            },
         }
         return false;
     };
