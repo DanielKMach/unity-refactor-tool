@@ -14,7 +14,6 @@ pub const MakePathError = std.fs.Dir.RealPathError || std.mem.Allocator.Error;
 allocator: std.mem.Allocator,
 backups: std.StringHashMap([]const u8),
 temps: std.AutoHashMap(std.fs.File, []const u8),
-id: u64,
 rand: std.Random.Xoshiro256,
 
 pub fn init(allocator: std.mem.Allocator) This {
@@ -24,14 +23,16 @@ pub fn init(allocator: std.mem.Allocator) This {
         .backups = .init(allocator),
         .temps = .init(allocator),
         .rand = .init(id),
-        .id = id,
     };
 }
 
+/// Includes a new file to this transaction.
+///
+/// At the end of the operation, one must choose to commit all changes using `commit`
+/// or revert them using `rollback`.
 pub fn include(self: *This, target: []const u8) IncludeError!void {
-    if (self.backups.contains(target)) {
-        return;
-    }
+    std.debug.assert(std.fs.path.isAbsolute(target));
+    if (self.backups.contains(target)) return;
 
     const target_path = try self.allocator.dupe(u8, target);
     errdefer self.allocator.free(target_path);
@@ -41,7 +42,7 @@ pub fn include(self: *This, target: []const u8) IncludeError!void {
     };
     defer target_file.close();
 
-    const backup_path = try self.makePath("{x}.usrlbackup", self.allocator);
+    const backup_path = try self.makePathFmt("{x}.usrlbackup", self.allocator);
     errdefer self.allocator.free(backup_path);
     const backup_file = std.fs.createFileAbsolute(backup_path, .{ .lock = .exclusive }) catch |err| {
         log.err("Failed to create backup file '{s}': {t}", .{ backup_path, err });
@@ -68,6 +69,7 @@ pub fn include(self: *This, target: []const u8) IncludeError!void {
     log.info("Included '{s}' to the transaction. ({s})", .{ target_path, std.fs.path.basename(backup_path) });
 }
 
+/// Deletes all backup files included in this transaction.
 pub fn commit(self: *This) void {
     if (self.backups.count() == 0) {
         log.info("Nothing to commit.", .{});
@@ -77,6 +79,7 @@ pub fn commit(self: *This) void {
     self.eraseAndClearBackups();
 }
 
+/// Restore all files included in this transaction to their original state.
 pub fn rollback(self: *This) void {
     log.info("Rolling back changes...", .{});
     var iterator = self.backups.iterator();
@@ -111,8 +114,11 @@ pub fn rollback(self: *This) void {
     self.eraseAndClearBackups();
 }
 
+/// Creates a new general purpose temporary file.
+///
+/// Temporary files will be cleaned after commiting, rolling back or deinitializing the transaction.
 pub fn getTemp(self: *This) GetTempError!std.fs.File {
-    const temp_path = try self.makePath("{x}.usrltemp", self.allocator);
+    const temp_path = try self.makePathFmt("{x}.usrltemp", self.allocator);
     errdefer self.allocator.free(temp_path);
 
     const file = std.fs.createFileAbsolute(temp_path, .{ .lock = .exclusive, .read = true }) catch |err| {
@@ -126,6 +132,9 @@ pub fn getTemp(self: *This) GetTempError!std.fs.File {
     return file;
 }
 
+/// Frees a temporary file.
+///
+/// `file` must be a handle acquired by calling `getTemp`.
 pub fn delTemp(self: *This, file: std.fs.File) void {
     const temp_path = self.temps.get(file) orelse {
         log.err("Temporary file not found in transaction map.", .{});
@@ -140,6 +149,10 @@ pub fn delTemp(self: *This, file: std.fs.File) void {
     self.allocator.free(temp_path);
 }
 
+/// Cleans up all used resources by this transaction.
+///
+/// If this transaction has any pending backups,
+/// this function can only be called after `commit` or `rollback`.
 pub fn deinit(self: *This) void {
     if (self.temps.count() > 0) {
         log.warn("Transaction deinit called with uncleaned temporary files. Cleaning up...", .{});
@@ -151,6 +164,7 @@ pub fn deinit(self: *This) void {
     self.backups.deinit();
 }
 
+/// Erase all transaction files and frees the memory needed to allocate them.
 fn eraseAndClearBackups(self: *This) void {
     var iterator = self.backups.iterator();
     while (iterator.next()) |entry| {
@@ -167,6 +181,7 @@ fn eraseAndClearBackups(self: *This) void {
     self.backups.clearAndFree();
 }
 
+/// Erase all temporary files and frees the memory needed to allocate them.
 fn eraseAndClearTemps(self: *This) void {
     var iterator = self.temps.iterator();
     while (iterator.next()) |entry| {
@@ -182,14 +197,24 @@ fn eraseAndClearTemps(self: *This) void {
     self.temps.clearAndFree();
 }
 
-fn makePath(self: *This, comptime filename_format: []const u8, allocator: std.mem.Allocator) MakePathError![]const u8 {
+/// Makes an absolute path to the given file name in the current working directory.
+/// `filename_format` must contain a nummeric placeholder that will be replaced by a random number.
+/// The caller owns the memory.
+///
+/// Example: `makePathFmt("{d}.temp")` will result in `/your/cwd/184974190278.temp`
+fn makePathFmt(self: *This, comptime filename_format: []const u8, allocator: std.mem.Allocator) MakePathError![]const u8 {
     var buf: [filename_format.len - 3 + 16]u8 = undefined; // -3 to remove the {x} tag, +16 because thats how many chars a u64 can have in hexdecimal.
-    const file_name = std.fmt.bufPrint(&buf, filename_format, .{self.rand.next()}) catch unreachable; // We just counted the precise amount.
-    return try makeAbsPath(file_name, allocator);
+    const filename = std.fmt.bufPrint(&buf, filename_format, .{self.rand.next()}) catch unreachable; // We just counted the precise amount.
+    return try makePath(filename, allocator);
 }
 
-fn makeAbsPath(file_name: []const u8, allocator: std.mem.Allocator) MakePathError![]const u8 {
+/// Makes an absolute path to the given file name in the current working directory.
+/// The caller owns the memory.
+///
+/// Example: `makePath("123.temp")` will result in `/your/cwd/123.temp`
+fn makePath(filename: []const u8, allocator: std.mem.Allocator) MakePathError![]const u8 {
+    std.debug.assert(std.fs.path.basename(filename).len == filename.len);
     var buf: [std.fs.max_path_bytes]u8 = undefined;
     const dir_path = try std.fs.cwd().realpath(".", &buf);
-    return try std.fs.path.join(allocator, &.{ dir_path, file_name });
+    return try std.fs.path.join(allocator, &.{ dir_path, filename });
 }
