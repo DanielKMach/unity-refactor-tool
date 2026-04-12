@@ -116,6 +116,9 @@ pub fn scanAndPrint(self: This, path: []const u8, guids: []const GUID, assets: *
     const zone = tracy.Zone(@src());
     defer zone.End();
 
+    const root = try env.proj.root.realpathAlloc(env.allocator, ".");
+    defer env.allocator.free(root);
+
     const file = try std.fs.openFileAbsolute(path, .{ .mode = .read_write });
     defer file.close();
 
@@ -177,7 +180,9 @@ pub fn scanAndPrint(self: This, path: []const u8, guids: []const GUID, assets: *
             results[i] = value;
         }
 
-        try print(path, results, env.out);
+        const subpath = try std.fs.path.relative(env.allocator, root, path);
+        defer env.allocator.free(subpath);
+        try print(subpath, results, env.out);
     }
 }
 
@@ -227,7 +232,7 @@ pub fn print(path: []const u8, value: []core.Expr.Value, out: *std.Io.Writer) !v
     const zone = tracy.Zone(@src());
     defer zone.End();
 
-    try out.print("{s}\r\n", .{Stmt.Show.trimCwd(path)});
+    try out.print("{s}\r\n", .{path});
     for (value) |v| {
         // if (i != 0) try out.writeByte(',');
         try out.print(" =\t{f}\r\n", .{v});

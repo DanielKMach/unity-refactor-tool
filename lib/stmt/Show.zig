@@ -81,7 +81,15 @@ pub fn run(self: This, env: Stmt.RunEnv) Stmt.RunError!void {
     const time = std.time.milliTimestamp() - start;
 
     sort(@ptrCast(results));
-    for (results) |path| try env.out.print("{s}\r\n", .{trimCwd(path)});
+    const root = try env.proj.root.realpathAlloc(env.allocator, ".");
+    defer env.allocator.free(root);
+
+    for (results) |p| {
+        const path = try std.fs.path.relative(env.allocator, root, p);
+        defer env.allocator.free(path);
+
+        try env.out.print("{s}\r\n", .{path});
+    }
     log.info("Scanned project {d} times in {d} milliseconds", .{ loops, time });
     try env.out.flush();
 }
@@ -187,18 +195,6 @@ fn sort(arr: [][]const u8) void {
         }
     };
     std.mem.sort([]const u8, arr, Context{}, Context.lessThanFn);
-}
-
-/// Trim the current working directory from the start of `path`, if possible and present.
-pub fn trimCwd(path: []const u8) []const u8 {
-    var buf: [std.fs.max_path_bytes]u8 = undefined;
-    const cwd = std.fs.cwd().realpath(".", &buf) catch return path;
-    if (std.mem.startsWith(u8, path, cwd)) {
-        const from = if (path.len > cwd.len and path[cwd.len] == std.fs.path.sep) cwd.len + 1 else cwd.len;
-        return path[from..];
-    } else {
-        return path;
-    }
 }
 
 const Search = struct {
