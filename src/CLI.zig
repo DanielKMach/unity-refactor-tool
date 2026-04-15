@@ -257,7 +257,10 @@ pub fn run(self: This, script: usrl.Script, proj: usrl.Project, out: *std.Io.Wri
     var diag: usrl.RuntimeDiagnostics = .init(self.allocator);
     defer diag.deinit();
 
-    usrl.run(script, self.allocator, &diag, proj, out) catch |err| {
+    usrl.run(script, self.allocator, &diag, .{
+        .proj = proj,
+        .out = out,
+    }) catch |err| {
         switch (err) {
             error.USRLRuntimeError => while (diag.pop()) |prob| {
                 printRuntimeProblem(prob, source, self.err) catch continue;

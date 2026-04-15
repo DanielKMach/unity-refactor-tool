@@ -390,30 +390,36 @@ pub fn parseManaged(
     };
 }
 
+pub const RunOptions = struct {
+    proj: Project,
+    out: *std.Io.Writer,
+    transaction: ?*Transaction = null,
+    pool: ?*std.Thread.Pool = null,
+};
+
 pub fn run(
     script: Script,
     allocator: std.mem.Allocator,
     diag: *RuntimeDiagnostics,
-    proj: Project,
-    out: *std.Io.Writer,
+    opts: RunOptions,
 ) anyerror!void {
     const zone = tracy.Zone(@src());
     defer zone.End();
 
-    var transaction = Transaction.init(allocator);
-    defer transaction.deinit();
+    var transaction = if (opts.transaction == null) Transaction.init(allocator) else undefined;
+    defer if (opts.transaction == null) transaction.deinit();
 
     var pool: std.Thread.Pool = undefined;
-    try pool.init(.{ .allocator = allocator, .n_jobs = config.scan_thread_count });
-    defer pool.deinit();
+    if (opts.pool == null) try pool.init(.{ .allocator = allocator, .n_jobs = config.scan_thread_count });
+    defer if (opts.pool == null) pool.deinit();
 
     const env = Stmt.RunEnv{
-        .transaction = &transaction,
+        .transaction = opts.transaction orelse &transaction,
+        .pool = opts.pool orelse &pool,
         .allocator = allocator,
-        .pool = &pool,
+        .proj = opts.proj,
+        .out = opts.out,
         .diag = diag,
-        .proj = proj,
-        .out = out,
     };
 
     script.run(env) catch |err| {
