@@ -30,15 +30,6 @@ pub fn process(self: This, _: *std.process.ArgIterator) !bool {
     defer tocompile.deinit(self.allocator);
     defer for (tocompile.items) |s| s.deinit(self.allocator);
 
-    const proj = usrl.Project.fromRoot(self.cwd) catch |err| {
-        switch (err) {
-            error.AssetsNotFound => try ansi.print(e, "\"Assets\" directory not found.\r\n", .{}),
-            error.PackagesNotFound => try ansi.print(e, "\"Packages\" directory not found.\r\n", .{}),
-            else => |er| try ansi.print(e, "Unable to scan working directory for Unity project: {t}\r\n", .{er}),
-        }
-        return false;
-    };
-
     var glep = try Glep.init(self.allocator);
     defer glep.deinit(self.allocator);
 
@@ -49,9 +40,7 @@ pub fn process(self: This, _: *std.process.ArgIterator) !bool {
         return true;
     };
 
-    if (std.mem.eql(u8, sub, "interactive") or std.mem.eql(u8, sub, "i") or std.mem.eql(u8, sub, "it")) {
-        return try self.startInteractiveMode(proj);
-    } else if (std.mem.eql(u8, sub, "manual") or std.mem.eql(u8, sub, "m")) {
+    if (std.mem.eql(u8, sub, "manual") or std.mem.eql(u8, sub, "m")) {
         try openManual();
         return true;
     } else if (std.mem.eql(u8, sub, "help") or std.mem.eql(u8, sub, "usage") or std.mem.eql(u8, sub, "h") or std.mem.eql(u8, sub, "?")) {
@@ -60,6 +49,19 @@ pub fn process(self: This, _: *std.process.ArgIterator) !bool {
     } else if (std.mem.eql(u8, sub, "version") or std.mem.eql(u8, sub, "v")) {
         try self.out.interface.print("{s}\r\n", .{usrl.version});
         return true;
+    }
+
+    const proj = usrl.Project.fromRoot(self.cwd) catch |err| {
+        switch (err) {
+            error.AssetsNotFound => try ansi.print(e, "\"Assets\" directory not found. This tool must be executed from the root directory of a Unity project.\r\n", .{}),
+            error.PackagesNotFound => try ansi.print(e, "\"Packages\" directory not found. This tool must be executed from the root directory of a Unity project.\r\n", .{}),
+            else => |er| try ansi.print(e, "Unable to scan working directory for Unity project: {t}\r\n", .{er}),
+        }
+        return false;
+    };
+
+    if (std.mem.eql(u8, sub, "interactive") or std.mem.eql(u8, sub, "i") or std.mem.eql(u8, sub, "it")) {
+        return try self.startInteractiveMode(proj);
     }
 
     const check = glep.has("--check/-c");
