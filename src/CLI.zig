@@ -2,7 +2,10 @@ const builtin = @import("builtin");
 const std = @import("std");
 const usrl = @import("usrl");
 
+const Source = @import("Source.zig");
+const Glep = @import("Glep.zig");
 const This = @This();
+
 const log = std.log.scoped(.cli);
 
 const e = "R";
@@ -11,6 +14,7 @@ const eh = "r";
 pub const ExecutionMode = enum {
     args,
     file,
+    stdin,
 };
 
 allocator: std.mem.Allocator,
@@ -19,147 +23,168 @@ in: *std.fs.File.Reader,
 out: *std.fs.File.Writer,
 err: *std.fs.File.Writer,
 
-pub fn process(self: This, args: *std.process.ArgIterator) !bool {
-    var check = false;
-    var mode: ExecutionMode = .args;
-    var output: ?std.fs.File = null;
-    defer if (output) |o| o.close();
-
+pub fn process(self: This, _: *std.process.ArgIterator) !bool {
     const ansi = ANSI.init(self.out);
 
-    const parser = usrl.Parser{
-        .allocator = self.allocator,
+    var tocompile = std.ArrayList(Source).empty;
+    defer tocompile.deinit(self.allocator);
+    defer for (tocompile.items) |s| s.deinit(self.allocator);
+
+    var glep = try Glep.init(self.allocator);
+    defer glep.deinit(self.allocator);
+
+    _ = glep.next(); // executable name
+
+    const sub = glep.peek() orelse {
+        try printHelp(&self.out.interface);
+        return true;
     };
-    var scripts = std.ArrayList(LocalizedScript).empty;
-    defer scripts.deinit(self.allocator);
-    defer for (scripts.items) |*s| s.cleanup();
 
-    var i: usize = 0;
-    while (args.next()) |arg| {
-        defer i += 1;
-        if (i == 0) {
-            if (std.mem.eql(u8, arg, "interactive") or std.mem.eql(u8, arg, "i") or std.mem.eql(u8, arg, "it")) {
-                return try self.startInteractiveMode();
-            } else if (std.mem.eql(u8, arg, "manual") or std.mem.eql(u8, arg, "m")) {
-                try openManual();
-                return true;
-            } else if (std.mem.eql(u8, arg, "help") or std.mem.eql(u8, arg, "usage") or std.mem.eql(u8, arg, "h") or std.mem.eql(u8, arg, "?")) {
-                try printHelp(&self.out.interface);
-                return true;
-            } else if (std.mem.eql(u8, arg, "version") or std.mem.eql(u8, arg, "v")) {
-                try self.out.interface.print("{s}", .{usrl.version});
-                return true;
-            } else if (std.mem.eql(u8, arg, "--")) {
-                var code: [1 << 16]u8 = undefined;
-                const len = try self.in.interface.readSliceShort(&code);
-                const source = try usrl.Source.named(code[0..len], "stdin", self.allocator);
-                defer source.deinit();
-                if (try self.parse(source, parser)) |script| {
-                    return try self.run(script, .{
-                        .cwd = self.cwd,
-                        .out = &self.out.interface,
-                        .allocator = self.allocator,
-                    }, source);
-                }
-                return false;
-            }
-        }
-        if (std.mem.startsWith(u8, arg, "-")) {
-            if (std.mem.eql(u8, arg, "--check") or std.mem.eql(u8, arg, "-c")) {
-                check = true;
-            } else if (std.mem.eql(u8, arg, "--file") or std.mem.eql(u8, arg, "-f")) {
-                mode = .file;
-            } else if (std.mem.eql(u8, arg, "--output") or std.mem.eql(u8, arg, "-o")) {
-                if (output != null) {
-                    try ansi.print(e, "Output file already specified\r\n", .{});
-                    try printHelp(&self.out.interface);
-                    return false;
-                }
-                if (args.next()) |output_arg| {
-                    if (std.fs.path.isAbsolute(output_arg)) {
-                        output = try std.fs.createFileAbsolute(output_arg, .{});
-                    } else {
-                        output = try self.cwd.createFile(output_arg, .{});
-                    }
-                } else {
-                    try ansi.print(e, "Missing output file argument\r\n", .{});
-                    try printHelp(&self.out.interface);
-                    return false;
-                }
-            } else {
-                try ansi.print(e, "Unknown option: {s}\r\n", .{arg});
-                try printHelp(&self.out.interface);
-                return false;
-            }
-            continue;
-        }
-        switch (mode) {
-            .args => {
-                const source = try usrl.Source.anonymous(arg, self.allocator);
-                errdefer source.deinit();
-                if (try self.parse(source, parser)) |script| {
-                    try scripts.append(self.allocator, .{
-                        .script = script,
-                        .source = source,
-                    });
-                    continue;
-                } else {
-                    source.deinit();
-                    return false;
-                }
-            },
-            .file => {
-                var source: usrl.Source = undefined;
-                var dir: std.fs.Dir = undefined;
-
-                if (std.fs.path.isAbsolute(arg)) {
-                    source = try usrl.Source.fromPathAbsolute(arg, self.allocator);
-                    dir = try std.fs.openDirAbsolute(std.fs.path.dirname(arg).?, .{ .iterate = true });
-                } else {
-                    source = try usrl.Source.fromPath(self.cwd, arg, self.allocator);
-                    const abs_path = try self.cwd.realpathAlloc(self.allocator, arg);
-                    defer self.allocator.free(abs_path);
-                    dir = try std.fs.openDirAbsolute(std.fs.path.dirname(abs_path).?, .{ .iterate = true });
-                }
-
-                if (try self.parse(source, parser)) |script| {
-                    try scripts.append(self.allocator, .{
-                        .script = script,
-                        .source = source,
-                        .dir = dir,
-                    });
-                    continue;
-                } else {
-                    source.deinit();
-                    dir.close();
-                    return false;
-                }
-            },
-        }
+    if (std.mem.eql(u8, sub, "manual") or std.mem.eql(u8, sub, "m")) {
+        try openManual();
+        return true;
+    } else if (std.mem.eql(u8, sub, "help") or std.mem.eql(u8, sub, "usage") or std.mem.eql(u8, sub, "h") or std.mem.eql(u8, sub, "?")) {
+        try printHelp(&self.out.interface);
+        return true;
+    } else if (std.mem.eql(u8, sub, "version") or std.mem.eql(u8, sub, "v")) {
+        try self.out.interface.print("{s}\r\n", .{usrl.version});
+        return true;
     }
-    if (!check) for (scripts.items) |script| {
-        const output_file = output orelse self.out.file;
-        var wbuf: [4096]u8 = undefined;
-        var fwriter = output_file.writer(&wbuf);
-        if (!try self.run(script.script, .{
-            .cwd = script.dir orelse self.cwd,
-            .out = &fwriter.interface,
-            .allocator = self.allocator,
-        }, script.source)) {
+
+    const proj = usrl.Project.fromRoot(self.cwd) catch |err| {
+        switch (err) {
+            error.AssetsNotFound => try ansi.print(e, "\"Assets\" directory not found. This tool must be executed from the root directory of a Unity project.\r\n", .{}),
+            error.PackagesNotFound => try ansi.print(e, "\"Packages\" directory not found. This tool must be executed from the root directory of a Unity project.\r\n", .{}),
+            else => |er| try ansi.print(e, "Unable to scan working directory for Unity project: {t}\r\n", .{er}),
+        }
+        return false;
+    };
+
+    if (std.mem.eql(u8, sub, "interactive") or std.mem.eql(u8, sub, "i") or std.mem.eql(u8, sub, "it")) {
+        return try self.startInteractiveMode(proj);
+    }
+
+    const check = glep.has("--check/-c");
+    const output = if (glep.has("--out/-o")) blk: {
+        if (check) {
+            try ansi.print(e, "'--check' and '--out' cannot be used together.\r\n", .{});
             return false;
         }
+        break :blk glep.get("--out/-o") orelse {
+            try ansi.print(e, "Unspecified output file after '--out'.\r\n", .{});
+            return false;
+        };
+    } else null;
+
+    const mode: ExecutionMode = blk: {
+        const stdin = glep.has("--");
+        const file = glep.has("--file/-f");
+        if (stdin and file) {
+            try ansi.print(e, "'--file' and '--' cannot be used together.\r\n", .{});
+            return false;
+        }
+        if (stdin) break :blk .stdin;
+        if (file) break :blk .file;
+        break :blk .args;
     };
-    if (i == 0) try printHelp(&self.out.interface);
+
+    switch (mode) {
+        .stdin => {
+            if (glep.next()) |arg| {
+                try ansi.print(e, "Unnecessary argument '{s}' found.\r\n", .{arg});
+                return false;
+            }
+
+            var query: [1 << 16]u8 = undefined;
+            const len = try self.in.interface.readSliceShort(&query);
+
+            try tocompile.append(self.allocator, try .dupe(self.allocator, query[0..len], "stdin"));
+        },
+        .file => {
+            while (glep.get("--file/-f")) |path| {
+                var file: std.fs.File = blk: {
+                    if (std.fs.path.isAbsolute(path)) {
+                        break :blk std.fs.openFileAbsolute(path, .{});
+                    } else {
+                        break :blk self.cwd.openFile(path, .{});
+                    }
+                } catch |err| {
+                    const name = std.fs.path.basename(path);
+                    try ansi.print(e, "Failed to open script file '{s}': {t}\r\n", .{ name, err });
+                    return false;
+                };
+                defer file.close();
+
+                var buf: [256]u8 = undefined;
+                var reader = file.reader(&buf);
+
+                var query: [1 << 16]u8 = undefined;
+                const len = try reader.interface.readSliceShort(&query);
+
+                try tocompile.append(self.allocator, try .dupe(
+                    self.allocator,
+                    query[0..len],
+                    std.fs.path.basename(path),
+                ));
+            }
+
+            if (glep.next()) |arg| {
+                try ansi.print(e, "Unnecessary argument '{s}' found.\r\n", .{arg});
+                return false;
+            }
+        },
+        .args => {
+            while (glep.next()) |stmt| {
+                try tocompile.append(self.allocator, try .dupe(self.allocator, stmt, null));
+            }
+        },
+    }
+    std.debug.assert(glep.remaining() == 0);
+
+    var torun = std.ArrayList(usrl.Script.Managed).empty;
+    defer torun.deinit(self.allocator);
+    defer for (torun.items) |s| s.deinit();
+
+    if (tocompile.items.len == 0) return true;
+    for (tocompile.items) |source| {
+        const tkns = self.tokenize(source) orelse continue;
+        defer usrl.Token.free(self.allocator, tkns);
+
+        const script = self.parse(tkns, source) orelse continue;
+        errdefer script.deinit();
+
+        try torun.append(self.allocator, script);
+    }
+
+    if (check) return torun.items.len == tocompile.items.len;
+    if (torun.items.len < tocompile.items.len) return false;
+
+    const outfile = if (output) |outpath| blk: {
+        if (std.fs.path.isAbsolute(outpath)) {
+            break :blk std.fs.createFileAbsolute(outpath, .{});
+        } else {
+            break :blk self.cwd.createFile(outpath, .{});
+        }
+    } catch |err| {
+        const name = std.fs.path.basename(outpath);
+        try ansi.print(e, "Failed to open output file '{s}': {t}\r\n", .{ name, err });
+        return false;
+    } else self.out.file;
+    defer outfile.close();
+
+    var wbuf: [4096]u8 = undefined;
+    var out = outfile.writer(&wbuf);
+
+    for (torun.items, 0..) |s, j| {
+        if (!self.run(s.script, proj, &out.interface, tocompile.items[j])) return false;
+    }
     return true;
 }
 
-pub fn startInteractiveMode(self: This) !bool {
+pub fn startInteractiveMode(self: This, proj: usrl.Project) !bool {
     const ansi = ANSI.init(self.out);
     const writer = &self.out.interface;
     const reader = &self.in.interface;
-    const parser = usrl.Parser{
-        .allocator = self.allocator,
-    };
 
     it: while (true) {
         try ansi.print("D", ">> ", .{});
@@ -171,254 +196,117 @@ pub fn startInteractiveMode(self: This) !bool {
         };
 
         const query = std.mem.trim(u8, line, " \n\t\r");
-        if (query.len == 0) {
-            continue; // skip empty lines
-        }
+        if (query.len == 0) continue; // skip empty lines
 
-        const source = try usrl.Source.anonymous(query, self.allocator);
-        defer source.deinit();
+        const source = Source{
+            .name = null,
+            .source = query,
+        };
 
-        _ = try self.parseAndRun(source, parser, .{
-            .allocator = self.allocator,
-            .cwd = self.cwd,
-            .out = &self.out.interface,
-        });
+        const tkns = self.tokenize(source) orelse continue;
+        defer usrl.Token.free(self.allocator, tkns);
+
+        const script = self.parse(tkns, source) orelse continue;
+        defer script.deinit();
+
+        _ = self.run(script.script, proj, writer, source);
     }
     try writer.writeAll("\r\n");
     return true;
 }
 
-pub fn parse(self: This, source: usrl.Source, parser: usrl.Parser) !?usrl.Script {
-    const result = try parser.parse(source);
-    switch (result) {
-        .ok => |script| return script,
-        .err => |problems| {
-            for (problems) |p| try printParseProblem(p, source, self.err);
-            parser.allocator.free(problems);
-        },
-    }
-    return null;
+pub fn tokenize(self: This, source: Source) ?[]usrl.Token {
+    var diag: usrl.TokenizeDiagnostics = .init(self.allocator);
+    defer diag.deinit();
+
+    return usrl.tokenize(source.source, self.allocator, &diag) catch |err| {
+        switch (err) {
+            error.USRLTokenizeError => while (diag.pop()) |prob| {
+                printTokenizeProblem(prob, source, self.err) catch continue;
+            },
+            else => {
+                const ansi = ANSI.init(self.err);
+                ansi.print(eh, "SYNTAX ERROR: ", .{}) catch {};
+                ansi.print(e, "Unexpected {t}\r\n", .{err}) catch {};
+            },
+        }
+        return null;
+    };
 }
 
-pub fn run(self: This, script: usrl.Script, config: usrl.Script.RunConfig, source: usrl.Source) !bool {
-    const result = try script.run(config);
-    switch (result) {
-        .ok => return true,
-        .err => |problems| {
-            for (problems) |p| try printRuntimeProblem(p, source, self.err);
-            config.allocator.free(problems);
-        },
-    }
-    return false;
+pub fn parse(self: This, tokens: []usrl.Token, source: Source) ?usrl.Script.Managed {
+    var diag: usrl.ParseDiagnostics = .init(self.allocator);
+    defer diag.deinit();
+
+    return usrl.parseManaged(tokens, self.allocator, &diag) catch |err| {
+        switch (err) {
+            error.USRLParseError => while (diag.pop()) |prob| {
+                printParseProblem(prob, source, self.err) catch continue;
+            },
+            else => {
+                const ansi = ANSI.init(self.err);
+                ansi.print(eh, "SYNTAX ERROR: ", .{}) catch {};
+                ansi.print(e, "Unexpected {t}\r\n", .{err}) catch {};
+            },
+        }
+        return null;
+    };
 }
 
-pub fn parseAndRun(self: This, source: usrl.Source, parser: usrl.Parser, config: usrl.Script.RunConfig) !bool {
-    const script = try self.parse(source, parser);
-    if (script) |s| {
-        defer s.deinit();
-        return try self.run(s, config, source);
-    }
-    return false;
+pub fn run(self: This, script: usrl.Script, proj: usrl.Project, out: *std.Io.Writer, source: Source) bool {
+    var diag: usrl.RuntimeDiagnostics = .init(self.allocator);
+    defer diag.deinit();
+
+    usrl.run(script, self.allocator, &diag, .{
+        .proj = proj,
+        .out = out,
+    }) catch |err| {
+        switch (err) {
+            error.USRLRuntimeError => while (diag.pop()) |prob| {
+                printRuntimeProblem(prob, source, self.err) catch continue;
+            },
+            else => {
+                const ansi = ANSI.init(self.err);
+                ansi.print(eh, "RUNTIME ERROR: ", .{}) catch {};
+                ansi.print(e, "Unexpected {t}\r\n", .{err}) catch {};
+            },
+        }
+        return false;
+    };
+    return true;
 }
 
-pub fn printParseProblem(parse_error: usrl.ParseProblem, source: usrl.Source, fw: *std.fs.File.Writer) !void {
+pub fn printTokenizeProblem(prob: usrl.TokenizeProblem, source: Source, fw: *std.fs.File.Writer) std.Io.Writer.Error!void {
     var ansi = ANSI.init(fw);
-    var out = &fw.interface;
 
-    try ansi.print(eh, "PARSING ERROR: ", .{});
-
-    switch (parse_error) {
-        .never_closed_string => |err| {
-            try ansi.print(e, "Never closed string at index {d}\r\n", .{err.location.index});
-            try printLineHighlight(err.location, source, fw);
-        },
-        .unexpected_token => |err| {
-            {
-                ansi.begin(e);
-                defer ansi.end(e);
-                try out.print("Unexpected {f}", .{err.found.value});
-                if (err.expected.len > 0) try out.print(", expected ", .{});
-                for (err.expected, 0..) |expected_type, i| {
-                    if (i > 0 and i != err.expected.len - 1) try out.print(", ", .{});
-                    if (i != 0 and i == err.expected.len - 1) try out.print(" or ", .{});
-                    try out.print("{f}", .{expected_type});
-                }
-                try out.print("\r\n", .{});
-            }
-            try printLineHighlight(err.found.loc, source, fw);
-        },
-        .unexpected_character => |err| {
-            try ansi.print(e, "Unexpected character '{s}'\r\n", .{err.location.lexeme(source.source)});
-            try printLineHighlight(err.location, source, fw);
-        },
-        .invalid_number => |err| {
-            try ansi.print(e, "Invalid number '{s}'\r\n", .{err.location.lexeme(source.source)});
-            try printLineHighlight(err.location, source, fw);
-        },
-        .invalid_csharp_identifier => |err| {
-            try ansi.print(e, "Invalid C# identifier '{s}'\r\n", .{err.token.asSlice()});
-            try printLineHighlight(err.token.loc, source, fw);
-        },
-        .invalid_guid => |err| {
-            try ansi.print(e, "Invalid GUID '{s}'\r\n", .{err.token.asSlice()});
-            try printLineHighlight(err.token.loc, source, fw);
-        },
-        .duplicate_clause => |err| {
-            try ansi.print(e, "Duplicate clause '{s}' appeared at:\r\n", .{err.clause});
-            try printLineHighlight(err.first.loc, source, fw);
-            try ansi.print(e, "But also at:\r\n", .{});
-            try printLineHighlight(err.second.loc, source, fw);
-        },
-        .missing_clause => |err| {
-            try ansi.print(e, "Missing clause '{s}'\r\n", .{err.clause});
-            try printLineHighlight(err.placement.loc, source, fw);
-        },
-        .invalid_assignment_target => |err| {
-            try ansi.print(e, "Invalid assignment target\r\n", .{});
-            try printLineHighlight(err.location, source, fw);
-        },
-        .invalid_mode_for_clause => |err| {
-            try ansi.print(e, "Cannot use search mode '{t}' with clause '{s}'\r\n", .{ err.mode, err.clause });
-            try printLineHighlight(err.location, source, fw);
-        },
-        .unexpected => |err| {
-            try ansi.print(e, "Unexpected {t}\r\n", .{err});
-        },
-    }
-
-    try out.flush();
+    try ansi.print(eh, "SYNTAX ERROR: ", .{});
+    try ansi.print(e, "{f}.\r\n", .{prob});
+    try printLineHighlight(prob.loc(), source, fw);
+    try fw.interface.flush();
 }
 
-pub fn printRuntimeProblem(runtime_error: usrl.RuntimeProblem, source: usrl.Source, fw: *std.fs.File.Writer) !void {
+pub fn printParseProblem(prob: usrl.ParseProblem, source: Source, fw: *std.fs.File.Writer) std.Io.Writer.Error!void {
+    var ansi = ANSI.init(fw);
+
+    try ansi.print(eh, "SYNTAX ERROR: ", .{});
+    try ansi.print(e, "{f}.\r\n", .{prob});
+    try printLineHighlight(prob.loc(), source, fw);
+    try fw.interface.flush();
+}
+
+pub fn printRuntimeProblem(prob: usrl.RuntimeProblem, source: Source, fw: *std.fs.File.Writer) std.Io.Writer.Error!void {
     const ansi = ANSI.init(fw);
-    const out = &fw.interface;
 
     try ansi.print(eh, "RUNTIME ERROR: ", .{});
-
-    switch (runtime_error) {
-        .invalid_asset => |err| {
-            try ansi.print(e, "Invalid asset path\r\n", .{});
-            try printLineHighlight(err.path, source, fw);
-        },
-        .invalid_path => |err| {
-            try ansi.print(e, "Invalid path\r\n", .{});
-            try printLineHighlight(err.path, source, fw);
-        },
-        .division_by_zero => |err| {
-            try ansi.print(e, "Division by zero\r\n", .{});
-            try printLineHighlight(err.location, source, fw);
-        },
-        .type_mismatch => |err| {
-            try ansi.print(e, "Found {s} as lhs\r\n", .{@tagName(err.left)});
-            try printLineHighlight(err.left_loc, source, fw);
-            try ansi.print(e, "And {s} as rhs\r\n", .{@tagName(err.right)});
-            try printLineHighlight(err.right_loc, source, fw);
-        },
-        .unexpected_type => |err| {
-            {
-                ansi.begin(e);
-                defer ansi.end(e);
-                try out.print("Unexpected type {s}", .{@tagName(err.found)});
-                if (err.expected.len > 0) try out.print(", expected ", .{});
-                for (err.expected, 0..) |expected_type, i| {
-                    if (i > 0 and i != err.expected.len - 1) try out.print(", ", .{});
-                    if (i != 0 and i == err.expected.len - 1) try out.print(" or ", .{});
-                    try out.print("{s}", .{@tagName(expected_type)});
-                }
-                try out.print("\r\n", .{});
-            }
-            try printLineHighlight(err.location, source, fw);
-        },
-        .invalid_argument_count => |err| {
-            const mode_str = switch (err.mode) {
-                .exact => "exactly",
-                .at_least => "at least",
-                .at_most => "at most",
-            };
-            try ansi.print(e, "Invalid argument count: expected {s} {d}, found {d}\r\n", .{ mode_str, err.expected, err.found });
-            try printLineHighlight(err.location, source, fw);
-        },
-        .invalid_argument => |err| {
-            try ansi.print(e, "Invalid argument: {s}\r\n", .{err.reason});
-            try printLineHighlight(err.location, source, fw);
-        },
-        .undefined_variable => |err| {
-            try ansi.print(e, "Undefined {f}. Use '{f} := (...)' to define it.\r\n", .{
-                err.varr.value,
-                std.fmt.alt(err.varr.value, .raw),
-            });
-            try printLineHighlight(err.location, source, fw);
-        },
-        .already_defined_variable => |err| {
-            try ansi.print(e, "{f} is already defined. Use '{f} = (...)' to update it.\r\n", .{
-                err.varr.value,
-                std.fmt.alt(err.varr.value, .raw),
-            });
-            try printLineHighlight(err.location, source, fw);
-        },
-        .overriding_readonly => |err| {
-            try ansi.print(e, "Cannot override read-only {f}\r\n", .{err.varr.value});
-            try printLineHighlight(err.location, source, fw);
-        },
-        .invalid_index => |err| {
-            try ansi.print(e, "Invalid index {d}\r\n", .{err.index});
-            try printLineHighlight(err.location, source, fw);
-        },
-        .out_of_bounds => |err| {
-            try ansi.print(e, "Index {d} out of bounds (length: {d})\r\n", .{ err.index, err.len });
-            try printLineHighlight(err.location, source, fw);
-        },
-        .invalid_asset_reference => |err| {
-            try ansi.print(e, "Invalid asset with GUID '{f}'. This could be because the asset could not be opened properly or it wasn't properly configured.\r\n", .{err.guid});
-            try printLineHighlight(err.location, source, fw);
-        },
-        .asset_not_found => |err| {
-            try ansi.print(e, "Asset with GUID '{f}' was not found.\r\n", .{err.guid});
-            try printLineHighlight(err.location, source, fw);
-        },
-        .object_definition_not_found => |err| {
-            try ansi.print(e, "Object definition with file ID {d} was not found in asset with GUID '{f}'.\r\n", .{ err.file_id, err.guid });
-            try printLineHighlight(err.location, source, fw);
-        },
-        .null_object_definition_reference => |err| {
-            try ansi.print(e, "Object definition is null\r\n", .{});
-            try printLineHighlight(err.location, source, fw);
-        },
-        .unassignable_value => |err| {
-            try ansi.print(e, "Value of type {t} cannot be assigned to {t}\r\n", .{ err.value_type, err.assigned_to });
-            try printLineHighlight(err.location, source, fw);
-        },
-        .undefinable_target => |err| {
-            try ansi.print(e, "Cannot define {t}. The ':=' operator can only be used with variables.\r\n", .{err.target});
-            try printLineHighlight(err.location, source, fw);
-        },
-        .search_failed => |err| {
-            try ansi.print(e, "Search for object with GUID '{f}' failed.\r\n", .{err.guid});
-        },
-        .update_during_readonly_eval => |err| {
-            try ansi.print(e, "Cannot perform update during read-only evaluation.\r\n", .{});
-            try printLineHighlight(err.location, source, fw);
-        },
-        .invalid_target_asset => |err| {
-            const filter_str = switch (err.filter) {
-                .any => "any asset",
-                .prefabs_and_components => "prefab or component",
-                .components_only => "component",
-            };
-            try ansi.print(e, "Invalid target asset. Expected {s} type.\r\n", .{filter_str});
-            try printLineHighlight(err.location, source, fw);
-        },
-        .unexpected => |err| {
-            try ansi.print(e, "Unexpected {t}\r\n", .{err});
-        },
-    }
-
-    try out.flush();
+    try ansi.print(e, "{f}.\r\n", .{prob});
+    if (prob.loc()) |loc| try printLineHighlight(loc, source, fw);
+    try fw.interface.flush();
 }
 
-pub fn printLineHighlight(loc: usrl.Token.Location, source: usrl.Source, out: *std.fs.File.Writer) !void {
-    const line_index = source.lineIndex(loc.index) orelse return error.InvalidLocation;
-    const line = source.line(line_index) orelse return error.InvalidLocation;
+pub fn printLineHighlight(loc: usrl.Token.Location, source: Source, out: *std.fs.File.Writer) std.Io.Writer.Error!void {
+    std.debug.assert(loc.index <= source.source.len);
+    const line_index = source.lineIndex(loc.index).?;
+    const line = source.line(line_index).?;
 
     var ansi = ANSI.init(out);
     if (source.name) |name| {
@@ -426,7 +314,7 @@ pub fn printLineHighlight(loc: usrl.Token.Location, source: usrl.Source, out: *s
     }
     try out.interface.print("{s}\r\n", .{line});
 
-    const index = loc.index - (source.lineStart(line_index) orelse unreachable);
+    const index = loc.index - source.lineStart(line_index).?;
     const start = offset(index, line);
     const len = offset(@min(index + @max(loc.len, 1) - 1, line.len - 1), line) + 1 - start;
 
@@ -455,12 +343,12 @@ pub fn offset(index: usize, line: []const u8) usize {
 }
 
 /// Prints the standard help message to the given writer.
-pub fn printHelp(out: *std.Io.Writer) anyerror!void {
+pub fn printHelp(out: *std.Io.Writer) std.Io.Writer.Error!void {
     try out.writeAll(@embedFile("help.txt"));
 }
 
 /// Opens the language manual
-pub fn openManual() anyerror!void {
+pub fn openManual() !void {
     const cwd = std.fs.cwd();
     const manual_file = try cwd.createFile("manual.html", .{});
     try manual_file.writeAll(@embedFile("manual.html"));
@@ -491,16 +379,9 @@ pub fn openURL(url: [:0]const u8) void {
     }
 }
 
-pub const LocalizedScript = struct {
-    script: usrl.Script,
-    source: usrl.Source,
-    dir: ?std.fs.Dir = null,
-
-    pub fn cleanup(self: *LocalizedScript) void {
-        self.script.deinit();
-        self.source.deinit();
-        if (self.dir) |*d| d.close();
-    }
+pub const SourcedScript = struct {
+    source: Source,
+    script: usrl.Script.Managed,
 };
 
 pub const ANSI = struct {
@@ -564,7 +445,7 @@ pub const ANSI = struct {
         }
     }
 
-    pub fn print(self: ANSI, tags: []const u8, comptime format: []const u8, args: anytype) !void {
+    pub fn print(self: ANSI, tags: []const u8, comptime format: []const u8, args: anytype) std.Io.Writer.Error!void {
         if (!self.enabled) {
             try self.out.print(format, args);
             return;

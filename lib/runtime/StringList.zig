@@ -1,4 +1,5 @@
 const std = @import("std");
+const tracy = @import("tracy");
 
 const This = @This();
 pub const AccessError = error{OutOfBounds};
@@ -89,6 +90,9 @@ pub fn clear(self: *This) void {
 }
 
 pub fn has(self: *This, str: []const u8) bool {
+    const zone = tracy.Zone(@src());
+    defer zone.End();
+
     return for (self.ctx.items) |item| {
         if (std.mem.eql(u8, item, str)) break true;
     } else false;

@@ -1,12 +1,12 @@
 const std = @import("std");
 const core = @import("core");
+const tracy = @import("tracy");
 const log = std.log.scoped(.rename_statement);
 
 const This = @This();
 const Stmt = core.Stmt;
 const clse = core.Stmt.clse;
 const TokenIterator = core.Token.Iterator;
-const Scanner = core.runtime.Scanner;
 const ObjIterator = core.runtime.ObjIterator;
 const Yaml = core.runtime.Yaml;
 const GUID = core.runtime.GUID;
@@ -19,18 +19,16 @@ of: clse.Of,
 in: ?clse.In,
 
 pub fn parse(tokens: *TokenIterator, env: Stmt.ParseEnv) Stmt.ParseError!This {
-    core.profiling.begin(parse);
-    defer core.profiling.stop();
+    const zone = tracy.Zone(@src());
+    defer zone.End();
 
     if (!tokens.match(.RENAME)) return error.TokenMismatch;
 
-    const old_name = try (try tokens.grabAny(&.{ .string, .literal }, env.diag)).dupe(env.allocator);
-    errdefer old_name.cleanup(env.allocator);
+    const old_name = try tokens.grabAny(&.{ .string, .literal }, env.diag);
 
     _ = try tokens.grab(.FOR, env.diag);
 
-    const new_name = try (try tokens.grabAny(&.{ .string, .literal }, env.diag)).dupe(env.allocator);
-    errdefer new_name.cleanup(env.allocator);
+    const new_name = try tokens.grabAny(&.{ .string, .literal }, env.diag);
 
     const Clauses = struct {
         OF: clse.Of,
@@ -48,14 +46,11 @@ pub fn parse(tokens: *TokenIterator, env: Stmt.ParseEnv) Stmt.ParseError!This {
 
 pub fn cleanup(self: This, allocator: std.mem.Allocator) void {
     self.of.cleanup(allocator);
-    if (self.in) |in| in.cleanup(allocator);
-    self.old_name.cleanup(allocator);
-    self.new_name.cleanup(allocator);
 }
 
 pub fn run(self: This, env: Stmt.RunEnv) Stmt.RunError!void {
-    core.profiling.begin(run);
-    defer core.profiling.stop();
+    const zone = tracy.Zone(@src());
+    defer zone.End();
 
     const guids = try self.of.getGUID(.components_only, env);
     defer env.allocator.free(guids);
@@ -67,7 +62,7 @@ pub fn run(self: This, env: Stmt.RunEnv) Stmt.RunError!void {
         .where = null,
     };
 
-    const targets = try show.search(null, null, env);
+    const targets = try show.search(null, env);
     defer env.allocator.free(targets);
     defer for (targets) |asset| env.allocator.free(asset);
 
@@ -76,13 +71,13 @@ pub fn run(self: This, env: Stmt.RunEnv) Stmt.RunError!void {
 }
 
 pub fn updateAll(self: This, references: []const []const u8, guids: []const GUID, env: Stmt.RunEnv) !void {
-    core.profiling.begin(updateAll);
-    defer core.profiling.stop();
+    const zone = tracy.Zone(@src());
+    defer zone.End();
 
     var objs: core.runtime.ObjMap = .init(env.allocator);
     defer objs.deinit();
 
-    var assets: core.runtime.AssetMap = .init(env.allocator);
+    var assets: core.runtime.AssetMap = .init(env.allocator, env.proj);
     defer assets.deinit();
 
     for (references) |path| {
@@ -134,7 +129,7 @@ pub fn update(
 pub fn updateObj(
     self: This,
     yml: *core.runtime.Yaml,
-    file_id: u64,
+    file_id: core.runtime.FileID,
     class_id: core.runtime.ClassID,
     guid: GUID,
     guids: []const GUID,
@@ -189,8 +184,8 @@ pub fn updateObj(
                 std.debug.assert(reference_node.type == yaml.ly.YAML_MAPPING_NODE);
                 const file_id_node = yaml.getNode(doc.*, reference_node.*, "fileID") orelse return error.InvalidObject;
                 const guid_node = yaml.getNode(doc.*, reference_node.*, "guid") orelse return error.InvalidObject;
-                const target_file_id = try std.fmt.parseInt(u64, yaml.fromBuffer(u8, file_id_node.data.scalar), 10);
-                const target_guid = try GUID.fromText(yaml.fromBuffer(u8, guid_node.data.scalar));
+                const target_file_id = try std.fmt.parseInt(core.runtime.FileID, yaml.fromBuffer(u8, file_id_node.data.scalar), 10);
+                const target_guid = try GUID.from(yaml.fromBuffer(u8, guid_node.data.scalar));
 
                 // Check if the referenced object is one of the target GUIDs
                 const asset_path = assetmap.get(target_guid) orelse try assetmap.fetch(target_guid) orelse {
@@ -214,7 +209,12 @@ pub fn updateObj(
     }
 }
 
-pub fn hasObjInstance(asset: []const u8, file_id: u64, guids: []const GUID, allocator: std.mem.Allocator) !bool {
+pub fn hasObjInstance(
+    asset: []const u8,
+    file_id: core.runtime.FileID,
+    guids: []const GUID,
+    allocator: std.mem.Allocator,
+) !bool {
     const file = try std.fs.openFileAbsolute(asset, .{ .mode = .read_only });
     defer file.close();
 

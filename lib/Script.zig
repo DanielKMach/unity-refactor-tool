@@ -1,58 +1,35 @@
 const std = @import("std");
 const core = @import("core");
+const tracy = @import("tracy");
 
 const This = @This();
 const log = std.log.scoped(.script);
 
-allocator: std.mem.Allocator,
 statements: []core.Stmt,
 
-pub fn run(self: This, options: RunConfig) std.mem.Allocator.Error!core.Result(void, []core.RuntimeProblem) {
-    var transaction = core.Transaction.init(options.allocator);
-    defer transaction.deinit();
-
-    var diag = core.RuntimeDiagnostics.init(options.allocator);
-    defer diag.deinit();
-
-    const env = core.Stmt.RunEnv{
-        .diag = &diag,
-        .transaction = &transaction,
-        .allocator = options.allocator,
-        .out = options.out,
-        .cwd = options.cwd,
-    };
-
-    self.runEnv(env) catch |err| {
-        transaction.rollback();
-        switch (err) {
-            error.USRLRuntimeError => {},
-            else => |e| diag.push(.{ .unexpected = e }) catch {},
-        }
-        return .ERR(try diag.toOwnedSlice());
-    };
-
-    transaction.commit();
-    return .OK(void{});
-}
-
-pub fn runEnv(self: This, env: core.Stmt.RunEnv) anyerror!void {
-    core.profiling.begin(run);
-    defer core.profiling.stop();
+pub fn run(self: This, env: core.Stmt.RunEnv) anyerror!void {
+    const zone = tracy.Zone(@src());
+    defer zone.End();
 
     for (self.statements) |stmt| {
         try stmt.run(env);
     }
 }
 
-pub fn deinit(self: This) void {
+pub fn deinit(self: This, allocator: std.mem.Allocator) void {
     for (self.statements) |stmt| {
-        stmt.deinit(self.allocator);
+        stmt.deinit(allocator);
     }
-    self.allocator.free(self.statements);
+    allocator.free(self.statements);
 }
 
-pub const RunConfig = struct {
+pub const Managed = struct {
     allocator: std.mem.Allocator,
-    out: *std.Io.Writer,
-    cwd: std.fs.Dir,
+    tokens: []core.Token,
+    script: This,
+
+    pub fn deinit(self: Managed) void {
+        self.script.deinit(self.allocator);
+        core.Token.free(self.allocator, self.tokens);
+    }
 };

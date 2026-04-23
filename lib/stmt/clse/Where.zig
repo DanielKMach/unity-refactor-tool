@@ -1,13 +1,14 @@
 const core = @import("core");
 const std = @import("std");
+const tracy = @import("tracy");
 
 const Where = @This();
 
 expr: *core.Expr,
 
 pub fn parse(tokens: *core.Token.Iterator, env: core.Stmt.ParseEnv) core.Stmt.ParseError!Where {
-    core.profiling.begin(parse);
-    defer core.profiling.stop();
+    const zone = tracy.Zone(@src());
+    defer zone.End();
 
     if (!tokens.match(.WHERE)) return error.TokenMismatch;
 

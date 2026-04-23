@@ -4,8 +4,14 @@ const core = @import("core");
 const GUID = @This();
 
 const ScanError = std.mem.Allocator.Error || core.yaml.LibyamlError || error{InvalidMetaFile};
-const FromTextError = error{InvalidGUID};
-const FromFileError = ScanError || std.fs.File.OpenError;
+pub const FromError = error{InvalidGUID};
+pub const FromFileError = FromError || ScanError || std.fs.File.OpenError;
+
+/// A GUID where all bits are set to zero.
+pub const zero: GUID = .{ .id = std.math.minInt(u128) };
+
+/// A GUID where all bits are set to one.
+pub const one: GUID = .{ .id = std.math.maxInt(u128) };
 
 /// The value of the GUID consisting of 32 hexadecimal digits.
 id: u128,
@@ -27,13 +33,18 @@ pub fn format(self: GUID, writer: *std.Io.Writer) std.Io.Writer.Error!void {
     return writer.print("{x:0>32}", .{self.id});
 }
 
-pub fn fromText(guid: []const u8) FromTextError!GUID {
+/// Parses a GUID from a string.
+/// The string must be a valid GUID.
+pub fn from(guid: []const u8) FromError!GUID {
     if (!isGUID(guid)) return error.InvalidGUID;
-    const id = std.fmt.parseInt(u128, guid, 16) catch return error.InvalidGUID;
+    const id = std.fmt.parseUnsigned(u128, guid, 16) catch return error.InvalidGUID;
     return GUID{ .id = id };
 }
 
-pub fn fromFile(path: []const u8, allocator: std.mem.Allocator) FromFileError!GUID {
+/// Extracts the GUID from an asset given its path and returns it.
+///
+/// The asset must have a valid .meta file with the same name.
+pub fn fromAsset(path: []const u8, allocator: std.mem.Allocator) FromFileError!GUID {
     const is_meta = std.mem.endsWith(u8, path, ".meta");
     const metafile_path = if (is_meta) path else try std.mem.concat(allocator, u8, &.{ path, ".meta" });
     defer if (!is_meta) allocator.free(metafile_path);
@@ -47,7 +58,7 @@ pub fn fromFile(path: []const u8, allocator: std.mem.Allocator) FromFileError!GU
     const guid = try scanMetafileAlloc(&reader.interface, allocator);
     defer allocator.free(guid);
 
-    return fromText(guid) catch unreachable;
+    return try from(guid);
 }
 
 /// Scans the metafile for the GUID and returns it.
@@ -84,17 +95,116 @@ pub fn isGUID(str: []const u8) bool {
     } else true;
 }
 
+test from {
+    const g0 = GUID.zero;
+    const g1 = GUID{ .id = 0x123abc };
+    const g2 = GUID{ .id = 0x1234567890abcdef1234567890abcdef };
+    const g3 = GUID.one;
+
+    try std.testing.expectEqual(g0, from("00000000000000000000000000000000"));
+    try std.testing.expectEqual(g1, from("00000000000000000000000000123abc"));
+    try std.testing.expectEqual(g1, from("00000000000000000000000000123ABC"));
+    try std.testing.expectEqual(g2, from("1234567890abcdef1234567890abcdef"));
+    try std.testing.expectEqual(g2, from("1234567890ABCDEF1234567890ABCDEF"));
+    try std.testing.expectEqual(g2, from("1234567890ABCDEF1234567890abcdef"));
+    try std.testing.expectEqual(g3, from("ffffffffffffffffffffffffffffffff"));
+    try std.testing.expectEqual(g3, from("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"));
+    try std.testing.expectEqual(g3, from("ffffffffffffffffFFFFFFFFFFFFFFFF"));
+
+    try std.testing.expectError(error.InvalidGUID, from(""));
+    try std.testing.expectError(error.InvalidGUID, from("0000000000000000000000000000000"));
+    try std.testing.expectError(error.InvalidGUID, from("000000000000000000000000000000000"));
+    try std.testing.expectError(error.InvalidGUID, from("gggggggggggggggggggggggggggggggg"));
+    try std.testing.expectError(error.InvalidGUID, from("GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG"));
+}
+
 test eql {
-    const g1 = GUID{ .id = 0x1234567890abcdef1234567890abcdef };
-    const g2 = GUID{ .id = 0x0 };
-    const g3 = GUID{ .id = std.math.maxInt(u128) };
-    try std.testing.expect(g1.eql("1234567890abcdef1234567890abcdef"));
-    try std.testing.expect(g1.eql("1234567890ABCDEF1234567890ABCDEF"));
-    try std.testing.expect(!g1.eql("1234567890abcdef1234567890abcdee"));
-    try std.testing.expect(!g1.eql("2234567890abcdef1234567890abcdef"));
-    try std.testing.expect(!g1.eql("1234567890ABCDEF1234567890AACDEF"));
-    try std.testing.expect(g2.eql("00000000000000000000000000000000"));
-    try std.testing.expect(!g2.eql("0000000000000000000000000000000f"));
+    const g0 = GUID.zero;
+    const g1 = GUID{ .id = 0x123abc };
+    const g2 = GUID{ .id = 0x1234567890abcdef1234567890abcdef };
+    const g3 = GUID.one;
+
+    try std.testing.expect(g0.eql("00000000000000000000000000000000"));
+    try std.testing.expect(g1.eql("00000000000000000000000000123ABC"));
+    try std.testing.expect(g1.eql("00000000000000000000000000123abc"));
+    try std.testing.expect(g2.eql("1234567890abcdef1234567890abcdef"));
+    try std.testing.expect(g2.eql("1234567890ABCDEF1234567890ABCDEF"));
+    try std.testing.expect(g2.eql("1234567890ABCDEF1234567890abcdef"));
     try std.testing.expect(g3.eql("ffffffffffffffffffffffffffffffff"));
-    try std.testing.expect(!g3.eql("fffffffffffffffffffffffffffffff0"));
+    try std.testing.expect(g3.eql("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"));
+    try std.testing.expect(g3.eql("FFFFFFFFFFFFFFFFffffffffffffffff"));
+
+    try std.testing.expect(!g0.eql(""));
+    try std.testing.expect(!g0.eql("0000000000000000000000000000000"));
+    try std.testing.expect(!g0.eql("000000000000000000000000000000000"));
+    try std.testing.expect(!g0.eql("00000000000000000000000000000001"));
+    try std.testing.expect(!g1.eql("00000000000000000000000000123abb"));
+    try std.testing.expect(!g1.eql("00000000000000000000000000123ABB"));
+    try std.testing.expect(!g1.eql("00000000000000000000000000123abd"));
+    try std.testing.expect(!g1.eql("00000000000000000000000000123ABD"));
+    try std.testing.expect(!g2.eql("1234567890abcdef1234567890abcdee"));
+    try std.testing.expect(!g2.eql("1234567890ABCDEF1234567890ABCDEE"));
+    try std.testing.expect(!g2.eql("1234567890abcdef1234567890abcdf0"));
+    try std.testing.expect(!g2.eql("1234567890ABCDEF1234567890ABCDF0"));
+    try std.testing.expect(!g2.eql("ffffffffffffffffffffffffffffffff"));
+    try std.testing.expect(!g2.eql("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"));
+    try std.testing.expect(!g2.eql("00000000000000000000000000000000"));
+    try std.testing.expect(!g3.eql("fffffffffffffffffffffffffffffffe"));
+    try std.testing.expect(!g3.eql("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFE"));
+}
+
+test isGUID {
+    try std.testing.expect(isGUID("00000000000000000000000000000000"));
+    try std.testing.expect(isGUID("00000000000000000000000000000001"));
+    try std.testing.expect(isGUID("1234567890abcdef1234567890abcdef"));
+    try std.testing.expect(isGUID("1234567890ABCDEF1234567890ABCDEF"));
+    try std.testing.expect(isGUID("1234567890ABCDEF1234567890abcdef"));
+    try std.testing.expect(isGUID("ffffffffffffffffffffffffffffffff"));
+    try std.testing.expect(isGUID("fffffffffffffffffffffffffffffffe"));
+    try std.testing.expect(isGUID("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"));
+    try std.testing.expect(isGUID("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFE"));
+    try std.testing.expect(isGUID("FFFFFFFFFFFFFFFFffffffffffffffff"));
+    try std.testing.expect(isGUID("FFFFFFFFFFFFFFFFfffffffffffffffe"));
+
+    try std.testing.expect(!isGUID(""));
+    try std.testing.expect(!isGUID("0000000000000000000000000000000"));
+    try std.testing.expect(!isGUID("000000000000000000000000000000000"));
+    try std.testing.expect(!isGUID("gggggggggggggggggggggggggggggggg"));
+    try std.testing.expect(!isGUID("GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG"));
+}
+
+test format {
+    const g0 = GUID.zero;
+    const g1 = GUID{ .id = 0x123abc };
+    const g2 = GUID{ .id = 0x1234567890abcdef1234567890abcdef };
+    const g3 = GUID.one;
+
+    try std.testing.expectFmt("00000000000000000000000000000000", "{f}", .{g0});
+    try std.testing.expectFmt("00000000000000000000000000123abc", "{f}", .{g1});
+    try std.testing.expectFmt("1234567890abcdef1234567890abcdef", "{f}", .{g2});
+    try std.testing.expectFmt("ffffffffffffffffffffffffffffffff", "{f}", .{g3});
+}
+
+test scanMetafile {
+    const meta =
+        \\ guid: 0123456789abcdef0123456789abcdef
+    ;
+
+    var buf: [32]u8 = undefined;
+    var rdr = std.Io.Reader.fixed(meta);
+
+    const guid = try scanMetafile(&rdr, &buf, std.testing.allocator);
+    try std.testing.expectEqualStrings("0123456789abcdef0123456789abcdef", guid);
+}
+
+test scanMetafileAlloc {
+    const meta =
+        \\ guid: 0123456789abcdef0123456789abcdef
+    ;
+
+    var rdr = std.Io.Reader.fixed(meta);
+
+    const guid = try scanMetafileAlloc(&rdr, std.testing.allocator);
+    defer std.testing.allocator.free(guid);
+    try std.testing.expectEqualStrings("0123456789abcdef0123456789abcdef", guid);
 }

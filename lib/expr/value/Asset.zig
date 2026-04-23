@@ -5,11 +5,12 @@ const log = std.log.scoped(.asset);
 
 const yaml = core.yaml;
 const GUID = core.runtime.GUID;
+const FileID = core.runtime.FileID;
 const Expr = core.Expr;
 const Value = core.Expr.Value;
 const Asset = @This();
 
-file_id: u64,
+file_id: FileID,
 guid: ?GUID, // If null, local to the ctx's file
 type: ?u4,
 
@@ -37,7 +38,7 @@ fn search(guid: GUID, env: Expr.eval.Env) SearchError![]const u8 {
     return path;
 }
 
-fn findObjDef(path: []const u8, guid: GUID, file_id: u64, env: Expr.eval.Env) FindError!core.runtime.ObjMap.Entry {
+fn findObjDef(path: []const u8, guid: GUID, file_id: FileID, env: Expr.eval.Env) FindError!core.runtime.ObjMap.Entry {
     if (file_id == 0) return error.NullObjectDefinition;
     const file = std.fs.openFileAbsolute(path, .{ .mode = .read_only }) catch return error.InvalidAsset;
     defer file.close();

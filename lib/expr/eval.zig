@@ -1,4 +1,5 @@
 const std = @import("std");
+const tracy = @import("tracy");
 const core = @import("core");
 
 const Expr = core.Expr;
@@ -23,6 +24,9 @@ pub const Env = struct {
 };
 
 pub fn evaluate(expr: *Expr, env: Env) Error!Value.Derived {
+    const zone = tracy.Zone(@src());
+    defer zone.End();
+
     return expr.derived(switch (expr.*) {
         .literal => |lit| switch (lit.token.value) {
             .number => |num| .{ .number = num },

@@ -5,22 +5,31 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
 
     const name = b.option([]const u8, "name", "Name of the executable") orelse "usrl";
-    const profile = b.option(bool, "profile", "Enable profiling") orelse false;
+    const profiling = b.option(bool, "profiling", "Enable profiling with tracy") orelse false;
     const keep_temp = b.option(bool, "keep-temp", "Keep transaction and temp files.") orelse false;
+    const max_script_size = b.option(usize, "max-script-size", "The maximum amount of bytes a script can take") orelse 1 << 16;
+    const scan_thread_count = b.option(usize, "scan-thread-count", "The number of threads that will be used when scanning") orelse 4;
 
     const install_step = b.getInstallStep();
     const run_step = b.step("run", "Run the CLI");
     const test_step = b.step("test", "Run unit tests");
-    const check_step = b.step("check", "Check the code for errors");
 
     const libyaml = b.dependency("libyaml", .{
         .target = target,
         .optimize = optimize,
     }).module("libyaml");
 
+    const ztracy = b.dependency("ztracy", .{
+        .target = target,
+        .optimize = optimize,
+        .enable_ztracy = profiling,
+    });
+
     const options = b.addOptions();
-    options.addOption(bool, "profiling", profile);
+    options.addOption(bool, "profiling", profiling);
     options.addOption(bool, "keep_temp", keep_temp);
+    options.addOption(usize, "max_script_size", max_script_size);
+    options.addOption(usize, "scan_thread_count", scan_thread_count);
     options.addOption([]const u8, "version", @import("build.zig.zon").version);
     const config = options.createModule();
 
@@ -31,8 +40,10 @@ pub fn build(b: *std.Build) void {
     });
 
     mod.addImport("core", mod);
-    mod.addImport("libyaml", libyaml);
     mod.addImport("config", config);
+    mod.addImport("libyaml", libyaml);
+    mod.addImport("tracy", ztracy.module("root"));
+    mod.linkLibrary(ztracy.artifact("tracy"));
 
     // main executable
     const exe = b.addExecutable(.{
@@ -44,12 +55,12 @@ pub fn build(b: *std.Build) void {
         }),
     });
     exe.root_module.addImport("usrl", mod);
-    exe.root_module.addImport("libyaml", libyaml);
     exe.root_module.addImport("config", config);
+    exe.root_module.addImport("tracy", ztracy.module("root"));
+    exe.root_module.linkLibrary(ztracy.artifact("tracy"));
 
     const install_urt = b.addInstallArtifact(exe, .{});
     install_step.dependOn(&install_urt.step);
-    check_step.dependOn(&install_urt.step);
 
     const run_urt = b.addRunArtifact(exe);
     run_urt.step.dependOn(install_step);
@@ -60,18 +71,7 @@ pub fn build(b: *std.Build) void {
     }
 
     // Tests
-    const tests = b.addTest(.{
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("tests/tests.zig"),
-            .target = target,
-            .optimize = optimize,
-        }),
-    });
-
-    tests.root_module.addImport("usrl", mod);
-
+    const tests = b.addTest(.{ .root_module = mod });
     const run_tests = b.addRunArtifact(tests);
-    run_tests.setCwd(b.path("tests"));
-
     test_step.dependOn(&run_tests.step);
 }

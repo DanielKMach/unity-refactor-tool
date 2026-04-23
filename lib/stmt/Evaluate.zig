@@ -1,5 +1,6 @@
 const std = @import("std");
 const core = @import("core");
+const tracy = @import("tracy");
 const ly = @import("libyaml");
 const log = std.log.scoped(.evaluate_statement);
 
@@ -19,8 +20,8 @@ in: ?clse.In,
 where: ?clse.Where = null,
 
 pub fn parse(tokens: *TokenIterator, env: Stmt.ParseEnv) Stmt.ParseError!This {
-    core.profiling.begin(parse);
-    defer core.profiling.stop();
+    const zone = tracy.Zone(@src());
+    defer zone.End();
 
     if (!tokens.match(.EVAL)) return error.TokenMismatch;
 
@@ -56,15 +57,14 @@ pub fn parse(tokens: *TokenIterator, env: Stmt.ParseEnv) Stmt.ParseError!This {
 
 pub fn cleanup(self: This, allocator: std.mem.Allocator) void {
     self.of.cleanup(allocator);
-    if (self.in) |in| in.cleanup(allocator);
     if (self.where) |where| where.cleanup(allocator);
     for (self.expr) |expr| expr.cleanup(allocator);
     allocator.free(self.expr);
 }
 
 pub fn run(self: This, env: core.Stmt.RunEnv) core.Stmt.RunError!void {
-    core.profiling.begin(run);
-    defer core.profiling.stop();
+    const zone = tracy.Zone(@src());
+    defer zone.End();
 
     const guid = try self.of.getGUID(.components_only, env);
     defer env.allocator.free(guid);
@@ -78,7 +78,7 @@ pub fn run(self: This, env: core.Stmt.RunEnv) core.Stmt.RunError!void {
 
     log.info("Searching for references...", .{});
 
-    const target_assets = try show.search(null, null, env);
+    const target_assets = try show.search(null, env);
     defer env.allocator.free(target_assets);
     defer for (target_assets) |asset| {
         env.allocator.free(asset);
@@ -90,13 +90,13 @@ pub fn run(self: This, env: core.Stmt.RunEnv) core.Stmt.RunError!void {
 }
 
 pub fn searchAndPrint(self: This, refs: []const []const u8, guid: []const GUID, env: core.Stmt.RunEnv) core.Stmt.RunError!void {
-    core.profiling.begin(searchAndPrint);
-    defer core.profiling.stop();
+    const zone = tracy.Zone(@src());
+    defer zone.End();
 
     var objs: core.runtime.ObjMap = .init(env.allocator);
     defer objs.deinit();
 
-    var assets: core.runtime.AssetMap = .init(env.allocator);
+    var assets: core.runtime.AssetMap = .init(env.allocator, env.proj);
     defer assets.deinit();
 
     for (refs) |path| {
@@ -113,8 +113,11 @@ pub fn searchAndPrint(self: This, refs: []const []const u8, guid: []const GUID, 
 }
 
 pub fn scanAndPrint(self: This, path: []const u8, guids: []const GUID, assets: *core.runtime.AssetMap, objs: *core.runtime.ObjMap, env: core.Stmt.RunEnv) !void {
-    core.profiling.begin(scanAndPrint);
-    defer core.profiling.stop();
+    const zone = tracy.Zone(@src());
+    defer zone.End();
+
+    const root = try env.proj.root.realpathAlloc(env.allocator, ".");
+    defer env.allocator.free(root);
 
     const file = try std.fs.openFileAbsolute(path, .{ .mode = .read_write });
     defer file.close();
@@ -177,13 +180,15 @@ pub fn scanAndPrint(self: This, path: []const u8, guids: []const GUID, assets: *
             results[i] = value;
         }
 
-        try print(path, results, env.out);
+        const subpath = try std.fs.path.relative(env.allocator, root, path);
+        defer env.allocator.free(subpath);
+        try print(subpath, results, env.out);
     }
 }
 
 pub fn saveChanges(assetmap: core.runtime.AssetMap, objmap: core.runtime.ObjMap, env: core.Stmt.RunEnv) !void {
-    core.profiling.begin(saveChanges);
-    defer core.profiling.stop();
+    const zone = tracy.Zone(@src());
+    defer zone.End();
 
     var fetched = assetmap.entries();
     while (fetched.next()) |entry| {
@@ -224,10 +229,10 @@ pub fn saveChanges(assetmap: core.runtime.AssetMap, objmap: core.runtime.ObjMap,
 }
 
 pub fn print(path: []const u8, value: []core.Expr.Value, out: *std.Io.Writer) !void {
-    core.profiling.begin(print);
-    defer core.profiling.stop();
+    const zone = tracy.Zone(@src());
+    defer zone.End();
 
-    try out.print("{s}\r\n", .{Stmt.Show.trimCwd(path)});
+    try out.print("{s}\r\n", .{path});
     for (value) |v| {
         // if (i != 0) try out.writeByte(',');
         try out.print(" =\t{f}\r\n", .{v});

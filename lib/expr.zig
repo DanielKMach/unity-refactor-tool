@@ -150,20 +150,17 @@ pub const Expr = union(enum) {
             .literal => {
                 const duped = try allocator.create(Expr);
                 duped.* = self;
-                duped.literal.token = try duped.literal.token.dupe(allocator);
                 return duped;
             },
             .unary => {
                 const duped = try allocator.create(Expr);
                 duped.* = self;
-                duped.unary.op = try duped.unary.op.dupe(allocator);
                 duped.unary.operand = try duped.unary.operand.dupe(allocator);
                 return duped;
             },
             .binary => {
                 const duped = try allocator.create(Expr);
                 duped.* = self;
-                duped.binary.op = try duped.binary.op.dupe(allocator);
                 duped.binary.left = try duped.binary.left.dupe(allocator);
                 duped.binary.right = try duped.binary.right.dupe(allocator);
                 return duped;
@@ -185,14 +182,12 @@ pub const Expr = union(enum) {
             .access => {
                 const duped = try allocator.create(Expr);
                 duped.* = self;
-                duped.access.property = try duped.access.property.dupe(allocator);
                 duped.access.base = try duped.access.base.dupe(allocator);
                 return duped;
             },
             .indexing => {
                 const duped = try allocator.create(Expr);
                 duped.* = self;
-                duped.indexing.bracket = try duped.indexing.bracket.dupe(allocator);
                 duped.indexing.base = try duped.indexing.base.dupe(allocator);
                 duped.indexing.index = try duped.indexing.index.dupe(allocator);
                 return duped;
@@ -200,19 +195,16 @@ pub const Expr = union(enum) {
             .property => {
                 const duped = try allocator.create(Expr);
                 duped.* = self;
-                duped.property.name = try duped.property.name.dupe(allocator);
                 return duped;
             },
             .variable => {
                 const duped = try allocator.create(Expr);
                 duped.* = self;
-                duped.variable.name = try duped.variable.name.dupe(allocator);
                 return duped;
             },
             .assignment => {
                 const duped = try allocator.create(Expr);
                 duped.* = self;
-                duped.assignment.op = try duped.assignment.op.dupe(allocator);
                 duped.assignment.target = try duped.assignment.target.dupe(allocator);
                 duped.assignment.value = try duped.assignment.value.dupe(allocator);
                 return duped;
@@ -220,7 +212,6 @@ pub const Expr = union(enum) {
             .call => |c| {
                 const duped = try allocator.create(Expr);
                 duped.* = self;
-                duped.call.paren = try duped.call.paren.dupe(allocator);
                 duped.call.callee = try duped.call.callee.dupe(allocator);
                 const duped_args = try allocator.alloc(*Expr, c.args.len);
                 for (c.args, 0..) |arg, i| {
@@ -232,8 +223,6 @@ pub const Expr = union(enum) {
             .block => |b| {
                 const duped = try allocator.create(Expr);
                 duped.* = self;
-                duped.block.lbrace = try duped.block.lbrace.dupe(allocator);
-                duped.block.rbrace = try duped.block.rbrace.dupe(allocator);
                 const duped_children = try allocator.alloc(*Expr, b.children.len);
                 for (b.children, 0..) |child, i| {
                     duped_children[i] = try child.dupe(allocator);
@@ -276,17 +265,15 @@ pub const Expr = union(enum) {
     /// Recursively frees any allocations made when parsing the expression.
     pub fn cleanup(self: *Expr, allocator: std.mem.Allocator) void {
         switch (self.*) {
-            .literal => |l| {
-                l.token.cleanup(allocator);
-            },
+            .property => {},
+            .variable => {},
+            .literal => {},
             .unary => |u| {
                 u.operand.cleanup(allocator);
-                u.op.cleanup(allocator);
             },
             .binary => |b| {
                 b.left.cleanup(allocator);
                 b.right.cleanup(allocator);
-                b.op.cleanup(allocator);
             },
             .ternary => |t| {
                 t.left.cleanup(allocator);
@@ -296,18 +283,13 @@ pub const Expr = union(enum) {
             .grouping => |g| g.expr.cleanup(allocator),
             .access => |a| {
                 a.base.cleanup(allocator);
-                a.property.cleanup(allocator);
             },
             .indexing => |i| {
                 i.base.cleanup(allocator);
                 i.index.cleanup(allocator);
-                i.bracket.cleanup(allocator);
             },
-            .property => |p| p.name.cleanup(allocator),
-            .variable => |v| v.name.cleanup(allocator),
             .assignment => |as| {
                 as.target.cleanup(allocator);
-                as.op.cleanup(allocator);
                 as.value.cleanup(allocator);
             },
             .call => |c| {
@@ -316,15 +298,12 @@ pub const Expr = union(enum) {
                     arg.cleanup(allocator);
                 }
                 allocator.free(c.args);
-                c.paren.cleanup(allocator);
             },
             .block => |b| {
                 for (b.children) |child| {
                     child.cleanup(allocator);
                 }
                 allocator.free(b.children);
-                b.lbrace.cleanup(allocator);
-                b.rbrace.cleanup(allocator);
             },
         }
         self.* = undefined;

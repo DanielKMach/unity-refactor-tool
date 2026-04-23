@@ -8,10 +8,10 @@ pub fn Diagnostics(comptime T: type, comptime e: anytype) type {
         pub const Problem = T;
         pub const Error = @TypeOf(e);
 
-        pub const dummy: This = .{
+        pub const none: *This = @constCast(&This{
             .allocator = failing,
             .errors = .empty,
-        };
+        });
 
         allocator: std.mem.Allocator,
         errors: std.ArrayList(T),

@@ -1,5 +1,6 @@
 const std = @import("std");
 const core = @import("core");
+const tracy = @import("tracy");
 
 const This = @This();
 const Stmt = core.Stmt;
@@ -10,45 +11,25 @@ const open_options = std.fs.Dir.OpenOptions{
     .access_sub_paths = true,
 };
 
-path: core.Token,
+path: ?core.Token,
 
-pub const default: This = .{
-    .path = .new(.{ .string = "." }, .{ .index = 0, .len = 1 }),
-};
+pub const default: This = .{ .path = null };
 
 pub fn parse(tokens: *TokenIterator, env: Stmt.ParseEnv) Stmt.ParseError!This {
-    core.profiling.begin(parse);
-    defer core.profiling.stop();
+    const zone = tracy.Zone(@src());
+    defer zone.End();
 
     if (!tokens.match(.IN)) return error.TokenMismatch;
 
-    const path = try (try tokens.grabAny(&.{ .string, .literal }, env.diag)).dupe(env.allocator);
-    errdefer path.cleanup(env.allocator);
+    const path = try tokens.grabAny(&.{ .string, .literal }, env.diag);
+
+    if (std.fs.path.isAbsolute(path.asSlice())) {
+        return env.err(.{ .absolute_path = .{ .token = path } });
+    }
 
     return .{ .path = path };
 }
 
-pub fn cleanup(self: This, allocator: std.mem.Allocator) void {
-    self.path.cleanup(allocator);
-}
-
-pub fn dir(self: This, env: Stmt.RunEnv) Stmt.RunError!std.fs.Dir {
-    return switch (self.path.value) {
-        .literal => |lit| openDir(lit, false, self.path, env),
-        .string => |str| openDir(str, true, self.path, env),
-        else => unreachable,
-    };
-}
-
-fn openDir(path: []const u8, possibly_abs: bool, token: core.Token, env: Stmt.RunEnv) Stmt.RunError!std.fs.Dir {
-    return if (possibly_abs and std.fs.path.isAbsolute(path))
-        std.fs.openDirAbsolute(path, open_options) catch |err| switch (err) {
-            error.FileNotFound => env.err(.{ .invalid_path = .{ .path = token.loc } }),
-            else => |e| e,
-        }
-    else
-        env.cwd.openDir(path, open_options) catch |err| switch (err) {
-            error.FileNotFound => env.err(.{ .invalid_path = .{ .path = token.loc } }),
-            else => |e| e,
-        };
+pub fn subpath(self: This) ?[]const u8 {
+    return if (self.path) |p| p.asSlice() else null;
 }

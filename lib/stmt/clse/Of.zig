@@ -1,5 +1,6 @@
 const std = @import("std");
 const core = @import("core");
+const tracy = @import("tracy");
 
 const This = @This();
 const Stmt = core.Stmt;
@@ -10,18 +11,13 @@ const GUID = core.runtime.GUID;
 targets: []AssetTarget,
 
 pub fn parse(tokens: *TokenIterator, env: Stmt.ParseEnv) Stmt.ParseError!This {
-    core.profiling.begin(parse);
-    defer core.profiling.stop();
+    const zone = tracy.Zone(@src());
+    defer zone.End();
 
     if (!tokens.match(.OF)) return error.TokenMismatch;
 
     var targets = std.ArrayList(AssetTarget).empty;
     defer targets.deinit(env.allocator);
-    errdefer for (targets.items) |target| switch (target) {
-        .guid => |guid| guid.cleanup(env.allocator),
-        .name => |name| name.cleanup(env.allocator),
-        .path => |path| path.cleanup(env.allocator),
-    };
 
     while (true) {
         const tkn = try tokens.grabAny(&.{ .GUID, .literal, .string }, env.diag);
@@ -29,25 +25,25 @@ pub fn parse(tokens: *TokenIterator, env: Stmt.ParseEnv) Stmt.ParseError!This {
             .GUID => {
                 const guid_tkn = try tokens.grab(.string, env.diag);
                 if (GUID.isGUID(guid_tkn.value.string)) {
-                    try targets.append(env.allocator, .{
-                        .guid = try guid_tkn.dupe(env.allocator),
-                    });
+                    try targets.append(env.allocator, .{ .guid = guid_tkn });
                 } else return env.err(.{ .invalid_guid = .{
                     .token = guid_tkn,
                 } });
             },
             .literal => |lit| {
                 if (isCSharpIdentifier(lit)) {
-                    try targets.append(env.allocator, .{
-                        .name = try tkn.dupe(env.allocator),
-                    });
+                    try targets.append(env.allocator, .{ .name = tkn });
                 } else return env.err(.{ .invalid_csharp_identifier = .{
                     .token = tkn,
                 } });
             },
-            .string => try targets.append(env.allocator, .{
-                .path = try tkn.dupe(env.allocator),
-            }),
+            .string => |str| {
+                if (!std.fs.path.isAbsolute(str)) {
+                    try targets.append(env.allocator, .{ .path = tkn });
+                } else return env.err(.{ .absolute_path = .{
+                    .token = tkn,
+                } });
+            },
             else => unreachable,
         }
 
@@ -58,33 +54,28 @@ pub fn parse(tokens: *TokenIterator, env: Stmt.ParseEnv) Stmt.ParseError!This {
 }
 
 pub fn cleanup(self: This, allocator: std.mem.Allocator) void {
-    for (self.targets) |target| switch (target) {
-        .guid => |guid| guid.cleanup(allocator),
-        .name => |name| name.cleanup(allocator),
-        .path => |path| path.cleanup(allocator),
-    };
     allocator.free(self.targets);
 }
 
 pub fn getGUID(self: This, filter: Filter, env: Stmt.RunEnv) Stmt.RunError![]GUID {
-    core.profiling.begin(getGUID);
-    defer core.profiling.stop();
+    const zone = tracy.Zone(@src());
+    defer zone.End();
 
     var guids = std.ArrayList(GUID).empty;
     defer guids.deinit(env.allocator);
 
     for (self.targets) |target| {
         try guids.append(env.allocator, switch (target) {
-            .guid => |guid| try GUID.fromText(guid.value.string),
+            .guid => |guid| try GUID.from(guid.value.string),
             .name => |name| blk: {
-                const path = try searchComponent(name.value.literal, env.cwd, env.allocator) orelse {
+                const path = try searchComponent(name.value.literal, env.proj, env.allocator) orelse {
                     return env.err(.{ .invalid_asset = .{ .path = name.loc } });
                 };
                 defer env.allocator.free(path);
 
                 std.debug.assert(validatePath(path, filter));
 
-                break :blk GUID.fromFile(path, env.allocator) catch |err| switch (err) {
+                break :blk GUID.fromAsset(path, env.allocator) catch |err| switch (err) {
                     error.InvalidMetaFile, error.FileNotFound => {
                         return env.err(.{ .invalid_asset = .{ .path = name.loc } });
                     },
@@ -92,7 +83,7 @@ pub fn getGUID(self: This, filter: Filter, env: Stmt.RunEnv) Stmt.RunError![]GUI
                 };
             },
             .path => |path| blk: {
-                const abs_path = env.cwd.realpathAlloc(env.allocator, path.value.string) catch |e| switch (e) {
+                const abs_path = env.proj.root.realpathAlloc(env.allocator, path.value.string) catch |e| switch (e) {
                     error.FileNotFound => {
                         return env.err(.{ .invalid_asset = .{ .path = path.loc } });
                     },
@@ -105,7 +96,7 @@ pub fn getGUID(self: This, filter: Filter, env: Stmt.RunEnv) Stmt.RunError![]GUI
                     .location = path.loc,
                 } });
 
-                break :blk GUID.fromFile(abs_path, env.allocator) catch |e| switch (e) {
+                break :blk GUID.fromAsset(abs_path, env.allocator) catch |e| switch (e) {
                     error.InvalidMetaFile, error.FileNotFound => {
                         return env.err(.{ .invalid_asset = .{ .path = path.loc } });
                     },
@@ -126,25 +117,19 @@ fn isCSharpIdentifier(str: []const u8) bool {
     return true;
 }
 
-/// Returns the absolute path of the component file.
-///
-/// The return value is owned by the caller.
-fn searchComponent(name: []const u8, dir: std.fs.Dir, allocator: std.mem.Allocator) !?[]u8 {
-    core.profiling.begin(searchComponent);
-    defer core.profiling.stop();
+fn searchComponent(name: []const u8, proj: core.Project, allocator: std.mem.Allocator) !?[]u8 {
+    const zone = tracy.Zone(@src());
+    defer zone.End();
 
-    var walker = try dir.walk(allocator);
-    defer walker.deinit();
+    const filename = try std.mem.concat(allocator, u8, &.{ name, ".cs.meta" });
+    defer allocator.free(filename);
 
-    const target_name = try std.mem.concat(allocator, u8, &.{ name, ".cs.meta" });
-    defer allocator.free(target_name);
+    return try proj.find(@ptrCast(&filename), &findComponent, allocator);
+}
 
-    while (try walker.next()) |e| {
-        if (std.mem.eql(u8, e.basename, target_name)) {
-            return try dir.realpathAlloc(allocator, e.path);
-        }
-    }
-    return null;
+fn findComponent(data: *const anyopaque, e: std.fs.Dir.Walker.Entry, _: std.mem.Allocator) core.Project.SearchError!bool {
+    const filename = @as(*const []const u8, @ptrCast(@alignCast(data))).*;
+    return std.mem.eql(u8, e.basename, filename);
 }
 
 fn validatePath(path: []const u8, filter: Filter) bool {
