@@ -320,4 +320,12 @@ pub const builtin = struct {
             .doc = ctx_obj.doc,
         } };
     }
+
+    pub fn assert(condition: Value.Derived, env: Expr.eval.Env) Error!Value {
+        if (!condition.val.isTruthy()) return env.err(.{ .assertion_error = .{
+            .desc = "The given value was false",
+            .location = condition.src.loc(),
+        } });
+        return condition.val;
+    }
 };
