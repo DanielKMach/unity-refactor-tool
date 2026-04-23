@@ -220,6 +220,10 @@ pub const RuntimeProblem = union(enum) {
         filter: Stmt.clse.Of.Filter,
         location: Token.Location,
     },
+    assertion_error: struct {
+        desc: []const u8,
+        location: Token.Location,
+    },
 
     pub fn loc(prob: RuntimeProblem) ?Token.Location {
         return switch (prob) {
@@ -243,6 +247,7 @@ pub const RuntimeProblem = union(enum) {
             .undefinable_target => |p| p.location,
             .update_during_readonly_eval => |p| p.location,
             .invalid_target_asset => |p| p.location,
+            .assertion_error => |p| p.location,
             .search_failed => null,
         };
     }
@@ -290,14 +295,12 @@ pub const RuntimeProblem = union(enum) {
             .undefinable_target => |p| w.print("Cannot define {t}. The ':=' operator can only be used with variables", .{p.target}),
             .search_failed => |p| w.print("Search for object with GUID '{f}' failed", .{p.guid}),
             .update_during_readonly_eval => w.writeAll("Cannot perform update during read-only evaluation"),
-            .invalid_target_asset => |err| {
-                const filter = switch (err.filter) {
-                    .any => "any asset",
-                    .prefabs_and_components => "prefab or component",
-                    .components_only => "component",
-                };
-                try w.print("Invalid target asset. Expected {s} type", .{filter});
-            },
+            .invalid_target_asset => |p| w.print("Invalid target asset. Expected {s} type", .{switch (p.filter) {
+                .any => "any asset",
+                .prefabs_and_components => "prefab or component",
+                .components_only => "component",
+            }}),
+            .assertion_error => |p| w.print("Assertion error: {s}", .{p.desc}),
         };
     }
 };
