@@ -321,6 +321,15 @@ pub const builtin = struct {
         } };
     }
 
+    pub fn fileId(ref: Value.Asset, _: Expr.eval.Env) Error!Value {
+        return .{ .number = @floatFromInt(ref.file_id) };
+    }
+
+    pub fn guid(ref: Value.Asset, env: Expr.eval.Env) Error!Value {
+        const id = ref.guid orelse env.context.guid orelse return .nil;
+        return .{ .string = try std.fmt.allocPrint(env.allocator, "{f}", .{id}) };
+    }
+
     pub fn assert(condition: Value.Derived, env: Expr.eval.Env) Error!Value {
         if (!condition.val.isTruthy()) return env.err(.{ .assertion_error = .{
             .desc = "The given value was false",
