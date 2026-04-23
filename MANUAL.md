@@ -665,6 +665,32 @@ $ctx().velocidade == velocidade,
 $ctx().vida == vida
 ```
 
+#### `$fileId(ref)`
+
+Retorna o FileID do valor referência dado, como um valor numérico.
+
+#### `$guid(ref)` 
+
+Retorna o GUID do valor referência dado, como uma string ou nulo, se for uma referência local.
+
+#### `$guidOf(caminho)`
+
+Busca e retorna o GUID do asset no caminho especificado, relativo à raiz do projeto.
+
+```usrl
+$guidOf("./Assets/Prefabs/Player.prefab") == "fc0744781169bd7458a2fa1beba80527"
+```
+
+#### `$assert(condicao)`
+
+Garante às expressões seguintes que a condição especificada é verdadeira.
+Caso contrário, para a execução da consulta e mostra um erro.
+
+```usrl
+$assert(rb);
+$assert(!rb.m_IsKinematic);
+```
+
 ### Blocos
 
 Blocos de expressão são a maneira de realizar múltiplas expressões sequencialmente. Um bloco pode conter zero ou mais expressões, separadas por ponto e vírgula. Seus limites são definidos por chaves (`{}`), onde para cada chave aberta, sempre deverá haver uma chave correspondente fechando.

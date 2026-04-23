@@ -320,4 +320,34 @@ pub const builtin = struct {
             .doc = ctx_obj.doc,
         } };
     }
+
+    pub fn fileId(ref: Value.Asset, _: Expr.eval.Env) Error!Value {
+        return .{ .number = @floatFromInt(ref.file_id) };
+    }
+
+    pub fn guid(ref: Value.Asset, env: Expr.eval.Env) Error!Value {
+        const id = ref.guid orelse env.context.guid orelse return .nil;
+        return .{ .string = try std.fmt.allocPrint(env.allocator, "{f}", .{id}) };
+    }
+
+    pub fn guidOf(path: Value.Derived, env: Expr.eval.Env) Error!Value {
+        try Value.validate(path, &.{.string}, env.diag);
+        const id = blk: {
+            var buf: [std.fs.max_path_bytes]u8 = undefined;
+            const abspath = env.assets.proj.root.realpath(path.val.string, &buf) catch |e| break :blk e;
+            break :blk core.runtime.GUID.fromAsset(abspath, env.allocator);
+        } catch return env.err(.{ .invalid_asset = .{
+            .path = path.src.loc(),
+        } });
+
+        return .{ .string = try std.fmt.allocPrint(env.allocator, "{f}", .{id}) };
+    }
+
+    pub fn assert(condition: Value.Derived, env: Expr.eval.Env) Error!Value {
+        if (!condition.val.isTruthy()) return env.err(.{ .assertion_error = .{
+            .desc = "The given value was false",
+            .location = condition.src.loc(),
+        } });
+        return condition.val;
+    }
 };
