@@ -353,7 +353,7 @@ pub fn openManual() !void {
 }
 
 /// Opens the given URL.
-pub fn openURL(comptime url: []const u8) void {
+pub fn openURL(comptime url: [:0]const u8) void {
     switch (builtin.os.tag) {
         .windows => {
             const windows = @cImport(@cInclude("windows.h"));
