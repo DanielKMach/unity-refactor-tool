@@ -48,26 +48,27 @@ pub fn next(self: *This) IterateError!?Entry {
     const zone = tracy.Zone(@src());
     defer zone.End();
 
-    var reader = &self.freader.interface;
-
     var target: usize = 0;
     if (self.last) |lst| {
         target = lst.info.pos + lst.info.len;
         self.freeLast();
     }
-    try self.freader.seekTo(target);
+    if (self.freader.logicalPos() != target) {
+        try self.freader.seekTo(target);
+    }
 
-    const info = findNextComponent(&self.freader) catch |err| switch (err) {
+    var out = std.Io.Writer.Allocating.init(self.allocator);
+    defer out.deinit();
+
+    const info = fetchNext(&self.freader, &out.writer) catch |err| switch (err) {
+        error.WriteFailed => return error.OutOfMemory,
         error.EndOfStream => return null,
-        else => return err,
+        else => |e| return e,
     };
+    std.debug.assert(info.len == out.written().len);
 
-    try self.freader.seekTo(info.pos);
-    const content = try reader.readAlloc(self.allocator, info.len);
-    std.debug.assert(content.len == info.len);
-
-    self.last = .{ .info = info, .content = content };
-    return .{ .info = info, .content = content };
+    self.last = .{ .info = info, .content = try out.toOwnedSlice() };
+    return self.last;
 }
 
 fn freeLast(self: *This) void {
@@ -77,54 +78,58 @@ fn freeLast(self: *This) void {
     }
 }
 
-fn findNextComponent(freader: *std.fs.File.Reader) !Info {
+/// Fetches the next object definition from `freader`.
+/// The yaml document is written to `out` while the object information is returned.
+///
+/// The seek position must be initially located at the start
+/// of an object header or yaml directive.
+fn fetchNext(freader: *std.fs.File.Reader, out: *std.Io.Writer) !Info {
     const zone = tracy.Zone(@src());
     defer zone.End();
 
     var reader = &freader.interface;
-    var line: []u8 = &.{};
+    const head = while (true) { // search for next obj header
+        const ln = try reader.takeDelimiterInclusive('\n');
+        if (ln.len == 0 or ln[0] == '%') continue; // skip %YAML %TAG and empty lines
+        if (std.mem.startsWith(u8, ln, "--- !u!")) break ln;
 
-    while (true) { // search for next obj instance header
-        var peek: std.Io.Reader.DelimiterError![]u8 = reader.peekDelimiterInclusive('\n');
-        while (peek == error.StreamTooLong) { // skip long lines
-            _ = try reader.discardDelimiterInclusive('\n');
-            peek = reader.peekDelimiterInclusive('\n');
-        }
-        const p = peek catch |e| return e;
-        if (p[0] != '%' and !std.mem.startsWith(u8, p, "--- ")) break;
-        line = try reader.takeDelimiterInclusive('\n');
-    }
+        log.err("Expected obj header, found \"{s}\"", .{ln});
+        return error.InvalidHeader;
+    };
 
-    const header = try parseHeader(line);
-    const index = freader.logicalPos();
-    while (true) { // read until next obj instance header
-        line = reader.takeDelimiterInclusive('\n') catch |err| switch (err) {
-            error.EndOfStream => return .{ // return rest if doesnt find next obj instance header
-                .pos = index,
-                .len = freader.logicalPos() - index,
-                .class_id = @enumFromInt(header[0]),
-                .file_id = header[1],
-                .stripped = header[2],
+    const pos = freader.logicalPos();
+    const cid, const fid, const strp = parseHeader(head) catch |err| {
+        log.err("Invalid parseHeader(\"{s}\") close to pos {d}", .{ head, pos });
+        return err;
+    };
+
+    while (true) { // read until next header or eof
+        const ln = reader.peekDelimiterInclusive('\n') catch |err| switch (err) {
+            error.EndOfStream => {
+                _ = try reader.streamRemaining(out);
+                break;
             },
             error.StreamTooLong => { // skip long lines
-                _ = try reader.discardDelimiterInclusive('\n');
+                _ = try reader.streamDelimiter(out, '\n');
+                try reader.streamExact(out, 1);
                 continue;
             },
-            else => return err,
+            else => |e| return e,
         };
-        if (std.mem.startsWith(u8, line, "--- ")) break; // break if header
+        if (std.mem.startsWith(u8, ln, "--- !u!")) break; // break if header
+        try reader.streamExact(out, ln.len);
     }
 
     return .{
-        .pos = index,
-        .len = freader.logicalPos() - line.len - index,
-        .class_id = @enumFromInt(header[0]),
-        .file_id = header[1],
-        .stripped = header[2],
+        .pos = pos,
+        .len = freader.logicalPos() - pos,
+        .class_id = @enumFromInt(cid),
+        .file_id = fid,
+        .stripped = strp,
     };
 }
 
-fn parseHeader(line: []const u8) !struct { u32, core.runtime.FileID, bool } {
+fn parseHeader(line: []const u8) ParseHeaderError!struct { u32, core.runtime.FileID, bool } {
     var rdr: std.Io.Reader = .fixed(std.mem.trimRight(u8, line, "\r\n"));
 
     var buf: []u8 = rdr.take(7) catch return error.InvalidHeader;
