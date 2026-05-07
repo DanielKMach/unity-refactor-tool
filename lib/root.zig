@@ -113,8 +113,8 @@ pub const ParseProblem = union(enum) {
                 if (p.expected.len > 0) try w.writeAll(", expected ");
                 for (p.expected, 0..) |e, i| {
                     try w.print("{f}", .{e});
-                    if (i < p.expected.len - 2) try w.writeAll(", ");
-                    if (i == p.expected.len - 2) try w.writeAll(" or ");
+                    if (i + 2 < p.expected.len) try w.writeAll(", ");
+                    if (i + 2 == p.expected.len) try w.writeAll(" or ");
                 }
             },
             .invalid_csharp_identifier => |p| w.print("Invalid C# identifier '{s}'", .{p.token.asSlice()}),
@@ -263,8 +263,8 @@ pub const RuntimeProblem = union(enum) {
                 if (p.expected.len > 0) try w.writeAll(", expected ");
                 for (p.expected, 0..) |e, i| {
                     try w.print("{t}", .{e});
-                    if (i < p.expected.len - 2) try w.writeAll(", ");
-                    if (i == p.expected.len - 2) try w.writeAll(" or ");
+                    if (i + 2 < p.expected.len) try w.writeAll(", ");
+                    if (i + 2 == p.expected.len) try w.writeAll(" or ");
                 }
             },
             .invalid_argument_count => |p| {
