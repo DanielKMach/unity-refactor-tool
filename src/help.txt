@@ -7,7 +7,7 @@ Usage:
 
 Options:
     --file <files...>  Specify one or more files to execute
-    --output <file>    Specify the file to output to
+    --out <file>       Specify the file to output to
     --check            Validates the code without running
     --                 Executes script through the stdin
     <queries...>       Run the specified queries
@@ -17,7 +17,7 @@ Examples:
     usrl "RENAME _spd FOR _speed OF Player" "EVAL _speed OF Player"
     usrl --file ./script.usrl ./script2.usrl
     usrl "SHOW uses OF Player" -f ./script.usrl
-    usrl "SHOW uses OF Player" --output ./log.txt
+    usrl "SHOW uses OF Player" --out ./log.txt
     usrl help
     usrl manual
     usrl interactive
