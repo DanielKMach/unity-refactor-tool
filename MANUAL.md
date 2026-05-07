@@ -22,17 +22,11 @@ EVAL velocidade *= 2 OF PlayerController;
 
 ### Avisos e recomendações
 
-Este software é o maior e mais complexo projeto que eu, o criador da USRL, já desenvolvi. Portanto, há a possibilidade de que a ferramenta não funcione como o esperado em algumas ocasiões. É fortemente recomendado que, ao utilizar a USRL em seus projetos Unity, seja possível reverter qualquer alteração feita pela linguagem caso o resultado da operação não seja o desejado. Caso encontre algum bug, por favor, reporte o erro na [página de issues do repositório da USRL](https://github.com/DanielKMach/USRL/issues).
+A USRL é um projeto atualmente desenvolvido por apenas uma pessoa, portanto há a possibilidade de que a ferramenta não funcione conforme o esperado em algumas ocasiões. É fortemente recomendado que, ao utilizar a USRL em seus projetos Unity, seja possível reverter qualquer alteração feita pela linguagem caso o resultado da operação não seja o desejado. Caso encontre algum bug, por favor, reporte o erro na [página de issues do repositório da USRL](https://github.com/DanielKMach/USRL/issues).
 
-## Interface de Linha de Comando
+## Instalação
 
-A interface de linha de comando (CLI) da USRL é o principal meio de interação com o sistema de interpretação da linguagem. Ela permite executar consultas USRL, acessar o manual da linguagem e tem a capacidade de exibir de mensagens informativas em caso de erro.
-
-### Instalação
-
-Para obter a CLI da linguagem, basta baixar o executável na [página de lançamentos do repositório da USRL](https://github.com/DanielKMach/USRL/releases) e adicioná-lo ao PATH ou executá-lo diretamente da pasta de download. A CLI está disponível para os sistemas operacionais Windows, Linux e macOS.
-
-Ao executar a CLI sem argumentos, é possível ver um overview de todas as funcionalidades disponíveis no executável.
+Para obter o interpretador da linguagem, basta baixar o executável na [página de lançamentos do repositório da USRL](https://github.com/DanielKMach/USRL/releases), disponível para os sistemas operacionais Windows, Linux e macOS. Após isso, execute o arquivo por meio de um terminal para ver uma visão geral de todas as funcionalidades disponíveis no executável.
 
 ```bash
 $ usrl
@@ -40,11 +34,13 @@ Usage:
     usrl help          Print this message
     usrl manual        Open the language manual
     usrl interactive   Start interactive mode
+    usrl version       Print version
     usrl <args...>     Execute queries (see list below)
 
 Options:
     --file <files...>  Specify one or more files to execute
-    --output <file>    Specify the file to output to
+    --out <file>       Specify the file to output to
+    --check            Validates the code without running
     --                 Executes script through the stdin
     <queries...>       Run the specified queries
 
@@ -52,11 +48,21 @@ Examples:
     usrl "SHOW uses OF Player"
     usrl "RENAME _spd FOR _speed OF Player" "EVAL _speed OF Player"
     usrl --file ./script.usrl ./script2.usrl
-    usrl "SHOW uses OF Player" --output ./log.txt
+    usrl "SHOW uses OF Player" -f ./script.usrl
+    usrl "SHOW uses OF Player" --out ./log.txt
     usrl help
     usrl manual
     usrl interactive
 ```
+
+É recomendado renomear o executável para apenas `usrl` e adicionar o seu caminho ao PATH do seu sistema operacional para facilitar o acesso à linguagem e aos seus recursos.
+### Visual Studio Code
+
+A USRL também tem uma [extensão oficial para o Visual Studio Code](https://marketplace.visualstudio.com/items?itemName=danielkmach.usrl) para facilitar o aprendizado da linguagem e agilizar o trabalho de desenvolvedores que desejam utilizar a USRL em seus projetos.
+
+## Interface de Linha de Comando
+
+A interface de linha de comando (CLI) da USRL é o principal meio de interação com o sistema de interpretação da linguagem. Ela permite executar consultas USRL, acessar o manual da linguagem e tem a capacidade de exibir mensagens informativas em caso de erro.
 
 ### Realizando consultas
 
@@ -81,15 +87,15 @@ $ cat script.usrl | usrl --
 
 ### Opções adicionais
 
-Por padrão, os resultados das consultas realizadas são exibidos no terminal. Utilizando a opção `--output` (ou `-o`), é possível especificar um arquivo de saída para os resultados das consultas.
+Por padrão, os resultados das consultas realizadas são exibidos no terminal. Utilizando a opção `--out` (ou `-o`), é possível especificar um arquivo de saída para os resultados das consultas.
 
 ```bash
-$ usrl "SHOW USES OF Player" --output referencias_player.txt
+$ usrl "SHOW USES OF Player" --out referencias_player.txt
 ```
 
 ### Modo interativo
 
-A CLI tem um modo REPL (Read, Eval, Print, Loop) chamado de *modo interativo*. Para acessá-lo, basta inserir o comando `usrl interactive` ou um dos seus aliases (`usrl i`, `usrl int`) no terminal de sua preferência.
+A CLI tem um modo REPL (Read, Eval, Print, Loop) chamado de *modo interativo*. Para acessá-lo, basta inserir o comando `usrl interactive` ou um dos seus aliases (`usrl i`, `usrl it`) no terminal de sua preferência.
 
 Neste modo cada consulta inserida é executada imediatamente. Ao terminar o processamento de uma consulta, outra poderá ser inserida, de forma contínua sem interrupções.
 
@@ -106,10 +112,6 @@ Assets/Prefabs/Enemy1.prefab
 Assets/Prefabs/Enemy2.prefab
 Assets/Scenes/Game.unity
 ```
-
-### Acesso ao manual
-
-A CLI vem com o manual da linguagem inserido dentro de seu executável. Para acessá-lo, basta executar o comando `usrl manual` no seu terminal de preferência. Isso criará um novo arquivo no diretório de trabalho atual chamado `manual.html` que, quando aberto em um navegador, servirá como manual da linguagem.
 
 ## Statements
 

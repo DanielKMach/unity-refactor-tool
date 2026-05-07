@@ -8,6 +8,7 @@ import rcssmin
 import bs4
 import os
 import time
+import argparse
 
 __all__ = ['USRLLexer']
 
@@ -54,11 +55,9 @@ def build(md: markdown.Markdown, md_file: str, template_file: str, output_file: 
 pygments.lexers._lexer_cache['USRLLexer'] = USRLLexer
 pygments.lexers.LEXERS['USRLLexer'] = ('__main__', 'USRLLexer', ('usrl',), ('*.usrl',), ('text/x-usrl',))
 
-manual_edit_time = 0
-template_edit_time = 0
 md_file = 'MANUAL.md'
+output_file = 'MANUAL.html'
 template_file = 'manual/template.html'
-output_file = 'src/manual.html'
 
 md = markdown.Markdown(
     extensions=[
@@ -74,13 +73,32 @@ md = markdown.Markdown(
     ],
 )
 
-while True:
-    if os.stat(md_file).st_mtime == manual_edit_time and os.stat(template_file).st_mtime == template_edit_time:
-        time.sleep(0.5)
-        continue
+def main():
+    parser = argparse.ArgumentParser(description='Build the USRL manual HTML output.')
+    parser.add_argument('--watch', action='store_true', help='Watch files and rebuild when they change.')
+    args = parser.parse_args()
 
-    print("Changes detected, rebuilding manual...", end=' ', flush=True)
-    manual_edit_time = os.stat(md_file).st_mtime
-    template_edit_time = os.stat(template_file).st_mtime
-    build(md, md_file, template_file, output_file)
-    print("DONE")
+    if not args.watch:
+        build(md, md_file, template_file, output_file)
+        print("Manual rebuilt.")
+        return
+
+    manual_edit_time = 0
+    template_edit_time = 0
+
+    while True:
+        current_manual_time = os.stat(md_file).st_mtime
+        current_template_time = os.stat(template_file).st_mtime
+        if current_manual_time == manual_edit_time and current_template_time == template_edit_time:
+            time.sleep(0.5)
+            continue
+
+        print("Changes detected, rebuilding manual...", end=' ', flush=True)
+        manual_edit_time = current_manual_time
+        template_edit_time = current_template_time
+        build(md, md_file, template_file, output_file)
+        print("DONE")
+
+
+if __name__ == '__main__':
+    main()

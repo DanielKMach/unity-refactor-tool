@@ -349,19 +349,11 @@ pub fn printHelp(out: *std.Io.Writer) std.Io.Writer.Error!void {
 
 /// Opens the language manual
 pub fn openManual() !void {
-    const cwd = std.fs.cwd();
-    const manual_file = try cwd.createFile("manual.html", .{});
-    try manual_file.writeAll(@embedFile("manual.html"));
-
-    var buf: [256]u8 = undefined;
-    const path = try cwd.realpath("manual.html", &buf);
-    buf[path.len] = 0;
-
-    openURL(@ptrCast(path));
+    openURL("https://danielkmach.github.io/USRL");
 }
 
 /// Opens the given URL.
-pub fn openURL(url: [:0]const u8) void {
+pub fn openURL(comptime url: [:0]const u8) void {
     switch (builtin.os.tag) {
         .windows => {
             const windows = @cImport(@cInclude("windows.h"));
@@ -369,12 +361,7 @@ pub fn openURL(url: [:0]const u8) void {
         },
         else => {
             const stdlib = @cImport(@cInclude("stdlib.h"));
-            var buf: [256]u8 = undefined;
-            @memcpy(buf[0..5], "open ");
-            @memcpy(buf[5 .. url.len + 5], url);
-            buf[url.len + 5] = 0;
-            _ = stdlib.system(&buf);
-            return;
+            _ = stdlib.system("open " ++ url);
         },
     }
 }
