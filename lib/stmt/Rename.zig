@@ -16,7 +16,6 @@ const yaml = core.yaml;
 old_name: Token,
 new_name: Token,
 of: clse.Of,
-in: ?clse.In,
 
 pub fn parse(tokens: *TokenIterator, env: Stmt.ParseEnv) Stmt.ParseError!This {
     const zone = tracy.Zone(@src());
@@ -32,7 +31,6 @@ pub fn parse(tokens: *TokenIterator, env: Stmt.ParseEnv) Stmt.ParseError!This {
 
     const Clauses = struct {
         OF: clse.Of,
-        IN: ?clse.In = null,
     };
     const clauses = try clse.parse(Clauses, tokens, env);
 
@@ -40,7 +38,6 @@ pub fn parse(tokens: *TokenIterator, env: Stmt.ParseEnv) Stmt.ParseError!This {
         .old_name = old_name,
         .new_name = new_name,
         .of = clauses.OF,
-        .in = clauses.IN,
     };
 }
 
@@ -58,7 +55,7 @@ pub fn run(self: This, env: Stmt.RunEnv) Stmt.RunError!void {
     const show = core.Stmt.Show{
         .mode = .indirect_uses,
         .of = self.of,
-        .in = self.in,
+        .in = clse.In.default,
         .where = null,
     };
 
